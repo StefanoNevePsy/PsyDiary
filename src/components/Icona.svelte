@@ -1,0 +1,29 @@
+<script>
+  // Icone a tratto, stesso spessore della matita dell'interfaccia.
+  let { nome, titolo = '' } = $props();
+  const P = {
+    cerca: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM20 20l-4.8-4.8',
+    piu: 'M12 5v14M5 12h14',
+    calendario: 'M4 6.5h16v13H4zM4 10.5h16M8.5 4v4M15.5 4v4',
+    persone: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5M16 10.5a3 3 0 1 0-1.2-5.7M17.5 14.6c2.2.5 3.6 2.4 4 5.4',
+    gruppo: 'M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 10a2.3 2.3 0 1 0 0-4.6A2.3 2.3 0 0 0 5 10zM19 10a2.3 2.3 0 1 0 0-4.6A2.3 2.3 0 0 0 19 10zM6.5 19.5c.5-3 2.7-5 5.5-5s5 2 5.5 5M1.8 16.8c.3-2 1.5-3.4 3.3-3.8M22.2 16.8c-.3-2-1.5-3.4-3.3-3.8',
+    diario: 'M6 3.5h11.5a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1.5 1.5 0 0 1-1.5-1.5v-14A1.5 1.5 0 0 1 6 3.5zM8.5 3.5v17M11.5 8h4.5M11.5 11.5h4.5',
+    sospesi: 'M5 6h14M5 12h9M5 18h6M18 15.5l2.5 2.5-2.5 2.5',
+    tema: 'M12 3.5a8.5 8.5 0 1 0 8.4 9.9A6.5 6.5 0 0 1 12 3.5z',
+    ingranaggio: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 13.5l1.6 1-1.8 3.2-1.8-.6a7.6 7.6 0 0 1-1.7 1l-.3 1.9h-3.6l-.3-1.9a7.6 7.6 0 0 1-1.7-1l-1.8.6-1.8-3.2 1.6-1a7.9 7.9 0 0 1 0-2l-1.6-1 1.8-3.2 1.8.6a7.6 7.6 0 0 1 1.7-1l.3-1.9h3.6l.3 1.9a7.6 7.6 0 0 1 1.7 1l1.8-.6 1.8 3.2-1.6 1a7.9 7.9 0 0 1 0 2z',
+    sinistra: 'M14.5 6l-6 6 6 6',
+    destra: 'M9.5 6l6 6-6 6',
+    chiudi: 'M6 6l12 12M18 6L6 18',
+    esporta: 'M12 15V4M7.5 8.5L12 4l4.5 4.5M5 14v5.5h14V14',
+    stampa: 'M7 9V3.5h10V9M7 17H4.5V9.5h15V17H17M7 14h10v6.5H7z',
+    matita: 'M4 20l1-4.5L15.5 5a2.1 2.1 0 0 1 3 3L8 18.5 4 20zM13.5 7l3 3',
+    freccia: 'M5 12h14M13 6l6 6-6 6',
+    filtro: 'M4 5h16l-6 7.5V19l-4-2v-4.5z',
+    cestino: 'M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13',
+    torna: 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
+    orologio: 'M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17zM12 7.5V12l3 2',
+    lucchetto: 'M6.5 11h11v9h-11zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+  };
+</script>
+
+<svg class="ico" viewBox="0 0 24 24" aria-hidden={titolo ? undefined : 'true'} role={titolo ? 'img' : undefined} aria-label={titolo || undefined}><path d={P[nome] || ''} /></svg>

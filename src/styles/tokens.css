@@ -1,0 +1,94 @@
+/*
+ * PsyDiary · token di design
+ * Direzione "Taccuino" con la palette "Registro": carta calda, inchiostro
+ * blu-nero, un solo inchiostro spot (vermiglio da matita rossa).
+ * Tema chiaro "carta" e scuro "inchiostro", automatici o scelti a mano.
+ */
+:root {
+  /* tipografia */
+  --f-display: 'Gloock', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --f-testo: 'Archivo Variable', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --f-mano: 'La Belle Aurore', 'Bradley Hand', cursive;
+
+  --t-xs: 0.75rem;    /* 12 etichette */
+  --t-sm: 0.8125rem;  /* 13 metadati */
+  --t-ui: 0.9375rem;  /* 15 interfaccia */
+  --t-nota: 1rem;     /* 16 testo delle note */
+  --t-md: 1.25rem;    /* 20 */
+  --t-lg: 1.625rem;   /* 26 */
+  --t-xl: 2.25rem;    /* 36 titoli di pagina */
+  --t-xxl: 3.5rem;    /* 56 date grandi */
+
+  /* spazi (ritmo a base 4) */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+
+  --r: 2px;
+  --barra: 60px;
+  --misura: 68ch;
+
+  /* movimento */
+  --e-uscita: cubic-bezier(0.22, 1, 0.36, 1);
+  --d-breve: 160ms;
+  --d-media: 240ms;
+
+  /* ---- tema carta (chiaro) ---- */
+  --carta: oklch(0.958 0.015 82);
+  --carta-2: oklch(0.936 0.02 80);        /* fogli, pannelli */
+  --carta-3: oklch(0.905 0.024 78);       /* incavi, hover */
+  --inchiostro: oklch(0.25 0.032 265);
+  --inchiostro-2: oklch(0.45 0.024 265);  /* testo secondario (AA su carta e carta-2) */
+  --inchiostro-3: oklch(0.58 0.018 265);  /* segnaposto, decorazioni */
+  --matita: oklch(0.52 0.014 265 / 0.42); /* linee a matita */
+  --matita-forte: oklch(0.45 0.016 265 / 0.7);
+  --spot: oklch(0.575 0.165 33);          /* vermiglio: oggi, promemoria, focus */
+  --spot-testo: oklch(0.52 0.16 33);      /* vermiglio leggibile come testo piccolo */
+  --spot-tenue: oklch(0.575 0.165 33 / 0.12);
+  --spot-retino: oklch(0.575 0.165 33 / 0.5);
+  --su-inchiostro: var(--carta);          /* testo su blocchi pieni */
+  --ombra: 0 1px 0 var(--matita), 0 22px 44px -30px oklch(0.25 0.04 265 / 0.55);
+  --grana-fondo: multiply;
+  --grana-opacita: 0.42;
+  color-scheme: light;
+}
+
+/* ---- tema inchiostro (scuro) ---- */
+:root[data-tema='scuro'] {
+  --carta: oklch(0.19 0.016 265);
+  --carta-2: oklch(0.225 0.018 265);
+  --carta-3: oklch(0.265 0.02 265);
+  --inchiostro: oklch(0.93 0.016 82);
+  --inchiostro-2: oklch(0.76 0.018 82);
+  --inchiostro-3: oklch(0.6 0.016 82);
+  --matita: oklch(0.9 0.02 82 / 0.2);
+  --matita-forte: oklch(0.9 0.02 82 / 0.42);
+  --spot: oklch(0.71 0.15 38);
+  --spot-testo: oklch(0.74 0.14 40);
+  --spot-tenue: oklch(0.71 0.15 38 / 0.16);
+  --spot-retino: oklch(0.71 0.15 38 / 0.45);
+  --su-inchiostro: oklch(0.19 0.016 265);
+  --ombra: 0 1px 0 var(--matita), 0 24px 48px -28px oklch(0 0 0 / 0.7);
+  --grana-fondo: screen;
+  --grana-opacita: 0.22;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='chiaro']) {
+    --carta: oklch(0.19 0.016 265);
+    --carta-2: oklch(0.225 0.018 265);
+    --carta-3: oklch(0.265 0.02 265);
+    --inchiostro: oklch(0.93 0.016 82);
+    --inchiostro-2: oklch(0.76 0.018 82);
+    --inchiostro-3: oklch(0.6 0.016 82);
+    --matita: oklch(0.9 0.02 82 / 0.2);
+    --matita-forte: oklch(0.9 0.02 82 / 0.42);
+    --spot: oklch(0.71 0.15 38);
+    --spot-testo: oklch(0.74 0.14 40);
+    --spot-tenue: oklch(0.71 0.15 38 / 0.16);
+    --spot-retino: oklch(0.71 0.15 38 / 0.45);
+    --su-inchiostro: oklch(0.19 0.016 265);
+    --ombra: 0 1px 0 var(--matita), 0 24px 48px -28px oklch(0 0 0 / 0.7);
+    --grana-fondo: screen;
+    --grana-opacita: 0.22;
+    color-scheme: dark;
+  }
+}
