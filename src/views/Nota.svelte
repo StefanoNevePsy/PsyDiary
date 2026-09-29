@@ -1,6 +1,6 @@
 <script>
   // Una nota libera: su un ragazzo, su un gruppo o sull'aula.
-  import { dati, salva, elimina, ragazzo, gruppo, nomeCompleto, puoModificare, io, CATEGORIE_NOTA, visibileNota } from '../lib/dati.svelte.js';
+  import { dati, salva, elimina, ragazzo, gruppo, nomeCompleto, puoModificare, io, CATEGORIE_NOTA, visibileNota, condiviso } from '../lib/dati.svelte.js';
   import { vai } from '../lib/rotta.svelte.js';
   import { lunga } from '../lib/date.js';
   import Editor from '../components/Editor.svelte';
@@ -14,6 +14,8 @@
 
   const r = $derived(n?.ragazzoId ? ragazzo(n.ragazzoId) : null);
   const g = $derived(n?.gruppoId ? gruppo(n.gruppoId) : null);
+  // chi non ha il ragazzo condiviso non può spostare la nota fuori dal gruppo
+  const soloGruppo = $derived(!!n?.ragazzoId && !condiviso(n.ragazzoId));
   const modificabile = $derived(n ? puoModificare(n.autore, n.testo) : false);
 
   function modifica(campi) {
@@ -46,7 +48,7 @@
         <div class="meta">
           <label class="data"><span class="eti">Data</span><input class="input" type="date" value={n.data} onchange={(e) => modifica({ data: e.currentTarget.value })} /></label>
           <div class="categorie" role="group" aria-label="Che nota è">
-            {#each Object.entries(CATEGORIE_NOTA) as [k, c] (k)}<button type="button" class="cat" aria-pressed={n.categoria === k} onclick={() => modifica({ categoria: n.categoria === k ? '' : k })}>{c}</button>{/each}
+            {#each Object.entries(CATEGORIE_NOTA) as [k, c] (k)}<button type="button" class="cat" aria-pressed={n.categoria === k} disabled={soloGruppo && k !== 'gruppo'} onclick={() => modifica({ categoria: n.categoria === k ? '' : k })}>{c}</button>{/each}
           </div>
         </div>
       {:else}
@@ -77,6 +79,7 @@
   .meta { display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-5); align-items: center; }
   .categorie { display: flex; flex-wrap: wrap; gap: 6px; }
   .cat { min-height: 30px; padding: 2px 12px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
+  .cat:disabled { opacity: 0.35; cursor: not-allowed; }
   .cat[aria-pressed='true'] { background: var(--inchiostro); color: var(--su-inchiostro); border-color: var(--inchiostro); }
   .data { display: flex; align-items: baseline; gap: var(--s-2); }
   .data .input { width: auto; }

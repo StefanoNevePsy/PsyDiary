@@ -2,7 +2,7 @@
   // "Scrivi": il punto unico da cui si comincia una nota o una seduta.
   import { onMount, untrack } from 'svelte';
   import {
-    dati, gruppo, ragazzo, nomeCompleto, ragazziCondivisi, salva, nuovoId, io, sedutePeriodo, soggetto, titoloSeduta, statoSeduta, TIPI, CATEGORIE_NOTA,
+    dati, gruppo, ragazzo, nomeCompleto, ragazziCondivisi, ragazziAttivi, condiviso, salva, nuovoId, io, sedutePeriodo, soggetto, titoloSeduta, statoSeduta, TIPI, CATEGORIE_NOTA,
   } from '../lib/dati.svelte.js';
   import { vai } from '../lib/rotta.svelte.js';
   import { oggi, lunga, giornoSettimana, relativa } from '../lib/date.js';
@@ -25,7 +25,11 @@
 
   const gruppiAttivi = $derived(dati.gruppi.filter((g) => !g.archiviato));
   const ragazzi = $derived(ragazziCondivisi());
+  const tuttiRagazzi = $derived(ragazziAttivi());
   let categoria = $state('osservazione');
+  // su un ragazzo non condiviso si può scrivere solo una nota "nel gruppo"
+  const soloGruppo = $derived(su.startsWith('r:') && !condiviso(su.slice(2)));
+  $effect(() => { if (soloGruppo) categoria = 'gruppo'; });
   // sedute del giorno (da scrivere per prime)
   const delGiorno = $derived(sedutePeriodo(data, data));
   const recenti = $derived(sedutePeriodo(data === O ? data : O, O).filter((s) => statoSeduta(s) !== 'scritta'));
@@ -129,10 +133,11 @@
             <select class="input" bind:value={su}>
               <option value="aula">L'aula in generale</option>
               <optgroup label="Gruppi">{#each gruppiAttivi as g (g.id)}<option value={'g:' + g.id}>{g.nome}</option>{/each}</optgroup>
-              <optgroup label="Ragazzi">{#each ragazzi as r (r.id)}<option value={'r:' + r.id}>{nomeCompleto(r)}</option>{/each}</optgroup>
+              <optgroup label="Ragazzi">{#each tuttiRagazzi as r (r.id)}<option value={'r:' + r.id}>{nomeCompleto(r)}</option>{/each}</optgroup>
             </select></label>
           <div class="campo"><span>Che nota è</span>
-            <div class="categorie">{#each Object.entries(CATEGORIE_NOTA) as [k, n] (k)}<button type="button" class="cat" aria-pressed={categoria === k} onclick={() => (categoria = k)}>{n}</button>{/each}</div>
+            <div class="categorie">{#each Object.entries(CATEGORIE_NOTA) as [k, n] (k)}<button type="button" class="cat" aria-pressed={categoria === k} disabled={soloGruppo && k !== 'gruppo'} onclick={() => (categoria = k)}>{n}</button>{/each}</div>
+            {#if soloGruppo}<p class="sotto piccolo">Non hai accesso completo a questo ragazzo: puoi scrivere solo note su come sta nel gruppo.</p>{/if}
           </div>
           <label class="campo"><span>Titolo (facoltativo)</span><input class="input" bind:value={titolo} placeholder="es. Telefonata con la scuola" /></label>
         {/if}
@@ -172,6 +177,7 @@
   .campi { display: grid; gap: var(--s-4); }
   .categorie { display: flex; flex-wrap: wrap; gap: 6px; }
   .cat { min-height: 32px; padding: 2px 12px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
+  .cat:disabled { opacity: 0.35; cursor: not-allowed; }
   .cat[aria-pressed='true'] { background: var(--inchiostro); color: var(--su-inchiostro); border-color: var(--inchiostro); }
   .riga { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); }
   footer { display: flex; justify-content: space-between; gap: var(--s-3); }

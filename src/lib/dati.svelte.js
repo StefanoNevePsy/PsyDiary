@@ -39,7 +39,8 @@ export function puoModificare(autore, testo) {
 export const condiviso = (rid) => eAdmin() || (io().ragazzi || []).includes(rid);
 export const TIPI_PERSONALI = ['individuale', 'genitori', 'conoscenza'];
 export const visibileSeduta = (s) => !s || s.tipo === 'gruppo' || condiviso(s.ragazzoId);
-export const visibileNota = (n) => !n.ragazzoId || condiviso(n.ragazzoId);
+// le note "nel gruppo" su un ragazzo si vedono (e si scrivono) anche senza condivisione
+export const visibileNota = (n) => !n.ragazzoId || n.categoria === 'gruppo' || condiviso(n.ragazzoId);
 
 // ---------------------------------------------------------------------------
 export function nuovoId(p) {
@@ -129,7 +130,7 @@ export const TIPI = {
   genitori: { nome: 'Incontro con i genitori', breve: 'Genitori' },
   conoscenza: { nome: 'Colloquio di conoscenza', breve: 'Conoscenza' },
 };
-export const CATEGORIE_NOTA = { osservazione: 'Osservazione', scuola: 'Scuola', famiglia: 'Famiglia', servizi: 'Servizi', telefonata: 'Telefonata', altro: 'Altro' };
+export const CATEGORIE_NOTA = { gruppo: 'Nel gruppo', osservazione: 'Osservazione', scuola: 'Scuola', famiglia: 'Famiglia', servizi: 'Servizi', telefonata: 'Telefonata', altro: 'Altro' };
 const idVirtuale = (tipo, sogg, data) => `v:${tipo}:${sogg}:${data}`;
 export const soggetto = (s) => (s.tipo === 'gruppo' ? 'g:' + s.gruppoId : s.tipo + ':' + s.ragazzoId);
 

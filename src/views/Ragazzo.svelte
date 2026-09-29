@@ -130,13 +130,16 @@
     </header>
 
     {#if !tutto}
-      <p class="limitato"><Icona nome="lucchetto" /> {r.nome} non è condiviso con te: vedi solo quello che succede nei gruppi. Per il resto chiedi a un operatore.</p>
+      <div class="limitato">
+        <p><Icona nome="lucchetto" /> Di {r.nome} vedi le sedute di gruppo e le note su come sta nel gruppo: individuali, genitori, conoscenza, altre note e anagrafica non sono condivisi con te.</p>
+        <button class="btn pieno piccolo" onclick={() => apriCrea({ tipo: 'nota', ragazzoId: id })}><Icona nome="matita" /> Nota nel gruppo su {r.nome}</button>
+      </div>
     {/if}
 
     <div class="corpo" class:pieno={!tutto}>
       <div class="principale">
         {#if scheda === 'diario' || !tutto}
-          <DiarioElenco {voci} bind:filtro tipi={tutto ? undefined : ['gruppo']} titolo={'Diario di ' + nomeCompleto(r)} nomeFile={'Diario ' + nomeCompleto(r)} />
+          <DiarioElenco {voci} bind:filtro tipi={tutto ? undefined : ['gruppo', 'nota']} titolo={'Diario di ' + nomeCompleto(r)} nomeFile={'Diario ' + nomeCompleto(r)} />
         {:else if scheda === 'anagrafica'}
           <form class="anagrafica" onsubmit={(e) => e.preventDefault()}>
             {#if !gestisce}<p class="avviso sotto"><Icona nome="lucchetto" /> L'anagrafica la modificano gli operatori; tu puoi leggerla.</p>{/if}
@@ -273,7 +276,8 @@
   .schede button[aria-selected='true'] { color: var(--inchiostro); }
   .schede button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1.5px; height: 3px; border-radius: 3px; background: var(--spot); }
   .schede small { font-weight: 500; color: var(--inchiostro-3); }
-  .limitato { display: flex; gap: var(--s-2); align-items: center; padding: var(--s-3) var(--s-4); margin-bottom: var(--s-5); border: 1px dashed var(--matita-forte); border-radius: var(--r-grande); color: var(--inchiostro-2); }
+  .limitato p { display: flex; gap: var(--s-2); align-items: center; }
+  .limitato { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s-3); align-items: center; padding: var(--s-3) var(--s-4); margin-bottom: var(--s-5); border: 1px dashed var(--matita-forte); border-radius: var(--r-grande); color: var(--inchiostro-2); }
   .corpo { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--s-7); align-items: start; }
   .corpo.pieno { grid-template-columns: minmax(0, 860px); }
   .lato { display: grid; gap: var(--s-5); position: sticky; top: calc(var(--barra) + var(--s-4)); }
