@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   // Una nota libera: su un ragazzo, su un gruppo o sull'aula.
   import { dati, salva, elimina, ragazzo, gruppo, nomeCompleto, puoModificare, io, CATEGORIE_NOTA, visibileNota, condiviso } from '../lib/dati.svelte.js';
   import { vai } from '../lib/rotta.svelte.js';
@@ -29,6 +30,13 @@
     try { await salva('note', $state.snapshot(n)); stato = 'salvato'; } catch (e) { stato = 'non salvato: ' + e.message; }
   }
   $effect(() => () => { if (stato === 'scrivo…') scrivi(); });
+  // modifiche arrivate da un altro dispositivo
+  const salvata = $derived(n ? dati.note.find((x) => x.id === n.id) : null);
+  $effect(() => {
+    const x = salvata ? $state.snapshot(salvata) : null;
+    if (!x) return;
+    untrack(() => { if (stato !== 'scrivo…') for (const k of ['titolo', 'testo', 'data', 'categoria']) if (x[k] !== n[k]) n[k] = x[k]; });
+  });
 
   async function togli() {
     if (!confirm('Eliminare questa nota? Non si può recuperare.')) return;

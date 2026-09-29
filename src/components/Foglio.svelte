@@ -42,6 +42,20 @@
   }
   $effect(() => () => { clearTimeout(timer); scarica(); });
 
+  // modifiche arrivate da un altro dispositivo mentre il foglio è aperto
+  const salvata = $derived(dati.sedute.find((x) => x.id === s.id));
+  $effect(() => {
+    const x = salvata;
+    if (!x) return;
+    const campi = $state.snapshot(x);
+    untrack(() => {
+      if (Object.keys(coda).length) return;   // sto scrivendo io: prima si salva
+      for (const k of ['argomento', 'resoconto', 'prossima', 'presenze', 'partecipanti', 'chi', 'autori', 'ora', 'data']) {
+        if (JSON.stringify(campi[k]) !== JSON.stringify(s[k])) s[k] = campi[k];
+      }
+    });
+  });
+
   const g = $derived(s.tipo === 'gruppo' ? gruppo(s.gruppoId) : null);
   const r = $derived(s.ragazzoId ? ragazzo(s.ragazzoId) : null);
   const statoS = $derived(statoSeduta(s));

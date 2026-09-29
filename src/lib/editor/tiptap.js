@@ -287,7 +287,12 @@ export function creaEditor(parent, opz) {
     imposta(testo) {
       if ((testo || '') === ultimo) return;
       ultimo = testo || '';
+      const { from, to } = ed.state.selection;
       ed.commands.setContent(ultimo, { contentType: 'markdown', emitUpdate: false });
+      if (ed.isFocused) {
+        const max = ed.state.doc.content.size - 1;
+        ed.commands.setTextSelection({ from: Math.min(from, max), to: Math.min(to, max) });
+      }
     },
     modificabile: (si) => { if (ed.isEditable !== si) ed.setEditable(si, false); },
     fuoco: () => ed.commands.focus('end'),

@@ -50,7 +50,8 @@
     window.visualViewport?.removeEventListener('scroll', misura);
   });
   // testo cambiato da fuori (altra seduta, pulsante "portalo nel piano")
-  $effect(() => { const t = testo; if (ed && !attivo) ed.imposta(t); });
+  // anche mentre si scrive: se il testo cambia da fuori (un altro dispositivo) si aggiorna, cursore compreso
+  $effect(() => { const t = testo; if (ed) ed.imposta(t); });
   $effect(() => { const s = soloLettura; ed?.modificabile(!s); });
 
   const STRUMENTI = [

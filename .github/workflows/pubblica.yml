@@ -1,0 +1,114 @@
+# Pubblica PsyDiary su GitHub Pages e (se configurato) aggiorna il custode su
+# Google Apps Script. Parte a ogni push; pubblica solo dal ramo principale.
+#
+# Variabili del repository (Settings → Secrets and variables → Actions → Variables):
+#   CUSTODE_URL             indirizzo dell'app web del custode (…/exec)
+#   GOOGLE_CLIENT_ID        client ID OAuth di Google (tipo "Applicazione web")
+#   SCRIPT_ID               (facoltativo) id del progetto Apps Script, per aggiornarlo da qui
+#   CUSTODE_DEPLOYMENT_ID   (facoltativo) id della distribuzione da aggiornare (l'URL resta lo stesso)
+# Segreti (… → Secrets):
+#   CLASPRC_JSON            (facoltativo) contenuto di ~/.clasprc.json dopo "npx @google/clasp@2.4.2 login"
+#
+# Senza CUSTODE_URL il sito resta il prototipo con dati di prova.
+name: Pubblica PsyDiary
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pubblica-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  costruisci:
+    name: Test e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Test del custode e della sincronizzazione
+        run: npm test
+      - name: Costruisci l'app
+        env:
+          VITE_CUSTODE_URL: ${{ vars.CUSTODE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+        run: npm run build
+      - name: Prepara il custode (Apps Script)
+        env:
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+        run: node tools/componi-custode.cjs
+      - name: Custode da scaricare (per l'installazione a mano)
+        uses: actions/upload-artifact@v4
+        with:
+          name: custode-apps-script
+          path: custode-pronto/
+      - name: Riepilogo
+        run: |
+          {
+            echo "## PsyDiary"
+            if [ -n "${{ vars.CUSTODE_URL }}" ]; then echo "- Versione collegata al custode: \`${{ vars.CUSTODE_URL }}\`"; else echo "- **Prototipo** con dati di prova: manca la variabile \`CUSTODE_URL\` (vedi docs/messa-in-servizio.md)"; fi
+            if [ -n "${{ vars.GOOGLE_CLIENT_ID }}" ]; then echo "- Client ID di Google impostato"; else echo "- Manca \`GOOGLE_CLIENT_ID\`"; fi
+            echo "- Il custode pronto per Apps Script è tra gli artefatti di questa esecuzione (\`custode-apps-script\`)."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/configure-pages@v5
+        if: github.ref_name == github.event.repository.default_branch
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref_name == github.event.repository.default_branch
+        with:
+          path: dist
+
+  pubblica:
+    name: Pubblica su GitHub Pages
+    if: github.ref_name == github.event.repository.default_branch
+    needs: costruisci
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pagine.outputs.page_url }}
+    steps:
+      - id: pagine
+        uses: actions/deploy-pages@v4
+
+  custode:
+    name: Aggiorna il custode su Apps Script
+    if: github.ref_name == github.event.repository.default_branch && vars.SCRIPT_ID != ''
+    needs: costruisci
+    runs-on: ubuntu-latest
+    env:
+      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepara il custode
+        env:
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+        run: node tools/componi-custode.cjs
+      - name: Credenziali di clasp
+        if: env.CLASPRC_JSON != ''
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"custode-pronto"}' "${{ vars.SCRIPT_ID }}" > .clasp.json
+          rm -f custode-pronto/custode-completo.gs
+      - name: Carica il codice
+        if: env.CLASPRC_JSON != ''
+        run: npx --yes @google/clasp@2.4.2 push --force
+      - name: Aggiorna la distribuzione (stesso indirizzo)
+        if: env.CLASPRC_JSON != '' && vars.CUSTODE_DEPLOYMENT_ID != ''
+        run: npx --yes @google/clasp@2.4.2 deploy --deploymentId "${{ vars.CUSTODE_DEPLOYMENT_ID }}" --description "PsyDiary ${{ github.sha }}"
+      - name: Senza credenziali
+        if: env.CLASPRC_JSON == ''
+        run: |
+          echo "::notice::SCRIPT_ID c'è ma manca il segreto CLASPRC_JSON, quindi il custode va aggiornato a mano (artefatto custode-apps-script)."

@@ -2,6 +2,16 @@
   import { dati, sessione, io, eAdmin, cambiaUtente, impostaTema, ricominciaDemo } from '../lib/dati.svelte.js';
   import Icona from '../components/Icona.svelte';
   import Accessi from '../components/Accessi.svelte';
+  import AccessiCentro from '../components/centro/AccessiCentro.svelte';
+  import { REALE } from '../lib/centro/config.js';
+  import { sync, esci, mostraFrase } from '../lib/centro/sync.svelte.js';
+
+  let frase = $state('');
+  async function vediFrase() { frase = frase ? '' : (await mostraFrase()) || 'Su questo dispositivo la frase non c\'è: è arrivata come chiave consegnata.'; }
+  async function esciDa(cancella) {
+    if (cancella && !confirm('Cancellare da questo dispositivo tutti i dati dell\'aula? Restano al sicuro su Drive; alla prossima entrata tornano.')) return;
+    await esci(cancella);
+  }
 
   const TEMI = [['auto', 'Come il dispositivo'], ['chiaro', 'Carta'], ['scuro', 'Inchiostro']];
   async function reset() {
@@ -12,7 +22,7 @@
 </script>
 
 <section class="impostazioni">
-  <header><p class="eti">Prototipo</p><h1 class="display">Impostazioni</h1></header>
+  <header><p class="eti">{REALE ? io().email : 'Prototipo'}</p><h1 class="display">Impostazioni</h1></header>
 
   <section class="blocco">
     <h2 class="eti">Aspetto</h2>
@@ -25,6 +35,28 @@
     </div>
   </section>
 
+  {#if REALE}
+    <section class="blocco">
+      <h2 class="eti">Il tuo accesso</h2>
+      <p class="sotto">{io().nome} · {io().ruolo === 'admin' ? 'operatore' : 'tirocinante'} · {io().email}{sync.ultima ? ' · ultima sincronizzazione ' + new Date(sync.ultima).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : ''}</p>
+      <div class="scelte">
+        <button class="btn" onclick={() => esciDa(false)}>Esci</button>
+        <button class="btn nudo" onclick={() => esciDa(true)}>Esci e togli i dati da questo dispositivo</button>
+      </div>
+    </section>
+    {#if eAdmin()}
+      <section class="blocco">
+        <h2 class="eti">Chiave dell'aula</h2>
+        <p class="sotto"><Icona nome="lucchetto" /> I dati partono cifrati con questa chiave. Gli altri dispositivi la ricevono da soli, senza vederla. Tienila stampata in un posto sicuro: serve per recuperare i dati se si perdono tutti i dispositivi.</p>
+        <button class="btn" onclick={vediFrase}>{frase ? 'Nascondi' : 'Mostra la chiave'}</button>
+        {#if frase}<p class="frase">{frase}</p>{/if}
+      </section>
+      <section class="blocco">
+        <h2 class="eti">Persone e accessi</h2>
+        <AccessiCentro />
+      </section>
+    {/if}
+  {:else}
   <section class="blocco">
     <h2 class="eti">Chi sta scrivendo</h2>
     <p class="sotto">Nel prototipo puoi cambiare persona per provare i permessi. I tirocinanti scrivono ma non gestiscono: modificano solo le proprie note, e vedono per intero solo i ragazzi condivisi con loro.</p>
@@ -46,9 +78,10 @@
 
   <section class="blocco">
     <h2 class="eti">Dati</h2>
-    <p class="sotto"><Icona nome="lucchetto" /> Per ora tutto resta in questo browser. Nella versione vera: accesso con Google, dati cifrati sul Drive dell'aula, separati da Centro TICE.</p>
+    <p class="sotto"><Icona nome="lucchetto" /> Prototipo: tutto resta in questo browser, con dati di prova inventati.</p>
     <button class="btn" onclick={reset}><Icona nome="torna" /> Ricomincia dai dati di prova</button>
   </section>
+  {/if}
 
   <section class="blocco">
     <h2 class="eti">Scorciatoie dell'editor</h2>
@@ -79,6 +112,7 @@
   .t-auto .campione { background: linear-gradient(135deg, oklch(0.958 0.015 82) 50%, oklch(0.19 0.016 265) 50%); }
   .t-chiaro .campione { background: oklch(0.958 0.015 82); }
   .t-scuro .campione { background: oklch(0.19 0.016 265); }
+  .frase { font: 600 20px ui-monospace, Menlo, monospace; letter-spacing: 0.06em; padding: var(--s-3) var(--s-4); border: 1.5px dashed var(--spot); border-radius: var(--r); }
   .tasti { display: grid; grid-template-columns: max-content 1fr; gap: 8px var(--s-5); margin: 0; }
   dd { margin: 0; color: var(--inchiostro-2); }
   kbd { font: 600 12px var(--f-testo); border: 1px solid var(--matita-forte); border-bottom-width: 2px; border-radius: var(--r); padding: 1px 6px; }

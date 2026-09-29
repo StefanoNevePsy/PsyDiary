@@ -47,13 +47,32 @@ export async function salvaImmagine(file) {
 }
 
 const cache = new Map();
+// Con il custode: un'immagine che non è su questo dispositivo si scarica (e si decifra) da lì
+let recupera = null;
+export const impostaRecupero = (fn) => { recupera = fn; };
 /** URL (blob:) dell'immagine, grande o miniatura. */
 export function urlImmagine(id, piccola = false) {
   const k = id + (piccola ? ':m' : '');
   if (!cache.has(k)) {
-    cache.set(k, A.uno('immagini', id).then((r) => (r ? URL.createObjectURL(piccola ? r.mini : r.blob) : null)));
+    const p = A.uno('immagini', id)
+      .then(async (r) => r || (recupera && (await recupera(id)) ? A.uno('immagini', id) : null))
+      .then((r) => (r ? URL.createObjectURL(piccola ? r.mini : r.blob) : null))
+      .catch(() => null);
+    cache.set(k, p);
+    p.then((u) => { if (!u) cache.delete(k); });   // si riprova la prossima volta
   }
   return cache.get(k);
+}
+/** Il file salvato (per caricarlo, cifrato, sul custode). */
+export const fileImmagine = (id) => A.uno('immagini', id);
+/** Salva un'immagine arrivata dal custode, con la sua miniatura. */
+export async function salvaDaCustode(id, blob) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = url; });
+    const mini = await codifica(img, MINI, 0.72);
+    await A.metti('immagini', { id, blob, mini: mini.blob, larghezza: img.naturalWidth, altezza: img.naturalHeight, tipo: blob.type, creato: new Date().toISOString() });
+  } finally { URL.revokeObjectURL(url); }
 }
 export async function togliImmagine(id) {
   for (const k of [id, id + ':m']) { const u = await cache.get(k); if (u) URL.revokeObjectURL(u); cache.delete(k); }

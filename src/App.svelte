@@ -7,6 +7,11 @@
   import Cerca from './components/Cerca.svelte';
   import Crea from './components/Crea.svelte';
   import Visore from './components/Visore.svelte';
+  import Aggiorna from './components/Aggiorna.svelte';
+  import Ingresso from './components/centro/Ingresso.svelte';
+  import StatoSync from './components/centro/StatoSync.svelte';
+  import { REALE } from './lib/centro/config.js';
+  import { sync, avvia } from './lib/centro/sync.svelte.js';
   import Calendario from './views/Calendario.svelte';
   import SedutaPagina from './views/SedutaPagina.svelte';
   import Ragazzi from './views/Ragazzi.svelte';
@@ -21,7 +26,7 @@
   let errore = $state('');
 
   onMount(() => {
-    carica().catch((e) => { errore = e.message || String(e); });
+    carica().then(() => (REALE ? avvia() : null)).catch((e) => { errore = e.message || String(e); });
     const tasti = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !e.target.closest?.('.cm-editor')) { e.preventDefault(); ui.cerca = true; }
       if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName) && !e.target.closest?.('.cm-editor')) { e.preventDefault(); ui.cerca = true; }
@@ -45,7 +50,11 @@
   }
 </script>
 
+{#if REALE && dati.pronto && sync.fase !== 'pronto'}
+  <Ingresso />
+{:else}
 <a class="salta" href="#principale">Vai al contenuto</a>
+<Aggiorna />
 <header class="barra">
   <a class="marchio" href="#/calendario" aria-label="PsyDiary, calendario">
     <span class="display">Psy</span><span class="mano">diary</span>
@@ -56,6 +65,7 @@
     {/each}
   </nav>
   <div class="azioni">
+    {#if REALE}<StatoSync />{/if}
     <button class="cerca" onclick={() => (ui.cerca = true)}>
       <Icona nome="cerca" /><span>Cerca ragazzi, note, date</span><kbd>Ctrl K</kbd>
     </button>
@@ -106,6 +116,7 @@
 {#if ui.cerca}<Cerca chiudi={() => (ui.cerca = false)} />{/if}
 {#if ui.crea}<Crea opz={ui.crea} chiudi={chiudiCrea} />{/if}
 {#if ui.visore}{#key ui.visore}<Visore id={ui.visore} chiudi={() => (ui.visore = null)} />{/key}{/if}
+{/if}
 
 <style>
   .salta { position: absolute; left: -999px; top: 8px; z-index: 1000; background: var(--inchiostro); color: var(--su-inchiostro); padding: 8px 12px; }

@@ -2,6 +2,7 @@
 import * as A from './archivio.js';
 import { oggi, piu, giornoSettimana, daIso } from './date.js';
 import { tagDi, menzioniDi, semplice, daFare } from './testo.js';
+import { REALE } from './centro/config.js';
 
 export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], persone: [] });
 
@@ -14,8 +15,18 @@ export const PERSONE_INIZIALI = [
 ];
 const OSPITE = { id: '?', nome: '?', ruolo: 'tirocinante', ragazzi: [] };
 export const sessione = $state({ utenteId: 'stefano', tema: 'auto' });
+// Con il custode, chi sei lo dice lui (sync.svelte.js scrive qui)
+export const centro = $state({ io: null });
 /** La persona che sta usando l'app (sempre aggiornata con i permessi). */
-export const io = () => dati.persone.find((p) => p.id === sessione.utenteId) || dati.persone[0] || OSPITE;
+export function io() {
+  if (REALE) {
+    const c = centro.io;
+    return c ? { id: c.email, email: c.email, nome: c.nome, ruolo: c.ruolo, ragazzi: c.ragazzi || [] } : OSPITE;
+  }
+  return dati.persone.find((p) => p.id === sessione.utenteId) || dati.persone[0] || OSPITE;
+}
+/** Chiamato a ogni modifica fatta da qui (non a quelle arrivate dal custode). */
+export const ganci = { alCambio: null };
 export function cambiaUtente(id) {
   sessione.utenteId = id;
   try { localStorage.setItem('psy:utente', id); } catch (e) { /* niente */ }
@@ -54,7 +65,9 @@ const ora = () => new Date().toISOString();
 
 export async function carica() {
   const [ragazzi, gruppi, sedute, note, sospesi, persone] = await Promise.all(A.TABELLE.map((t) => A.tutti(t)));
-  if (!ragazzi.length && !gruppi.length) {
+  if (REALE) {
+    Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone: [] });
+  } else if (!ragazzi.length && !gruppi.length) {
     const { creaDemo } = await import('./demo.js');
     const d = creaDemo();
     await A.mettiTutto(Object.fromEntries(A.TABELLE.map((t) => [t, d[t]])));
@@ -69,7 +82,7 @@ export async function carica() {
     } catch (e) { console.warn('Immagini di prova non create', e); }
     Object.assign(dati, d);
   } else Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone });
-  if (!dati.persone.length) {
+  if (!REALE && !dati.persone.length) {
     await A.mettiTutto({ persone: PERSONE_INIZIALI });
     dati.persone = structuredClone(PERSONE_INIZIALI);
   }
@@ -86,19 +99,21 @@ export async function ricominciaDemo() {
 }
 
 /** Salva (crea o aggiorna) un oggetto e lo restituisce così come sta nello stato. */
-export async function salva(tabella, oggetto) {
+export async function salva(tabella, oggetto, remoto = false) {
   const elenco = dati[tabella];
-  const o = { ...oggetto, modificato: ora() };
-  if (!o.creato) o.creato = o.modificato;
+  const o = remoto ? { ...oggetto } : { ...oggetto, modificato: ora() };
+  if (!o.creato) o.creato = o.modificato || ora();
   const i = elenco.findIndex((x) => x.id === o.id);
   if (i >= 0) elenco[i] = o; else elenco.push(o);
   await A.metti(tabella, $state.snapshot(o));
+  if (!remoto) ganci.alCambio?.(tabella, o.id);
   return elenco[i >= 0 ? i : elenco.length - 1];
 }
-export async function elimina(tabella, id) {
+export async function elimina(tabella, id, remoto = false) {
   const i = dati[tabella].findIndex((x) => x.id === id);
   if (i >= 0) dati[tabella].splice(i, 1);
   await A.togli(tabella, id);
+  if (!remoto) ganci.alCambio?.(tabella, id, true);
 }
 
 // ---------------------------------------------------------------------------
