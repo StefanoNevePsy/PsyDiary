@@ -1,6 +1,7 @@
 <script>
-  import { sessione, utenti, cambiaUtente, impostaTema, ricominciaDemo } from '../lib/dati.svelte.js';
+  import { dati, sessione, io, eAdmin, cambiaUtente, impostaTema, ricominciaDemo } from '../lib/dati.svelte.js';
   import Icona from '../components/Icona.svelte';
+  import Accessi from '../components/Accessi.svelte';
 
   const TEMI = [['auto', 'Come il dispositivo'], ['chiaro', 'Carta'], ['scuro', 'Inchiostro']];
   async function reset() {
@@ -26,15 +27,22 @@
 
   <section class="blocco">
     <h2 class="eti">Chi sta scrivendo</h2>
-    <p class="sotto">Nel prototipo puoi cambiare persona per provare i permessi. I tirocinanti leggono tutto e scrivono note, ma modificano solo le proprie e non gestiscono ragazzi, gruppi e schede.</p>
+    <p class="sotto">Nel prototipo puoi cambiare persona per provare i permessi. I tirocinanti scrivono ma non gestiscono: modificano solo le proprie note, e vedono per intero solo i ragazzi condivisi con loro.</p>
     <div class="scelte" role="radiogroup" aria-label="Persona">
-      {#each utenti as u (u.id)}
-        <button role="radio" aria-checked={sessione.utente.id === u.id} onclick={() => cambiaUtente(u.id)}>
+      {#each dati.persone as u (u.id)}
+        <button role="radio" aria-checked={io().id === u.id} onclick={() => cambiaUtente(u.id)}>
           <span class="display">{u.nome}</span><span class="eti">{u.ruolo === 'admin' ? 'operatore' : 'tirocinante'}</span>
         </button>
       {/each}
     </div>
   </section>
+
+  {#if eAdmin()}
+    <section class="blocco">
+      <h2 class="eti">Persone e accessi</h2>
+      <Accessi />
+    </section>
+  {/if}
 
   <section class="blocco">
     <h2 class="eti">Dati</h2>
@@ -49,7 +57,8 @@
       <dt><kbd>Ctrl</kbd> <kbd>Maiusc</kbd> <kbd>8</kbd> / <kbd>7</kbd> / <kbd>9</kbd></dt><dd>elenco, numerato, da fare</dd>
       <dt><kbd>Ctrl</kbd> <kbd>Invio</kbd></dt><dd>spunta la riga da fare</dd>
       <dt><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>1</kbd>–<kbd>3</kbd></dt><dd>titoli</dd>
-      <dt><kbd>Ctrl</kbd> <kbd>K</kbd></dt><dd>collegamento (fuori dall'editor: cerca)</dd>
+      <dt><kbd>Ctrl</kbd> <kbd>K</kbd> · <kbd>/</kbd></dt><dd>cerca</dd>
+      <dt><kbd>Ctrl</kbd> <kbd>Maiusc</kbd> <kbd>S</kbd></dt><dd>barrato</dd>
       <dt><kbd>#</kbd> · <kbd>@</kbd></dt><dd>tag · cita un ragazzo</dd>
       <dt><kbd>Tab</kbd></dt><dd>rientra l'elenco</dd>
     </dl>
@@ -57,13 +66,13 @@
 </section>
 
 <style>
-  .impostazioni { max-width: 760px; margin: 0 auto; padding: var(--s-6) var(--s-6) var(--s-8); display: grid; gap: var(--s-6); }
+  .impostazioni { max-width: 860px; margin: 0 auto; padding: var(--s-6) var(--s-6) var(--s-8); display: grid; gap: var(--s-6); }
   h1 { font-size: var(--t-xl); line-height: 1; margin-top: 4px; }
   .blocco { display: grid; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--matita); justify-items: start; }
   .blocco p { max-width: 62ch; }
   .blocco p :global(.ico) { vertical-align: -3px; }
   .scelte { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-  .scelte button { display: flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: 8px 14px; border: 1px solid var(--matita-forte); border-radius: var(--r); background: transparent; cursor: pointer; font-weight: 600; }
+  .scelte button { display: flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: 8px 16px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; cursor: pointer; font-weight: 600; }
   .scelte button[aria-checked='true'] { border-color: var(--inchiostro); box-shadow: inset 0 0 0 1px var(--inchiostro); background: var(--carta-2); }
   .scelte .display { font-size: 18px; font-weight: 400; }
   .campione { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--matita-forte); }

@@ -12,6 +12,8 @@
   import Cerchio from '../components/Cerchio.svelte';
   import Foglio from '../components/Foglio.svelte';
   import Icona from '../components/Icona.svelte';
+  import Immagine from '../components/Immagine.svelte';
+  import { gruppo as gruppoDi, ragazzo as ragazzoDi } from '../lib/dati.svelte.js';
 
   const vista = $derived(rotta.parti[1] === 'mese' ? 'mese' : 'settimana');
   const base = $derived(/^\d{4}-\d{2}-\d{2}$/.test(rotta.parti[2] || '') ? rotta.parti[2] : oggi());
@@ -68,6 +70,7 @@
     if (cand) { sel = cand.id; chiave++; }
   });
 
+  const miniatura = (s) => (s.tipo === 'gruppo' ? gruppoDi(s.gruppoId)?.copertina : ragazzoDi(s.ragazzoId)?.foto) || null;
   const segno = (s) => ({ 'da-scrivere': 'da scrivere', oggi: 'oggi' })[statoSeduta(s)] || '';
   const piano = (s) => {
     const f = daFare(s.argomento);
@@ -116,6 +119,7 @@
                   </span>
                   {#if s.argomento}<span class="piano">{piano(s)}</span>{:else if st === 'futura'}<span class="piano vuoto">nessun piano ancora</span>{/if}
                   {#if segno(s)}<span class="mano segno">{segno(s)}</span>{/if}
+                  {#if miniatura(s)}<span class="mini"><Immagine id={miniatura(s)} forma={s.tipo === 'gruppo' ? 'foglio' : 'tondo'} seme={s.gruppoId || s.ragazzoId} piccola colori={false} /></span>{/if}
                 </a>
               {:else}
                 <span class="niente">—</span>
@@ -156,8 +160,8 @@
   h1 { font-size: var(--t-xl); line-height: 1; margin-top: 4px; }
   .comandi { display: flex; gap: var(--s-4); align-items: center; flex-wrap: wrap; }
   .gruppo-btn { display: flex; align-items: center; gap: 2px; }
-  .vista { display: flex; border: 1px solid var(--matita-forte); border-radius: var(--r); }
-  .vista a { padding: 6px 12px; text-decoration: none; font-weight: 600; font-size: var(--t-sm); color: var(--inchiostro-2); }
+  .vista { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--matita-forte); border-radius: 999px; }
+  .vista a { border-radius: 999px; padding: 5px 14px; text-decoration: none; font-weight: 600; font-size: var(--t-sm); color: var(--inchiostro-2); }
   .vista a[aria-current] { background: var(--inchiostro); color: var(--su-inchiostro); }
 
   .corpo { display: grid; grid-template-columns: 1fr; gap: var(--s-6); align-items: start; }
@@ -177,7 +181,7 @@
   .biglietto {
     position: relative; display: grid; grid-template-columns: auto 1fr; gap: 2px var(--s-3); align-content: start;
     width: min(100%, 330px); padding: 10px 14px 12px; text-decoration: none;
-    background: var(--carta-2); border: 1px solid var(--matita); border-left: 3px solid var(--inchiostro);
+    background: var(--carta-2); border: 1px solid var(--matita); border-left: 3px solid var(--inchiostro); border-radius: var(--r-piccolo) var(--r-grande) var(--r-grande) var(--r-piccolo);
     transition: transform var(--d-breve) var(--e-uscita), box-shadow var(--d-breve) var(--e-uscita);
   }
   .biglietto:hover { transform: translateY(-1px); box-shadow: var(--ombra); }
@@ -194,12 +198,15 @@
   .ora { font-weight: 700; font-variant-numeric: tabular-nums; font-size: var(--t-sm); padding-top: 3px; }
   .fine { font-weight: 400; color: var(--inchiostro-2); }
   .tit { display: grid; }
-  .biglietto:has(.segno) .tit { padding-right: 40px; }
+  .biglietto:has(.mini) .tit { padding-right: 44px; }
+  .mini { position: absolute; right: 10px; top: 10px; width: 40px; height: 40px; }
+  .biglietto:has(.segno) { padding-bottom: 22px; }
+  .tipo-conoscenza { border-left-style: dotted; }
   .nome { font-size: 19px; line-height: 1.15; }
   .tipo { font-size: 10.5px; }
   .piano { grid-column: 2; font-size: var(--t-sm); color: var(--inchiostro-2); line-height: 1.4; margin-top: 4px; }
   .piano.vuoto { font-style: italic; color: var(--inchiostro-3); }
-  .segno { position: absolute; right: 10px; top: 4px; font-size: 18px; transform: rotate(-4deg); }
+  .segno { position: absolute; left: 14px; bottom: 4px; font-size: 18px; transform: rotate(-4deg); }
   .niente { color: var(--inchiostro-3); padding-top: 10px; }
   .aggiungi {
     align-self: start; margin-top: 4px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px dashed var(--matita-forte);
@@ -208,14 +215,14 @@
   .giorno:hover .aggiungi, .aggiungi:focus-visible { opacity: 1; }
   .con-foglio .biglietto { width: min(100%, 300px); }
 
-  .mese { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-left: 1px solid var(--matita); border-top: 1px solid var(--matita); }
+  .mese { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-left: 1px solid var(--matita); border-top: 1px solid var(--matita); border-radius: var(--r-grande); overflow: hidden; }
   .intesta { padding: 6px 8px; border-right: 1px solid var(--matita); border-bottom: 1px solid var(--matita); }
   .cella { min-height: 118px; padding: 6px 8px; border-right: 1px solid var(--matita); border-bottom: 1px solid var(--matita); display: grid; align-content: start; gap: 3px; min-width: 0; }
   .cella.fuori { background: var(--carta-2); }
   .cella.fuori .n { color: var(--inchiostro-3); }
   .n { position: relative; font-size: 22px; text-decoration: none; width: max-content; }
   .n :global(.cerchio) { left: -12px; top: -8px; width: 50px; height: 40px; }
-  .riga { font-size: 12.5px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; border-left: 2px solid var(--inchiostro); line-height: 1.5; }
+  .riga { border-radius: 0 var(--r-piccolo) var(--r-piccolo) 0; font-size: 12.5px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; border-left: 2px solid var(--inchiostro); line-height: 1.5; }
   .riga.tipo-individuale { border-left-style: dotted; }
   .riga.stato-da-scrivere, .riga.stato-oggi { border-left-color: var(--spot); }
   .riga:hover { background: var(--carta-3); }

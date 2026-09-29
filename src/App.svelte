@@ -6,6 +6,7 @@
   import Icona from './components/Icona.svelte';
   import Cerca from './components/Cerca.svelte';
   import Crea from './components/Crea.svelte';
+  import Visore from './components/Visore.svelte';
   import Calendario from './views/Calendario.svelte';
   import SedutaPagina from './views/SedutaPagina.svelte';
   import Ragazzi from './views/Ragazzi.svelte';
@@ -104,6 +105,7 @@
 
 {#if ui.cerca}<Cerca chiudi={() => (ui.cerca = false)} />{/if}
 {#if ui.crea}<Crea opz={ui.crea} chiudi={chiudiCrea} />{/if}
+{#if ui.visore}{#key ui.visore}<Visore id={ui.visore} chiudi={() => (ui.visore = null)} />{/key}{/if}
 
 <style>
   .salta { position: absolute; left: -999px; top: 8px; z-index: 1000; background: var(--inchiostro); color: var(--su-inchiostro); padding: 8px 12px; }

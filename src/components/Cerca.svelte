@@ -106,7 +106,7 @@
 <style>
   dialog { padding: 0; border: 0; background: transparent; width: min(640px, calc(100vw - 24px)); max-height: min(620px, 80dvh); margin: 12vh auto auto; color: inherit; overflow: visible; }
   dialog::backdrop { background: oklch(0.2 0.03 265 / 0.35); }
-  .riquadro { background: var(--carta); border: 1px solid var(--inchiostro); box-shadow: var(--ombra), 6px 6px 0 var(--spot-retino); display: grid; grid-template-rows: auto 1fr; max-height: inherit; animation: apre var(--d-media) var(--e-uscita); }
+  .riquadro { overflow: hidden; border-radius: var(--r-grande); background: var(--carta); border: 1px solid var(--inchiostro); box-shadow: var(--ombra), 6px 6px 0 var(--spot-retino); display: grid; grid-template-rows: auto 1fr; max-height: inherit; animation: apre var(--d-media) var(--e-uscita); }
   .campo-cerca { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-bottom: 1.5px solid var(--inchiostro); }
   .campo-cerca :global(.ico) { width: 22px; height: 22px; }
   input { flex: 1; border: 0; background: transparent; font-family: var(--f-display); font-size: 24px; padding: 6px 0; min-width: 0; }

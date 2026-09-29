@@ -63,7 +63,7 @@
 
 <style>
   .diario { display: grid; gap: var(--s-4); }
-  .filtri-box { padding: var(--s-4); background: var(--carta-2); border: 1px solid var(--matita); }
+  .filtri-box { padding: var(--s-4); background: var(--carta-2); border: 1px solid var(--matita); border-radius: var(--r-grande); }
   .barra-esporta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--s-2); }
   .esporta { display: flex; gap: 2px; }
   .nome-mese { display: flex; align-items: baseline; gap: var(--s-3); padding-top: var(--s-4); position: sticky; top: var(--barra); background: var(--carta); z-index: 2; padding-bottom: 6px; }

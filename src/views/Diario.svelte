@@ -31,7 +31,7 @@
 <style>
   .diario { max-width: 920px; margin: 0 auto; padding: var(--s-6) var(--s-6) var(--s-8); display: grid; gap: var(--s-4); }
   h1 { font-size: var(--t-xl); line-height: 1; margin-top: 4px; }
-  .promemoria { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px dashed var(--spot); background: var(--spot-tenue); }
+  .promemoria { border-radius: var(--r-grande); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px dashed var(--spot); background: var(--spot-tenue); }
   .promemoria .mano { font-size: 22px; }
   .promemoria ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-weight: 600; font-size: var(--t-sm); }
   @media (max-width: 720px) { .diario { padding: var(--s-4) var(--s-4) var(--s-7); } h1 { font-size: var(--t-lg); } }

@@ -2,13 +2,14 @@
   // Il foglio di una seduta: piano, com'è andata, i ragazzi, la prossima volta.
   import {
     dati, gruppo, ragazzo, nomeBreve, nomeCompleto, TIPI, titoloSeduta, statoSeduta, partecipantiSeduta, presente,
-    aggiornaSeduta, dallaVoltaScorsa, sospesiDi, usaSospeso, aggiungiVoce, successiva, puoModificare, puoGestire, salva, sessione,
+    aggiornaSeduta, dallaVoltaScorsa, sospesiDi, usaSospeso, aggiungiVoce, successiva, puoModificare, puoGestire, salva, io,
   } from '../lib/dati.svelte.js';
   import { lunga, fineOra, oggi, relativa, breve } from '../lib/date.js';
   import { untrack } from 'svelte';
   import Editor from './Editor.svelte';
   import Md from './Md.svelte';
   import Icona from './Icona.svelte';
+  import Immagine from './Immagine.svelte';
 
   let { s: iniziale, alCambioId = () => {}, pagina = false } = $props();
 
@@ -93,7 +94,7 @@
       {#if g}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{:else if r}<a href={'#/ragazzo/' + r.id}>{titoloSeduta(s)}</a>{/if}
     </h2>
     {#if g && g.tema}<p class="tema sotto">{g.tema}</p>{/if}
-    {#if s.tipo === 'genitori'}
+    {#if s.tipo === 'genitori' || s.tipo === 'conoscenza'}
       <label class="chi"><span class="eti">Chi c'era</span>
         <input class="input" value={s.chi || ''} placeholder="es. madre e padre" oninput={(e) => modifica({ chi: e.currentTarget.value })} /></label>
     {/if}
@@ -101,7 +102,7 @@
       <ul class="presenze" aria-label="Presenze: tocca per segnare un'assenza">
         {#each membri as rid (rid)}
           {@const ra = ragazzo(rid)}
-          <li><button type="button" class:assente={!presente(s, rid)} aria-pressed={presente(s, rid)} onclick={() => alternaPresenza(rid)} title={presente(s, rid) ? 'Presente: tocca per segnarlo assente' : 'Assente'}>{nomeBreve(ra)}</button></li>
+          <li><button type="button" class:assente={!presente(s, rid)} aria-pressed={presente(s, rid)} onclick={() => alternaPresenza(rid)} title={presente(s, rid) ? 'Presente: tocca per segnarlo assente' : 'Assente'}><span class="av"><Immagine id={ra?.foto} forma="tondo" seme={rid} iniziale={(ra?.nome || '?')[0]} piccola colori={false} /></span>{nomeBreve(ra)}</button></li>
         {/each}
       </ul>
     {/if}
@@ -127,7 +128,7 @@
           alCambio={(t) => modifica({ argomento: t })} />
       {/key}
     </div>
-    {#if s.autori?.argomento && s.autori.argomento !== sessione.utente.nome}<p class="autore">di {s.autori.argomento}</p>{/if}
+    {#if s.autori?.argomento && s.autori.argomento !== io().nome}<p class="autore">di {s.autori.argomento}</p>{/if}
     {#if inSospeso.length}
       <div class="sospesi">
         <span class="eti">In sospeso</span>
@@ -144,7 +145,7 @@
       <Editor testo={s.resoconto} etichetta="Resoconto" soloLettura={!mia('resoconto')}
         segnaposto="Clima, cosa è emerso, cosa ha funzionato. #tag e @nomi per ritrovarlo dopo"
         alCambio={(t) => modifica({ resoconto: t })} />
-      {#if s.autori?.resoconto && s.autori.resoconto !== sessione.utente.nome}<p class="autore">di {s.autori.resoconto}</p>{/if}
+      {#if s.autori?.resoconto && s.autori.resoconto !== io().nome}<p class="autore">di {s.autori.resoconto}</p>{/if}
     </section>
 
     {#if s.tipo === 'gruppo'}
@@ -182,7 +183,7 @@
 
 <style>
   .foglio {
-    position: relative; background: var(--carta-2); box-shadow: var(--ombra);
+    position: relative; background: var(--carta-2); box-shadow: var(--ombra); border-radius: var(--r-grande);
     padding: var(--s-5) var(--s-6) var(--s-5) 88px; display: grid; gap: var(--s-5); align-content: start;
   }
   .foglio::before { content: ''; position: absolute; left: 68px; top: 0; bottom: 0; width: 1.5px; background: var(--spot); opacity: 0.55; }
@@ -195,10 +196,13 @@
   .tema { margin-top: -4px; font-size: var(--t-nota); }
   .chi { display: grid; max-width: 320px; }
   .presenze { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .presenze button { border: 0; background: none; padding: 4px 0; font-weight: 600; font-size: var(--t-ui); cursor: pointer; color: var(--inchiostro); }
+  .presenze .av { width: 26px; height: 26px; flex: none; }
+  .presenze .av :global(.iniziale) { font-size: 12px; }
+  .presenze .assente .av { opacity: 0.4; }
+  .presenze button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 4px 0; font-weight: 600; font-size: var(--t-ui); cursor: pointer; color: var(--inchiostro); }
   .presenze button:hover { color: var(--spot-testo); }
   .presenze button.assente { color: var(--inchiostro-3); text-decoration: line-through; text-decoration-color: var(--spot); font-weight: 400; }
-  .scorsa { display: grid; gap: 6px; padding: var(--s-3) var(--s-4); border: 1px dashed var(--spot); background: var(--spot-tenue); justify-items: start; }
+  .scorsa { border-radius: var(--r-grande); display: grid; gap: 6px; padding: var(--s-3) var(--s-4); border: 1px dashed var(--spot); background: var(--spot-tenue); justify-items: start; }
   .scorsa :global(.md) { font-size: var(--t-ui); }
   .sez { position: relative; display: grid; gap: var(--s-2); }
   .sez h3 { display: flex; align-items: baseline; }
@@ -206,11 +210,11 @@
     position: absolute; left: -84px; width: 64px; text-align: right; font-size: 17px;
     transform: rotate(-5deg); transform-origin: right; line-height: 1;
   }
-  .piano { padding: var(--s-2) var(--s-3); }
+  .piano { padding: var(--s-2) var(--s-3); border-radius: var(--r); }
   .autore { font-size: var(--t-xs); color: var(--inchiostro-3); font-style: italic; }
   .sospesi { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; }
   .sospesi .eti { width: 100%; }
-  .sosp { border: 1px dashed var(--matita-forte); background: transparent; border-radius: var(--r); padding: 2px 8px; font-size: var(--t-sm); cursor: pointer; }
+  .sosp { border: 1px dashed var(--matita-forte); background: transparent; border-radius: 999px; padding: 3px 12px; font-size: var(--t-sm); cursor: pointer; }
   .sosp:hover { border-style: solid; border-color: var(--spot); }
   .part { display: grid; grid-template-columns: 110px 1fr; gap: var(--s-3); align-items: baseline; padding: 6px 0; border-top: 1px dashed var(--matita); }
   .part .chi { font-size: 17px; text-decoration: none; line-height: 1.3; }

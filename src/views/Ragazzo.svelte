@@ -1,29 +1,36 @@
 <script>
-  // Il ragazzo: diario completo, scheda anagrafica, idee in sospeso.
+  // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
+  // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
   import {
     dati, ragazzo, nomeCompleto, gruppiDi, diarioRagazzo, puoGestire, salva, sedutePeriodo, soggetto, titoloSeduta, TIPI, elimina,
+    condiviso, statoSeduta,
   } from '../lib/dati.svelte.js';
   import { rotta, vai } from '../lib/rotta.svelte.js';
   import { eta, oggi, piu, lunga, relativa, breveAnno } from '../lib/date.js';
+  import { anteprima } from '../lib/testo.js';
   import { apriCrea } from '../lib/ui.svelte.js';
+  import { scegliImmagine, togliImmagine } from '../lib/immagini.js';
   import DiarioElenco from '../components/DiarioElenco.svelte';
   import ElencoSospesi from '../components/ElencoSospesi.svelte';
   import Editor from '../components/Editor.svelte';
   import Md from '../components/Md.svelte';
+  import Immagine from '../components/Immagine.svelte';
   import Icona from '../components/Icona.svelte';
 
   let { id } = $props();
   const r = $derived(ragazzo(id));
-  let scheda = $state(rotta.query.scheda === '1');
+  const tutto = $derived(condiviso(id));
+  let scheda = $state(rotta.query.scheda === '1' ? 'anagrafica' : 'diario');
   let filtro = $state({ tipi: [], tag: [], da: '', a: '', testo: '' });
   const voci = $derived(r ? diarioRagazzo(id) : []);
   const gruppi = $derived(r ? gruppiDi(id) : []);
   const O = oggi();
   const agenda = $derived.by(() => {
     if (!r) return [];
-    const ks = ['individuale:' + id, 'genitori:' + id, ...gruppi.map((g) => 'g:' + g.id)];
+    const ks = ['individuale:' + id, 'genitori:' + id, 'conoscenza:' + id, ...gruppi.map((g) => 'g:' + g.id)];
     return sedutePeriodo(O, piu(O, 21)).filter((s) => ks.includes(soggetto(s))).slice(0, 4);
   });
+  const colloqui = $derived(tutto ? dati.sedute.filter((s) => s.tipo === 'conoscenza' && s.ragazzoId === id && !s.annullata).sort((a, b) => a.data.localeCompare(b.data)) : []);
 
   // scheda: si salva al volo
   let timer = null;
@@ -32,7 +39,8 @@
     clearTimeout(timer);
     timer = setTimeout(() => salva('ragazzi', $state.snapshot(r)), 400);
   }
-  function genitore(i, k, v) { const g = [...(r.genitori || [])]; g[i] = { ...g[i], [k]: v }; campo('genitori', g); }
+  function familiare(i, k, v) { const g = [...(r.genitori || [])]; g[i] = { ...g[i], [k]: v }; campo('genitori', g); }
+  function togliFamiliare(i) { campo('genitori', (r.genitori || []).filter((_, j) => j !== i)); }
   const GIORNI = [['', 'nessuna'], [1, 'lunedì'], [2, 'martedì'], [3, 'mercoledì'], [4, 'giovedì'], [5, 'venerdì'], [6, 'sabato']];
   function ricorrenza(k, v) {
     const base = r.ricorrenza || { giorni: [], ora: '16:00', durata: 60, dal: O };
@@ -40,6 +48,40 @@
     if (k === 'giorni') nuova = v ? { ...base, giorni: [+v], dal: base.giorni.length ? base.dal : O } : null;
     campo('ricorrenza', nuova);
   }
+  const SI_NO = [['', '—'], ['sì', 'sì'], ['no', 'no']];
+  // [chiave, etichetta, tipo, opzioni, larga]
+  const SEZIONI = [
+    { titolo: 'Dati personali', campi: [
+      ['nome', 'Nome'], ['cognome', 'Cognome'], ['nascita', 'Data di nascita', 'date'], ['luogoNascita', 'Luogo di nascita'],
+      ['genere', 'Genere', 'select', [['', '—'], ['F', 'femmina'], ['M', 'maschio'], ['altro', 'altro']]], ['cf', 'Codice fiscale'],
+      ['cittadinanza', 'Cittadinanza'], ['lingue', 'Lingue parlate a casa'],
+      ['indirizzo', 'Indirizzo'], ['comune', 'Comune'], ['telefono', 'Telefono del ragazzo', 'tel'], ['email', 'Email', 'email'],
+    ] },
+    { titolo: 'Scuola', campi: [
+      ['scuola', 'Scuola'], ['classe', 'Classe'], ['insegnante', 'Insegnante di riferimento'],
+      ['certificazioni', 'Certificazioni', 'select', [['', '—'], ['nessuna', 'nessuna'], ['104', 'L. 104 · PEI'], ['dsa', 'DSA · PDP'], ['bes', 'BES']]],
+    ] },
+    { titolo: 'Invio e servizi', campi: [
+      ['invio', 'Inviato da'], ['diagnosi', 'Diagnosi o ipotesi'], ['servizi', 'Altri servizi coinvolti'], ['pediatra', 'Pediatra o medico'],
+      ['motivoInvio', "Motivo dell'invio", 'area', null, true],
+      ['inizio', 'In carico dal', 'date'], ['stato', 'Percorso', 'select', [['attivo', 'in corso'], ['concluso', 'concluso']]],
+    ] },
+    { titolo: 'Consensi', campi: [
+      ['consensoPrivacy', 'Informativa firmata il', 'date'], ['consensoFoto', 'Consenso alle immagini', 'select', SI_NO],
+      ['consensoScuola', 'Consenso a sentire la scuola', 'select', SI_NO],
+    ] },
+  ];
+  const fotoNo = $derived(r?.consensoFoto === 'no');
+  async function cambiaFoto() {
+    try {
+      const nuovo = await scegliImmagine();
+      if (!nuovo) return;
+      const vecchio = r.foto;
+      campo('foto', nuovo);
+      if (vecchio) togliImmagine(vecchio);
+    } catch (e) { alert(e.message); }
+  }
+  function togliFoto() { const v = r.foto; campo('foto', null); if (v) togliImmagine(v); }
   async function togli() {
     if (!confirm(`Eliminare ${nomeCompleto(r)} e tutte le sue note individuali? Le sedute di gruppo restano.`)) return;
     for (const s of dati.sedute.filter((x) => x.ragazzoId === id)) await elimina('sedute', s.id);
@@ -54,58 +96,91 @@
   <div class="ragazzo">
     <header class="testa">
       <a class="torna no-stampa" href="#/ragazzi"><Icona nome="sinistra" /> Ragazzi</a>
-      <h1 class="display">{r.nome || 'Senza nome'} <span class="cognome">{r.cognome}</span></h1>
-      <p class="sotto dettagli">
-        {#if r.nascita}<span>{eta(r.nascita)} anni</span>{/if}
-        {#if r.classe || r.scuola}<span>{r.classe}{r.scuola ? ', ' + r.scuola : ''}</span>{/if}
-        {#if r.inizio}<span>in carico dal {breveAnno(r.inizio)}</span>{/if}
-        {#if r.stato === 'concluso'}<span class="mano concluso">percorso concluso</span>{/if}
-      </p>
-      <p class="appartiene">
-        {#each gruppi as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{/each}
-        {#if r.ricorrenza?.giorni?.length}<span>Individuale ogni {r.ricorrenza.ogni === 2 ? 'due settimane' : 'settimana'}, {GIORNI.find((x) => x[0] === r.ricorrenza.giorni[0])?.[1]} {r.ricorrenza.ora}</span>{/if}
-      </p>
-      <div class="schede no-stampa" role="tablist">
-        <button role="tab" aria-selected={!scheda} onclick={() => (scheda = false)}>Diario <small>{voci.length}</small></button>
-        <button role="tab" aria-selected={scheda} onclick={() => (scheda = true)}>Scheda</button>
+      <div class="intesta">
+        <div class="foto">
+          <Immagine id={r.foto} forma="tondo" seme={r.id} iniziale={(r.nome || '?')[0]} alt={'Foto di ' + nomeCompleto(r)} />
+          {#if gestisce && !fotoNo}
+            <div class="foto-azioni no-stampa">
+              <button class="btn nudo piccolo" onclick={cambiaFoto}><Icona nome="matita" /> {r.foto ? 'Cambia' : 'Foto'}</button>
+              {#if r.foto}<button class="btn nudo piccolo" onclick={togliFoto} aria-label="Togli la foto"><Icona nome="chiudi" /></button>{/if}
+            </div>
+          {/if}
+        </div>
+        <div class="nomi">
+          <h1 class="display">{r.nome || 'Senza nome'} <span class="cognome">{r.cognome}</span></h1>
+          <p class="sotto dettagli">
+            {#if r.nascita}<span>{eta(r.nascita)} anni</span>{/if}
+            {#if r.classe || r.scuola}<span>{r.classe}{r.scuola ? ', ' + r.scuola : ''}</span>{/if}
+            {#if tutto && r.inizio}<span>in carico dal {breveAnno(r.inizio)}</span>{/if}
+            {#if r.stato === 'concluso'}<span class="mano concluso">percorso concluso</span>{/if}
+          </p>
+          <p class="appartiene">
+            {#each gruppi as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{/each}
+            {#if tutto && r.ricorrenza?.giorni?.length}<span>Individuale ogni {r.ricorrenza.ogni === 2 ? 'due settimane' : 'settimana'}, {GIORNI.find((x) => x[0] === r.ricorrenza.giorni[0])?.[1]} {r.ricorrenza.ora}</span>{/if}
+          </p>
+        </div>
       </div>
+      {#if tutto}
+        <div class="schede no-stampa" role="tablist">
+          <button role="tab" aria-selected={scheda === 'diario'} onclick={() => (scheda = 'diario')}>Diario <small>{voci.length}</small></button>
+          <button role="tab" aria-selected={scheda === 'anagrafica'} onclick={() => (scheda = 'anagrafica')}>Anagrafica</button>
+          <button role="tab" aria-selected={scheda === 'conoscenza'} onclick={() => (scheda = 'conoscenza')}>Conoscenza <small>{colloqui.length}</small></button>
+        </div>
+      {/if}
     </header>
 
-    <div class="corpo">
+    {#if !tutto}
+      <p class="limitato"><Icona nome="lucchetto" /> {r.nome} non è condiviso con te: vedi solo quello che succede nei gruppi. Per il resto chiedi a un operatore.</p>
+    {/if}
+
+    <div class="corpo" class:pieno={!tutto}>
       <div class="principale">
-        {#if !scheda}
-          <DiarioElenco {voci} bind:filtro titolo={'Diario di ' + nomeCompleto(r)} nomeFile={'Diario ' + nomeCompleto(r)} />
-        {:else}
+        {#if scheda === 'diario' || !tutto}
+          <DiarioElenco {voci} bind:filtro tipi={tutto ? undefined : ['gruppo']} titolo={'Diario di ' + nomeCompleto(r)} nomeFile={'Diario ' + nomeCompleto(r)} />
+        {:else if scheda === 'anagrafica'}
           <form class="anagrafica" onsubmit={(e) => e.preventDefault()}>
-            {#if !gestisce}<p class="avviso sotto"><Icona nome="lucchetto" /> La scheda la modificano gli operatori; tu puoi leggerla.</p>{/if}
-            <fieldset disabled={!gestisce}>
-              <legend class="eti">Anagrafica</legend>
-              <div class="griglia">
-                <label class="campo"><span>Nome</span><input class="input" value={r.nome} oninput={(e) => campo('nome', e.currentTarget.value)} /></label>
-                <label class="campo"><span>Cognome</span><input class="input" value={r.cognome} oninput={(e) => campo('cognome', e.currentTarget.value)} /></label>
-                <label class="campo"><span>Data di nascita</span><input class="input" type="date" value={r.nascita || ''} onchange={(e) => campo('nascita', e.currentTarget.value)} /></label>
-                <label class="campo"><span>Scuola</span><input class="input" value={r.scuola || ''} oninput={(e) => campo('scuola', e.currentTarget.value)} /></label>
-                <label class="campo"><span>Classe</span><input class="input" value={r.classe || ''} oninput={(e) => campo('classe', e.currentTarget.value)} /></label>
-                <label class="campo"><span>Inviato da</span><input class="input" value={r.invio || ''} oninput={(e) => campo('invio', e.currentTarget.value)} /></label>
-                <label class="campo"><span>In carico dal</span><input class="input" type="date" value={r.inizio || ''} onchange={(e) => campo('inizio', e.currentTarget.value)} /></label>
-                <label class="campo"><span>Percorso</span>
-                  <select class="input" value={r.stato} onchange={(e) => campo('stato', e.currentTarget.value)}><option value="attivo">in corso</option><option value="concluso">concluso</option></select></label>
-              </div>
-            </fieldset>
+            {#if !gestisce}<p class="avviso sotto"><Icona nome="lucchetto" /> L'anagrafica la modificano gli operatori; tu puoi leggerla.</p>{/if}
+            {#each SEZIONI as sez (sez.titolo)}
+              <fieldset disabled={!gestisce}>
+                <legend class="eti">{sez.titolo}</legend>
+                <div class="griglia">
+                  {#each sez.campi as [k, nome, tipo, opzioni, larga] (k)}
+                    <label class="campo" class:larga>
+                      <span>{nome}</span>
+                      {#if tipo === 'select'}
+                        <select class="input" value={r[k] ?? ''} onchange={(e) => campo(k, e.currentTarget.value)}>
+                          {#each opzioni as [v, n] (v)}<option value={v}>{n}</option>{/each}
+                        </select>
+                      {:else if tipo === 'area'}
+                        <textarea class="input" rows="2" value={r[k] || ''} oninput={(e) => campo(k, e.currentTarget.value)}></textarea>
+                      {:else}
+                        <input class="input" type={tipo || 'text'} value={r[k] || ''} oninput={(e) => campo(k, e.currentTarget.value)} />
+                      {/if}
+                    </label>
+                  {/each}
+                </div>
+              </fieldset>
+            {/each}
             <fieldset disabled={!gestisce}>
               <legend class="eti">Famiglia</legend>
               {#each r.genitori || [] as gen, i (i)}
-                <div class="griglia tre">
-                  <label class="campo"><span>Nome</span><input class="input" value={gen.nome || ''} oninput={(e) => genitore(i, 'nome', e.currentTarget.value)} /></label>
-                  <label class="campo"><span>Relazione</span><input class="input" value={gen.relazione || ''} oninput={(e) => genitore(i, 'relazione', e.currentTarget.value)} /></label>
-                  <label class="campo"><span>Telefono</span><input class="input" type="tel" value={gen.telefono || ''} oninput={(e) => genitore(i, 'telefono', e.currentTarget.value)} /></label>
+                <div class="familiare">
+                  <div class="griglia quattro">
+                    <label class="campo"><span>Nome</span><input class="input" value={gen.nome || ''} oninput={(e) => familiare(i, 'nome', e.currentTarget.value)} /></label>
+                    <label class="campo"><span>Relazione</span><input class="input" value={gen.relazione || ''} oninput={(e) => familiare(i, 'relazione', e.currentTarget.value)} /></label>
+                    <label class="campo"><span>Telefono</span><input class="input" type="tel" value={gen.telefono || ''} oninput={(e) => familiare(i, 'telefono', e.currentTarget.value)} /></label>
+                    <label class="campo"><span>Email</span><input class="input" type="email" value={gen.email || ''} oninput={(e) => familiare(i, 'email', e.currentTarget.value)} /></label>
+                  </div>
+                  {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => togliFamiliare(i)} aria-label={'Togli ' + (gen.nome || 'familiare')}><Icona nome="chiudi" /></button>{/if}
                 </div>
               {/each}
-              {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => campo('genitori', [...(r.genitori || []), { nome: '', relazione: '' }])}><Icona nome="piu" /> Aggiungi un familiare</button>{/if}
+              {#if gestisce}<button type="button" class="btn nudo piccolo aggiungi" onclick={() => campo('genitori', [...(r.genitori || []), { nome: '', relazione: '' }])}><Icona nome="piu" /> Aggiungi un familiare</button>{/if}
+              <label class="campo"><span>Situazione familiare</span>
+                <textarea class="input" rows="2" value={r.noteFamiglia || ''} placeholder="Con chi vive, fratelli, separazioni, affidi" oninput={(e) => campo('noteFamiglia', e.currentTarget.value)}></textarea></label>
             </fieldset>
             <fieldset disabled={!gestisce}>
               <legend class="eti">Sedute individuali</legend>
-              <div class="griglia tre">
+              <div class="griglia">
                 <label class="campo"><span>Giorno fisso</span>
                   <select class="input" value={r.ricorrenza?.giorni?.[0] ?? ''} onchange={(e) => ricorrenza('giorni', e.currentTarget.value)}>
                     {#each GIORNI as [v, n] (v)}<option value={v}>{n}</option>{/each}
@@ -116,7 +191,6 @@
                     <select class="input" value={r.ricorrenza.ogni || 1} onchange={(e) => ricorrenza('ogni', +e.currentTarget.value)}><option value={1}>ogni settimana</option><option value={2}>ogni due settimane</option></select></label>
                 {/if}
               </div>
-              <p class="sotto piccolo">Con un giorno fisso le sedute compaiono da sole nel calendario. Le altre si aggiungono da «Scrivi».</p>
             </fieldset>
             <div class="stabili">
               <h3 class="eti">Da tenere a mente</h3>
@@ -126,33 +200,52 @@
             </div>
             {#if gestisce}<button type="button" class="btn nudo piccolo elimina" onclick={togli}><Icona nome="cestino" /> Elimina il ragazzo</button>{/if}
           </form>
+        {:else}
+          <section class="conoscenza">
+            <p class="sotto intro">I primi colloqui, prima di iniziare il percorso: con il ragazzo, con i genitori, insieme.</p>
+            {#each colloqui as s, i (s.id)}
+              <a class="colloquio" href={'#/seduta/' + encodeURIComponent(s.id)}>
+                <span class="n display">{i + 1}</span>
+                <span class="c-corpo">
+                  <span class="eti">{lunga(s.data, true)}{s.chi ? ' · con ' + s.chi : ''}</span>
+                  {#if s.argomento}<span class="display c-tit">{anteprima(s.argomento, 70)}</span>{/if}
+                  {#if s.resoconto}<span class="sotto">{anteprima(s.resoconto, 220)}</span>{:else}<span class="mano">{statoSeduta(s) === 'futura' ? 'in programma' : 'da scrivere'}</span>{/if}
+                </span>
+              </a>
+            {:else}
+              <p class="sotto vuoto">Nessun colloquio di conoscenza segnato.</p>
+            {/each}
+            <button class="btn" onclick={() => apriCrea({ tipo: 'conoscenza', ragazzoId: id })}><Icona nome="piu" /> Nuovo colloquio di conoscenza</button>
+          </section>
         {/if}
       </div>
 
-      <aside class="lato no-stampa">
-        <div class="azioni">
-          <button class="btn pieno" onclick={() => apriCrea({ tipo: 'nota', ragazzoId: id })}><Icona nome="matita" /> Nota su {r.nome}</button>
-          <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'individuale', ragazzoId: id })}>Seduta individuale</button>
-          <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'genitori', ragazzoId: id })}>Incontro genitori</button>
-        </div>
-        {#if r.noteStabili && !scheda}
-          <div class="box retino">
-            <h3 class="eti">Da tenere a mente</h3>
-            <Md testo={r.noteStabili} />
+      {#if tutto}
+        <aside class="lato no-stampa">
+          <div class="azioni">
+            <button class="btn pieno" onclick={() => apriCrea({ tipo: 'nota', ragazzoId: id })}><Icona nome="matita" /> Nota su {r.nome}</button>
+            <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'individuale', ragazzoId: id })}>Seduta individuale</button>
+            <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'genitori', ragazzoId: id })}>Incontro genitori</button>
           </div>
-        {/if}
-        <div class="box">
-          <h3 class="eti">Prossimi appuntamenti</h3>
-          <ul class="agenda">
-            {#each agenda as s (s.id)}
-              <li><a href={'#/seduta/' + encodeURIComponent(s.id)}><span class="quando">{relativa(s.data)}, {s.ora}</span> <span class="sotto">{s.tipo === 'gruppo' ? titoloSeduta(s) : TIPI[s.tipo].breve}</span></a></li>
-            {:else}
-              <li class="sotto">Nessuno nelle prossime tre settimane.</li>
-            {/each}
-          </ul>
-        </div>
-        <div class="box"><ElencoSospesi tipo="ragazzo" {id} /></div>
-      </aside>
+          {#if r.noteStabili && scheda !== 'anagrafica'}
+            <div class="box retino">
+              <h3 class="eti">Da tenere a mente</h3>
+              <Md testo={r.noteStabili} />
+            </div>
+          {/if}
+          <div class="box">
+            <h3 class="eti">Prossimi appuntamenti</h3>
+            <ul class="agenda">
+              {#each agenda as s (s.id)}
+                <li><a href={'#/seduta/' + encodeURIComponent(s.id)}><span class="quando">{relativa(s.data)}, {s.ora}</span> <span class="sotto">{s.tipo === 'gruppo' ? titoloSeduta(s) : TIPI[s.tipo].breve}</span></a></li>
+              {:else}
+                <li class="sotto">Nessuno nelle prossime tre settimane.</li>
+              {/each}
+            </ul>
+          </div>
+          <div class="box"><ElencoSospesi tipo="ragazzo" {id} /></div>
+        </aside>
+      {/if}
     </div>
   </div>
 {:else}
@@ -161,8 +254,13 @@
 
 <style>
   .ragazzo { max-width: 1240px; margin: 0 auto; padding: var(--s-5) var(--s-6) var(--s-8); }
-  .testa { display: grid; gap: var(--s-2); margin-bottom: var(--s-5); border-bottom: 1.5px solid var(--inchiostro); }
+  .testa { display: grid; gap: var(--s-3); margin-bottom: var(--s-5); border-bottom: 1.5px solid var(--inchiostro); }
   .torna { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-sm); font-weight: 600; text-decoration: none; color: var(--inchiostro-2); }
+  .intesta { display: flex; align-items: center; gap: var(--s-5); }
+  .foto { position: relative; width: 132px; flex: none; display: grid; gap: 4px; justify-items: center; }
+  .foto > :global(.cornice) { width: 132px; height: 132px; }
+  .foto-azioni { display: flex; }
+  .nomi { display: grid; gap: var(--s-2); min-width: 0; }
   h1 { font-size: var(--t-xxl); line-height: 0.95; }
   .cognome { color: var(--inchiostro-2); }
   .dettagli { display: flex; flex-wrap: wrap; gap: 4px 18px; }
@@ -170,33 +268,45 @@
   .appartiene { display: flex; flex-wrap: wrap; gap: 4px 18px; font-weight: 600; font-size: var(--t-sm); }
   .appartiene a { text-decoration-color: var(--spot); text-underline-offset: 3px; }
   .appartiene span { font-weight: 500; color: var(--inchiostro-2); }
-  .schede { display: flex; gap: var(--s-5); margin-top: var(--s-3); }
+  .schede { display: flex; gap: var(--s-5); }
   .schede button { border: 0; background: none; padding: 8px 0; font-weight: 600; color: var(--inchiostro-2); cursor: pointer; position: relative; }
   .schede button[aria-selected='true'] { color: var(--inchiostro); }
-  .schede button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1.5px; height: 3px; background: var(--spot); }
+  .schede button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1.5px; height: 3px; border-radius: 3px; background: var(--spot); }
   .schede small { font-weight: 500; color: var(--inchiostro-3); }
+  .limitato { display: flex; gap: var(--s-2); align-items: center; padding: var(--s-3) var(--s-4); margin-bottom: var(--s-5); border: 1px dashed var(--matita-forte); border-radius: var(--r-grande); color: var(--inchiostro-2); }
   .corpo { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--s-7); align-items: start; }
+  .corpo.pieno { grid-template-columns: minmax(0, 860px); }
   .lato { display: grid; gap: var(--s-5); position: sticky; top: calc(var(--barra) + var(--s-4)); }
   .azioni { display: grid; gap: var(--s-2); }
-  .azioni .btn { justify-content: center; }
-  .azioni .piccolo { justify-self: stretch; }
   .box { display: grid; gap: var(--s-2); }
-  .box.retino { padding: var(--s-3) var(--s-4); }
+  .box.retino { padding: var(--s-3) var(--s-4); border-radius: var(--r-grande); }
   .box.retino :global(.md) { font-size: var(--t-ui); }
   .agenda { list-style: none; margin: 0; padding: 0; }
   .agenda li { padding: 6px 0; border-bottom: 1px dashed var(--matita); }
   .agenda a { text-decoration: none; }
   .quando { font-weight: 600; }
   .anagrafica { display: grid; gap: var(--s-6); }
-  fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--s-4); }
+  fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--s-4); min-width: 0; }
   legend { margin-bottom: var(--s-3); padding-bottom: 4px; border-bottom: 1px solid var(--matita); width: 100%; }
-  .griglia { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); }
-  .griglia.tre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--s-4) var(--s-5); }
+  .griglia.quattro { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .larga { grid-column: 1 / -1; }
   fieldset:disabled .input { border-bottom-style: dotted; }
+  .familiare { display: flex; gap: var(--s-3); align-items: end; padding-bottom: var(--s-3); border-bottom: 1px dashed var(--matita); }
+  .familiare .griglia { flex: 1; }
+  .aggiungi { justify-self: start; }
   .avviso { display: flex; gap: var(--s-2); align-items: center; font-size: var(--t-sm); }
   .stabili { display: grid; gap: var(--s-2); }
   .elimina { justify-self: start; color: var(--spot-testo); }
-  .vuoto { padding: var(--s-7); text-align: center; color: var(--inchiostro-2); }
+  .conoscenza { display: grid; gap: var(--s-3); justify-items: start; }
+  .intro { max-width: 60ch; }
+  .colloquio { display: grid; grid-template-columns: 52px 1fr; gap: var(--s-3); width: 100%; padding: var(--s-4); text-decoration: none; background: var(--carta-2); border: 1px solid var(--matita); border-radius: var(--r-grande); }
+  .colloquio:hover { box-shadow: var(--ombra); }
+  .n { font-size: 44px; line-height: 0.9; color: var(--spot-testo); }
+  .c-corpo { display: grid; gap: 4px; }
+  .c-tit { font-size: 19px; }
+  .vuoto { font-style: italic; }
+  p.vuoto { padding: var(--s-7); text-align: center; color: var(--inchiostro-2); }
   @media (max-width: 1000px) {
     .corpo { grid-template-columns: 1fr; }
     .lato { position: static; order: -1; }
@@ -205,8 +315,12 @@
   }
   @media (max-width: 720px) {
     .ragazzo { padding: var(--s-3) var(--s-4) var(--s-7); }
-    h1 { font-size: 40px; }
-    .griglia, .griglia.tre { grid-template-columns: 1fr; }
+    .intesta { gap: var(--s-4); align-items: start; }
+    .foto, .foto > :global(.cornice) { width: 84px; }
+    .foto > :global(.cornice) { height: 84px; }
+    h1 { font-size: 36px; }
+    .griglia, .griglia.quattro { grid-template-columns: 1fr; }
     .lato .box:not(.retino) { display: none; }
+    .schede { gap: var(--s-4); overflow-x: auto; }
   }
 </style>

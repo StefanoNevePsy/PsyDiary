@@ -22,7 +22,9 @@
   /* spazi (ritmo a base 4) */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
 
-  --r: 2px;
+  --r: 10px;          /* tasti, campi, etichette */
+  --r-grande: 16px;   /* fogli, carte, finestre */
+  --r-piccolo: 6px;
   --barra: 60px;
   --misura: 68ch;
 
@@ -46,6 +48,8 @@
   --spot-retino: oklch(0.575 0.165 33 / 0.5);
   --su-inchiostro: var(--carta);          /* testo su blocchi pieni */
   --ombra: 0 1px 0 var(--matita), 0 22px 44px -30px oklch(0.25 0.04 265 / 0.55);
+  --duo-scuro: var(--inchiostro);
+  --duo-chiaro: var(--carta);
   --grana-fondo: multiply;
   --grana-opacita: 0.42;
   color-scheme: light;
@@ -67,6 +71,8 @@
   --spot-retino: oklch(0.71 0.15 38 / 0.45);
   --su-inchiostro: oklch(0.19 0.016 265);
   --ombra: 0 1px 0 var(--matita), 0 24px 48px -28px oklch(0 0 0 / 0.7);
+  --duo-scuro: oklch(0.16 0.018 265);
+  --duo-chiaro: oklch(0.9 0.02 82);
   --grana-fondo: screen;
   --grana-opacita: 0.22;
   color-scheme: dark;
@@ -87,7 +93,9 @@
     --spot-retino: oklch(0.71 0.15 38 / 0.45);
     --su-inchiostro: oklch(0.19 0.016 265);
     --ombra: 0 1px 0 var(--matita), 0 24px 48px -28px oklch(0 0 0 / 0.7);
-    --grana-fondo: screen;
+    --duo-scuro: oklch(0.16 0.018 265);
+  --duo-chiaro: oklch(0.9 0.02 82);
+  --grana-fondo: screen;
     --grana-opacita: 0.22;
     color-scheme: dark;
   }

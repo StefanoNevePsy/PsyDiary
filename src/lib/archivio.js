@@ -2,8 +2,10 @@
 // Nella fase 2 lo stesso contenuto viaggerà cifrato verso il custode.
 
 const NOME = 'psydiary';
-const VERSIONE = 1;
-export const TABELLE = ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi'];
+const VERSIONE = 2;
+export const TABELLE = ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'persone'];
+// le immagini non stanno nello stato dell'app: si leggono quando servono
+const ALTRE = ['immagini'];
 
 let db = null;
 function apri() {
@@ -11,7 +13,7 @@ function apri() {
   return new Promise((ok, ko) => {
     const r = indexedDB.open(NOME, VERSIONE);
     r.onupgradeneeded = () => {
-      for (const t of TABELLE) if (!r.result.objectStoreNames.contains(t)) r.result.createObjectStore(t, { keyPath: 'id' });
+      for (const t of [...TABELLE, ...ALTRE]) if (!r.result.objectStoreNames.contains(t)) r.result.createObjectStore(t, { keyPath: 'id' });
     };
     r.onsuccess = () => { db = r.result; ok(db); };
     r.onerror = () => ko(r.error);
@@ -27,10 +29,11 @@ function op(tabella, modo, fn) {
   }));
 }
 export const tutti = (tabella) => op(tabella, 'readonly', (s) => s.getAll());
+export const uno = (tabella, id) => op(tabella, 'readonly', (s) => s.get(id));
 export const metti = (tabella, oggetto) => op(tabella, 'readwrite', (s) => s.put(oggetto));
 export const togli = (tabella, id) => op(tabella, 'readwrite', (s) => s.delete(id));
 export async function svuota() {
-  for (const t of TABELLE) await op(t, 'readwrite', (s) => s.clear());
+  for (const t of [...TABELLE, ...ALTRE]) await op(t, 'readwrite', (s) => s.clear());
 }
 /** Scrive più tabelle in una sola transazione: o tutto o niente. */
 export async function mettiTutto(contenuto) {

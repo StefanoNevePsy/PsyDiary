@@ -4,8 +4,8 @@
   import { oggi, piu } from '../lib/date.js';
   import Icona from './Icona.svelte';
 
-  let { voci = [], filtro = $bindable(), tipi = ['gruppo', 'individuale', 'genitori', 'nota'] } = $props();
-  const NOMI = { gruppo: 'Gruppo', individuale: 'Individuale', genitori: 'Genitori', nota: 'Note' };
+  let { voci = [], filtro = $bindable(), tipi = ['gruppo', 'individuale', 'genitori', 'conoscenza', 'nota'] } = $props();
+  const NOMI = { gruppo: 'Gruppo', individuale: 'Individuale', genitori: 'Genitori', conoscenza: 'Conoscenza', nota: 'Note' };
   const tags = $derived(conteggioTag(voci));
   let tuttiTag = $state(false);
   const visibili = $derived(tuttiTag ? tags : tags.slice(0, 10));
@@ -60,7 +60,7 @@
   .filtri { display: grid; gap: var(--s-3); }
   .cima { display: flex; gap: var(--s-3); align-items: center; }
   .cima .testo { flex: 1; }
-  .apri-filtri { display: none; align-items: center; gap: 6px; border: 1px solid var(--matita-forte); border-radius: var(--r); background: transparent; min-height: 36px; padding: 4px 10px; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
+  .apri-filtri { display: none; align-items: center; gap: 6px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; min-height: 36px; padding: 4px 10px; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
   .apri-filtri[aria-expanded='true'] { background: var(--inchiostro); color: var(--su-inchiostro); }
   @media (max-width: 720px) {
     .apri-filtri { display: inline-flex; }
@@ -70,7 +70,7 @@
   .testo .input { font-size: var(--t-ui); }
   .riga { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .scelta {
-    min-height: 30px; padding: 2px 10px; border: 1px solid var(--matita-forte); border-radius: var(--r);
+    min-height: 30px; padding: 2px 12px; border: 1px solid var(--matita-forte); border-radius: 999px;
     background: transparent; font-size: var(--t-sm); font-weight: 600; cursor: pointer;
   }
   .scelta:hover { background: var(--carta-3); }

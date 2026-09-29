@@ -3,32 +3,43 @@ import * as A from './archivio.js';
 import { oggi, piu, giornoSettimana, daIso } from './date.js';
 import { tagDi, menzioniDi, semplice, daFare } from './testo.js';
 
-export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [] });
+export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], persone: [] });
 
 // Chi usa l'app. Nel prototipo si può cambiare da Impostazioni per provare i ruoli.
-const UTENTI = {
-  stefano: { id: 'stefano', nome: 'Stefano', ruolo: 'admin' },
-  elena: { id: 'elena', nome: 'Elena', ruolo: 'admin' },
-  giulia: { id: 'giulia', nome: 'Giulia', ruolo: 'tirocinante' },
-};
-export const sessione = $state({ utente: UTENTI.stefano, tema: 'auto' });
-export const utenti = Object.values(UTENTI);
+export const PERSONE_INIZIALI = [
+  { id: 'stefano', nome: 'Stefano', ruolo: 'admin' },
+  { id: 'elena', nome: 'Elena', ruolo: 'admin' },
+  { id: 'giulia', nome: 'Giulia', ruolo: 'tirocinante', ragazzi: ['rluca01', 'rsara02', 'romar03'] },
+  { id: 'marco', nome: 'Marco', ruolo: 'tirocinante', ragazzi: [] },
+];
+const OSPITE = { id: '?', nome: '?', ruolo: 'tirocinante', ragazzi: [] };
+export const sessione = $state({ utenteId: 'stefano', tema: 'auto' });
+/** La persona che sta usando l'app (sempre aggiornata con i permessi). */
+export const io = () => dati.persone.find((p) => p.id === sessione.utenteId) || dati.persone[0] || OSPITE;
 export function cambiaUtente(id) {
-  sessione.utente = UTENTI[id] || UTENTI.stefano;
-  try { localStorage.setItem('psy:utente', sessione.utente.id); } catch (e) { /* niente */ }
+  sessione.utenteId = id;
+  try { localStorage.setItem('psy:utente', id); } catch (e) { /* niente */ }
 }
 export function impostaTema(t) {
   sessione.tema = t;
   if (t === 'auto') delete document.documentElement.dataset.tema; else document.documentElement.dataset.tema = t;
   try { if (t === 'auto') localStorage.removeItem('psy:tema'); else localStorage.setItem('psy:tema', t); } catch (e) { /* niente */ }
 }
-export const eAdmin = () => sessione.utente.ruolo === 'admin';
+export const eAdmin = () => io().ruolo === 'admin';
 /** Tirocinanti: scrivono note, ma non gestiscono ragazzi, gruppi, anagrafiche. */
 export const puoGestire = () => eAdmin();
 /** Un testo si modifica se è vuoto, se l'ho scritto io, o se sono admin. */
 export function puoModificare(autore, testo) {
-  return eAdmin() || !testo || !autore || autore === sessione.utente.nome;
+  return eAdmin() || !testo || !autore || autore === io().nome;
 }
+/**
+ * Ragazzi condivisi: chi è admin li vede tutti; un tirocinante vede tutto dei
+ * ragazzi condivisi con lui, degli altri solo quello che succede nei gruppi.
+ */
+export const condiviso = (rid) => eAdmin() || (io().ragazzi || []).includes(rid);
+export const TIPI_PERSONALI = ['individuale', 'genitori', 'conoscenza'];
+export const visibileSeduta = (s) => !s || s.tipo === 'gruppo' || condiviso(s.ragazzoId);
+export const visibileNota = (n) => !n.ragazzoId || condiviso(n.ragazzoId);
 
 // ---------------------------------------------------------------------------
 export function nuovoId(p) {
@@ -41,15 +52,28 @@ export function nuovoId(p) {
 const ora = () => new Date().toISOString();
 
 export async function carica() {
-  const [ragazzi, gruppi, sedute, note, sospesi] = await Promise.all(A.TABELLE.map((t) => A.tutti(t)));
+  const [ragazzi, gruppi, sedute, note, sospesi, persone] = await Promise.all(A.TABELLE.map((t) => A.tutti(t)));
   if (!ragazzi.length && !gruppi.length) {
     const { creaDemo } = await import('./demo.js');
     const d = creaDemo();
     await A.mettiTutto(Object.fromEntries(A.TABELLE.map((t) => [t, d[t]])));
+    try {
+      // copertine dei gruppi e un disegno in una seduta, generati sul momento
+      const { creaImmaginiDemo } = await import('./demo-immagini.js');
+      const im = await creaImmaginiDemo();
+      for (const g of d.gruppi) if (im[g.id]) g.copertina = im[g.id];
+      const rabbia = d.sedute.find((x) => x.id === 'sgmart3');
+      if (rabbia) rabbia.resoconto += `\n\n![Il termometro disegnato alla lavagna](img:${im.termometro})`;
+      await A.mettiTutto({ gruppi: d.gruppi, sedute: d.sedute });
+    } catch (e) { console.warn('Immagini di prova non create', e); }
     Object.assign(dati, d);
-  } else Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi });
+  } else Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone });
+  if (!dati.persone.length) {
+    await A.mettiTutto({ persone: PERSONE_INIZIALI });
+    dati.persone = structuredClone(PERSONE_INIZIALI);
+  }
   try {
-    const u = localStorage.getItem('psy:utente'); if (u && UTENTI[u]) sessione.utente = UTENTI[u];
+    const u = localStorage.getItem('psy:utente'); if (u) sessione.utenteId = u;
     const t = localStorage.getItem('psy:tema'); if (t) sessione.tema = t;
   } catch (e) { /* niente */ }
   dati.pronto = true;
@@ -92,6 +116,8 @@ export function membriAl(g, data) {
   return (g.membri || []).filter((m) => (!m.dal || m.dal <= data) && (!m.al || m.al >= data)).map((m) => m.ragazzoId);
 }
 export const gruppiDi = (rid) => dati.gruppi.filter((g) => (g.membri || []).some((m) => m.ragazzoId === rid && !m.al));
+export const ragazziCondivisi = () => ragazziAttivi().filter((r) => condiviso(r.id));
+export const ragazziVisibili = () => ragazziAttivi();
 export const ragazziAttivi = () => dati.ragazzi.filter((r) => r.stato !== 'concluso').sort((a, b) => nomeCompleto(a).localeCompare(nomeCompleto(b), 'it'));
 
 // ---------------------------------------------------------------------------
@@ -101,7 +127,9 @@ export const TIPI = {
   gruppo: { nome: 'Seduta di gruppo', breve: 'Gruppo' },
   individuale: { nome: 'Seduta individuale', breve: 'Individuale' },
   genitori: { nome: 'Incontro con i genitori', breve: 'Genitori' },
+  conoscenza: { nome: 'Colloquio di conoscenza', breve: 'Conoscenza' },
 };
+export const CATEGORIE_NOTA = { osservazione: 'Osservazione', scuola: 'Scuola', famiglia: 'Famiglia', servizi: 'Servizi', telefonata: 'Telefonata', altro: 'Altro' };
 const idVirtuale = (tipo, sogg, data) => `v:${tipo}:${sogg}:${data}`;
 export const soggetto = (s) => (s.tipo === 'gruppo' ? 'g:' + s.gruppoId : s.tipo + ':' + s.ragazzoId);
 
@@ -130,12 +158,12 @@ export function sedutePeriodo(da, a) {
       out.push({ id: idVirtuale('individuale', r.id, d), virtuale: true, tipo: 'individuale', ragazzoId: r.id, data: d, ora: r.ricorrenza.ora, durata: r.ricorrenza.durata || 60, argomento: '', resoconto: '', prossima: '', autori: {} });
     }
   }
-  return out.filter((s) => !s.annullata).sort((x, y) => (x.data + x.ora).localeCompare(y.data + y.ora));
+  return out.filter((s) => !s.annullata && visibileSeduta(s)).sort((x, y) => (x.data + x.ora).localeCompare(y.data + y.ora));
 }
 
 export function seduta(id) {
   const s = dati.sedute.find((x) => x.id === id);
-  if (s) return s;
+  if (s) return visibileSeduta(s) ? s : null;
   const m = /^v:(gruppo|individuale):([a-z0-9]+):(\d{4}-\d{2}-\d{2})$/.exec(id || '');
   if (!m) return null;
   // già salvata? si ritrova con lo stesso indirizzo
@@ -154,7 +182,7 @@ export async function materializza(s) {
 export async function aggiornaSeduta(s, modifiche) {
   const vera = await materializza(s);
   const autori = { ...(vera.autori || {}) };
-  for (const k of Object.keys(modifiche)) if (['argomento', 'resoconto', 'prossima'].includes(k) && modifiche[k] && !autori[k]) autori[k] = sessione.utente.nome;
+  for (const k of Object.keys(modifiche)) if (['argomento', 'resoconto', 'prossima'].includes(k) && modifiche[k] && !autori[k]) autori[k] = io().nome;
   return salva('sedute', { ...vera, ...modifiche, autori });
 }
 
@@ -204,7 +232,7 @@ export function dallaVoltaScorsa(s) {
 
 // ---------------------------------------------------------------------------
 // Argomenti in sospeso
-export const sospesiDi = (tipo, id) => dati.sospesi.filter((x) => !x.usatoIn && (tipo === 'gruppo' ? x.gruppoId === id : x.ragazzoId === id));
+export const sospesiDi = (tipo, id) => (tipo !== 'gruppo' && !condiviso(id) ? [] : dati.sospesi).filter((x) => !x.usatoIn && (tipo === 'gruppo' ? x.gruppoId === id : x.ragazzoId === id));
 export async function usaSospeso(sosp, s) {
   const vera = await aggiornaSeduta(s, { argomento: aggiungiVoce(s.argomento, sosp.testo) });
   await salva('sospesi', { ...sosp, usatoIn: vera.id });
@@ -242,17 +270,18 @@ function voceSeduta(s, perRagazzo) {
   };
 }
 function voceNota(n) {
+  const cat = CATEGORIE_NOTA[n.categoria] || '';
   return {
-    chiave: n.id, tipo: 'nota', data: n.data, ora: '', notaId: n.id, titolo: n.titolo || 'Nota',
+    chiave: n.id, tipo: 'nota', data: n.data, ora: '', notaId: n.id, titolo: n.titolo || cat || 'Nota', categoria: cat,
     ragazzoId: n.ragazzoId, gruppoId: n.gruppoId,
     blocchi: [{ chiave: 'testo', etichetta: '', testo: n.testo, principale: true }],
-    tags: tagDi(n.testo), testo: semplice(n.testo), autori: { testo: n.autore },
+    tags: tagDi(n.testo), testo: cat + ' ' + semplice(n.testo), autori: { testo: n.autore },
   };
 }
 export function diarioRagazzo(rid) {
   const out = [];
   for (const s of dati.sedute) {
-    if (s.annullata) continue;
+    if (s.annullata || !visibileSeduta(s)) continue;
     if (s.tipo === 'gruppo') {
       const g = gruppo(s.gruppoId);
       const membro = g && membriAl(g, s.data).includes(rid);
@@ -260,7 +289,7 @@ export function diarioRagazzo(rid) {
       if ((membro && (s.resoconto || (s.partecipanti || {})[rid] || s.presenze?.[rid] === false)) || citato) out.push(voceSeduta(s, rid));
     } else if (s.ragazzoId === rid && (s.argomento || s.resoconto)) out.push(voceSeduta(s));
   }
-  for (const n of dati.note) if (n.ragazzoId === rid || menzioniDi(n.testo).includes(rid)) out.push(voceNota(n));
+  for (const n of dati.note) if (visibileNota(n) && (n.ragazzoId === rid || menzioniDi(n.testo).includes(rid))) out.push(voceNota(n));
   return out.sort((a, b) => (b.data + (b.ora || '')).localeCompare(a.data + (a.ora || '')));
 }
 export function storicoGruppo(gid) {
@@ -273,8 +302,8 @@ export function storicoGruppo(gid) {
   ).sort((a, b) => (b.data + (b.ora || '')).localeCompare(a.data + (a.ora || '')));
 }
 export function diarioAula() {
-  return dati.sedute.filter((s) => !s.annullata && (s.argomento || s.resoconto)).map((s) => voceSeduta(s))
-    .concat(dati.note.map(voceNota))
+  return dati.sedute.filter((s) => !s.annullata && visibileSeduta(s) && (s.argomento || s.resoconto)).map((s) => voceSeduta(s))
+    .concat(dati.note.filter(visibileNota).map(voceNota))
     .sort((a, b) => (b.data + (b.ora || '')).localeCompare(a.data + (a.ora || '')));
 }
 export function conteggioTag(voci) {

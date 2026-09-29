@@ -5,7 +5,7 @@
   import Md from './Md.svelte';
 
   let { v, alTag = null, mostraSoggetto = false } = $props();
-  const NOMI = { gruppo: 'Gruppo', individuale: 'Individuale', genitori: 'Genitori', nota: 'Nota' };
+  const NOMI = { gruppo: 'Gruppo', individuale: 'Individuale', genitori: 'Genitori', conoscenza: 'Conoscenza', nota: 'Nota' };
   let aperti = $state(false);
   const principali = $derived(v.blocchi.filter((b) => !b.secondario));
   const secondari = $derived(v.blocchi.filter((b) => b.secondario));
@@ -33,7 +33,7 @@
   </div>
   <div class="corpo">
     <header>
-      <span class="eti tipo">{NOMI[v.tipo]}</span>
+      <span class="eti tipo">{NOMI[v.tipo]}{v.categoria ? ' · ' + v.categoria : ''}</span>
       <h3><a href={link}>{v.titolo}</a></h3>
       {#if mostraSoggetto && soggetto && v.tipo === 'nota'}<span class="sotto piccolo">{nomeCompleto(soggetto)}</span>{/if}
       <span class="vis-nascosto">{relativa(v.data)}</span>

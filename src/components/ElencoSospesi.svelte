@@ -1,7 +1,7 @@
 <script>
   // Argomenti in sospeso di un gruppo o di un ragazzo: idee da portare in una
   // seduta futura, senza doverle legare a una data.
-  import { dati, salva, elimina, nuovoId, sessione, sedutePeriodo, soggetto, usaSospeso, eAdmin } from '../lib/dati.svelte.js';
+  import { dati, salva, elimina, nuovoId, sessione, sedutePeriodo, soggetto, usaSospeso, eAdmin, io } from '../lib/dati.svelte.js';
   import { oggi, piu, relativa, lunga } from '../lib/date.js';
   import Icona from './Icona.svelte';
 
@@ -16,10 +16,10 @@
   async function aggiungi(e) {
     e.preventDefault();
     const t = testo.trim(); if (!t) return;
-    await salva('sospesi', { id: nuovoId('q'), testo: t, autore: sessione.utente.nome, ...(tipo === 'gruppo' ? { gruppoId: id } : { ragazzoId: id }) });
+    await salva('sospesi', { id: nuovoId('q'), testo: t, autore: io().nome, ...(tipo === 'gruppo' ? { gruppoId: id } : { ragazzoId: id }) });
     testo = '';
   }
-  const puoTogliere = (x) => eAdmin() || x.autore === sessione.utente.nome;
+  const puoTogliere = (x) => eAdmin() || x.autore === io().nome;
   const doveUsato = (x) => dati.sedute.find((s) => s.id === x.usatoIn);
 </script>
 

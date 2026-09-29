@@ -1,6 +1,7 @@
 <script>
   // Elenco dei ragazzi: chi sono, in che gruppo, quando li si rivede.
-  import { dati, nomeCompleto, gruppiDi, puoGestire, salva, nuovoId, sedutePeriodo, soggetto } from '../lib/dati.svelte.js';
+  import { dati, nomeCompleto, gruppiDi, puoGestire, salva, nuovoId, sedutePeriodo, soggetto, condiviso, visibileNota } from '../lib/dati.svelte.js';
+  import Immagine from '../components/Immagine.svelte';
   import { vai } from '../lib/rotta.svelte.js';
   import { eta, oggi, piu, relativa } from '../lib/date.js';
   import Icona from '../components/Icona.svelte';
@@ -17,8 +18,8 @@
       .sort((a, b) => (a.cognome || a.nome).localeCompare(b.cognome || b.nome, 'it')),
   );
   function ultima(rid) {
-    const s = dati.sedute.filter((x) => !x.annullata && x.data <= O && (x.ragazzoId === rid || (x.partecipanti || {})[rid])).sort((a, b) => b.data.localeCompare(a.data))[0];
-    const n = dati.note.filter((x) => x.ragazzoId === rid).sort((a, b) => b.data.localeCompare(a.data))[0];
+    const s = dati.sedute.filter((x) => !x.annullata && x.data <= O && ((x.ragazzoId === rid && condiviso(rid)) || (x.partecipanti || {})[rid])).sort((a, b) => b.data.localeCompare(a.data))[0];
+    const n = dati.note.filter((x) => x.ragazzoId === rid && visibileNota(x)).sort((a, b) => b.data.localeCompare(a.data))[0];
     const d = [s?.data, n?.data].filter(Boolean).sort().at(-1);
     return d ? relativa(d) : '—';
   }
@@ -53,8 +54,10 @@
       <li class="riga" class:nuova-lettera={i > 0 && lettera(elenco[i - 1]) !== lettera(r)}>
         {#if i === 0 || lettera(elenco[i - 1]) !== lettera(r)}<span class="lettera display" aria-hidden="true">{lettera(r)}</span>{/if}
         <a class="nome" href={'#/ragazzo/' + r.id}>
+          <span class="av"><Immagine id={r.foto} forma="tondo" seme={r.id} iniziale={(r.nome || '?')[0]} piccola /></span>
           <span class="display">{r.cognome || ''} {r.nome || 'Senza nome'}</span>
           {#if r.nascita}<span class="sotto piccolo">{eta(r.nascita)} anni</span>{/if}
+          {#if !condiviso(r.id)}<span class="blocca" title="Non condiviso con te: vedi solo i gruppi"><Icona nome="lucchetto" /></span>{/if}
         </a>
         <span class="sotto">{r.classe || ''}{r.scuola ? ', ' + r.scuola : ''}</span>
         <span class="gruppi">
@@ -83,7 +86,11 @@
   .riga { position: relative; padding: 10px 0; border-bottom: 1px dashed var(--matita); }
   .riga.nuova-lettera { border-top: 1px solid var(--matita-forte); margin-top: -1px; }
   .lettera { position: absolute; left: -44px; top: 6px; width: 30px; text-align: right; font-size: var(--t-lg); color: var(--spot-testo); line-height: 1; }
-  .nome { display: flex; gap: var(--s-2); align-items: baseline; text-decoration: none; }
+  .nome { display: flex; gap: var(--s-3); align-items: center; text-decoration: none; }
+  .av { width: 38px; height: 38px; flex: none; }
+  .av :global(.iniziale) { font-size: 17px; }
+  .blocca { color: var(--inchiostro-3); display: inline-flex; }
+  .blocca :global(.ico) { width: 14px; height: 14px; }
   .nome .display { font-size: 19px; }
   .nome:hover .display { text-decoration: underline; text-decoration-color: var(--spot); text-underline-offset: 4px; }
   .gruppi { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: var(--t-sm); font-weight: 600; }

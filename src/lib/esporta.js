@@ -7,7 +7,7 @@ export function stampa() { window.print(); }
 /** Markdown semplice → paragrafi docx (titoli, elenchi, caselle, grassetto, corsivo). */
 function paragrafi(D, testo) {
   const out = [];
-  for (const riga of (testo || '').replace(RE_MENZIONE, '$1').split('\n')) {
+  for (const riga of (testo || '').replace(RE_MENZIONE, '$1').replace(/!\[([^\]]*)\]\(img:[a-z0-9]+\)/g, '[immagine $1]').split('\n')) {
     if (!riga.trim()) continue;
     let r = riga, opz = {};
     let m;
@@ -34,7 +34,7 @@ function paragrafi(D, testo) {
  */
 export async function word(titolo, sottotitolo, voci, nomeFile) {
   const D = await import('docx');
-  const NOMI = { gruppo: 'Gruppo', individuale: 'Individuale', genitori: 'Genitori', nota: 'Nota' };
+  const NOMI = { gruppo: 'Gruppo', individuale: 'Individuale', genitori: 'Genitori', conoscenza: 'Conoscenza', nota: 'Nota' };
   const figli = [
     new D.Paragraph({ children: [new D.TextRun({ text: titolo, font: 'Georgia', size: 44 })], spacing: { after: 120 } }),
     new D.Paragraph({ children: [new D.TextRun({ text: sottotitolo, color: '5A6070', size: 20 })], spacing: { after: 360 } }),

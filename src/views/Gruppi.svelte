@@ -4,6 +4,7 @@
   import { oggi, piu, relativa, lunga, nomeGiorno } from '../lib/date.js';
   import { anteprima } from '../lib/testo.js';
   import Icona from '../components/Icona.svelte';
+  import Immagine from '../components/Immagine.svelte';
 
   const O = oggi();
   let archiviati = $state(false);
@@ -30,6 +31,7 @@
       {@const p = prossima(g)}
       {@const n = daScrivere(g)}
       <a class="carta" href={'#/gruppo/' + g.id}>
+        {#if g.copertina}<span class="copertina"><Immagine id={g.copertina} forma="foglio" tinta={i % 2 ? 'spot' : 'inchiostro'} seme={g.id} /></span>{/if}
         <span class="numero display" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
         <span class="eti">{g.ricorrenza?.giorni?.length ? `${GIORNI[g.ricorrenza.giorni[0]]} · ${g.ricorrenza.ora}` : 'senza giorno fisso'}</span>
         <span class="nome display">{g.nome}</span>
@@ -54,10 +56,12 @@
   .carte { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s-5); }
   .carta {
     position: relative; display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5); text-decoration: none; overflow: hidden;
-    background: var(--carta-2); border: 1px solid var(--matita); border-top: 3px solid var(--inchiostro);
+    background: var(--carta-2); border: 1px solid var(--matita); border-radius: var(--r-grande);
     transition: transform var(--d-breve) var(--e-uscita), box-shadow var(--d-breve) var(--e-uscita);
   }
   .carta:hover { transform: translateY(-2px); box-shadow: var(--ombra); }
+  .copertina { display: block; height: 150px; margin: calc(-1 * var(--s-5)) calc(-1 * var(--s-5)) var(--s-2); }
+  .copertina + .numero { top: 162px; }
   .numero { position: absolute; right: 14px; top: 2px; font-size: 64px; line-height: 1; color: transparent; -webkit-text-stroke: 1px var(--matita-forte); }
   .nome { font-size: var(--t-lg); line-height: 1.05; padding-right: 60px; }
   .tema { font-size: 22px; transform: rotate(-2deg); transform-origin: left; width: max-content; }

@@ -1,6 +1,13 @@
 // Dati di prova, tutti inventati, attorno alla data di oggi.
 import { oggi, piu, lunedi, giornoSettimana } from './date.js';
 
+const PERSONE = [
+  { id: 'stefano', nome: 'Stefano', ruolo: 'admin' },
+  { id: 'elena', nome: 'Elena', ruolo: 'admin' },
+  { id: 'giulia', nome: 'Giulia', ruolo: 'tirocinante', ragazzi: ['rluca01', 'rsara02', 'romar03'] },
+  { id: 'marco', nome: 'Marco', ruolo: 'tirocinante', ragazzi: [] },
+];
+
 let seme = 7;
 const caso = () => { seme = (seme * 16807) % 2147483647; return (seme - 1) / 2147483646; };
 const uno = (a) => a[Math.floor(caso() * a.length)];
@@ -36,6 +43,19 @@ export function creaDemo() {
     R('rirene13', 'Irene', 'Sala', '2008-03-19', 'Liceo Artistico', '3ª superiore', [{ nome: 'Paolo Sala', relazione: 'padre' }]),
   ];
   const r = Object.fromEntries(ragazzi.map((x) => [x.id, x]));
+  Object.assign(r.rluca01, {
+    luogoNascita: 'Bologna', genere: 'M', cittadinanza: 'italiana', lingue: 'italiano', indirizzo: 'Via dei Mille 12', comune: 'Bologna',
+    insegnante: 'prof.ssa Ferraro (lettere)', certificazioni: 'dsa', diagnosi: 'DSA (dislessia); difficoltà di regolazione emotiva',
+    servizi: 'NPI ASL, logopedia fino al 2023', pediatra: 'dott. Neri', consensoPrivacy: piu(L, -126), consensoFoto: 'sì', consensoScuola: 'sì',
+    motivoInvio: 'Scatti di rabbia a scuola e a casa, fatica a gestire le frustrazioni. La scuola segnala litigi frequenti.',
+    noteFamiglia: 'Vive con la madre e la sorella di 9 anni. Il padre vive in un\'altra città, lo vede nel fine settimana.',
+  });
+  r.rluca01.genitori.push({ nome: 'Andrea Martini', relazione: 'padre', telefono: '335 444 7788' });
+  Object.assign(r.rmart07, {
+    luogoNascita: 'Modena', genere: 'F', cittadinanza: 'italiana', comune: 'Bologna', insegnante: 'prof. Riva (coordinatore)', certificazioni: 'nessuna',
+    motivoInvio: 'Ansia legata al cambio di scuola, isolamento nel nuovo gruppo classe.', consensoPrivacy: piu(L, -80), consensoFoto: 'no', consensoScuola: 'sì',
+  });
+  for (const x of ragazzi) if (!x.consensoPrivacy) x.consensoPrivacy = x.inizio;
 
   const G = (id, nome, tema, giorno, ora, dal, membri, obiettivi) => ({
     id, nome, tema, ricorrenza: { giorni: [giorno], ora, durata: 90, dal }, obiettivi,
@@ -148,10 +168,24 @@ export function creaDemo() {
     gen('sgen3', 'rsara02', piu(O, 2) > piu(L, 4) ? piu(L, 9) : piu(O, 2), '17:00', '- [ ] Restituzione primo trimestre\n- [ ] Portare la scheda di sintesi\n- [ ] Chiedere dei rapporti con la sorella', '', 'madre e padre'),
   );
 
+  // Colloqui di conoscenza, prima dell'inizio
+  const con = (id, rid, data, ora, chi, argomento, resoconto) => ({
+    id, tipo: 'conoscenza', ragazzoId: rid, data, ora, durata: 60, chi, argomento, resoconto, prossima: '', autori: { resoconto: autore, argomento: autore }, creato: t, modificato: t,
+  });
+  sedute.push(
+    con('sco1', 'rluca01', piu(L, -125), '17:00', 'la madre', 'Primo colloquio con la mamma',
+      'La madre racconta di scatti di rabbia sempre più frequenti, soprattutto **dopo la scuola**. Sente di non riuscire a «prenderlo». #famiglia #regolazione\n\n- Sviluppo nella norma, DSA diagnosticato in 3ª elementare\n- Buon rapporto con la sorella\n- Il papà è disponibile a venire a un incontro'),
+    con('sco2', 'rluca01', piu(L, -118), '16:30', 'Luca', 'Conoscerci: cosa ti piace, cosa no',
+      'Inizialmente sulla difensiva, si scioglie parlando di calcio e videogiochi. Sul perché è qui: «perché mi arrabbio, ma è colpa degli altri». Accetta di provare il gruppo. #risorse'),
+    con('sco3', 'rmart07', piu(L, -76), '14:00', 'Martina e il padre', 'Conoscenza e richiesta',
+      'Il padre porta la richiesta, Martina ascolta e poi corregge: «non è che sto male, è che non conosco nessuno». Molto lucida. #scuola #amicizie #ansia'),
+  );
+
   const note = [
-    { id: 'n1', ragazzoId: 'romar03', data: piu(L, -15), titolo: 'Telefonata con la scuola', testo: 'La professoressa di lettere segnala che Omar in classe **aiuta i compagni in difficoltà**. Da riportare al gruppo come risorsa. #scuola #risorse', autore, creato: t, modificato: t },
-    { id: 'n2', ragazzoId: 'rsara02', data: piu(L, -8), titolo: 'Osservazione', testo: 'Arrivata in anticipo, ha chiacchierato con Giulia fuori dalla stanza: sembra aver trovato un\'alleata nel gruppo. #amicizie', autore: 'Elena', creato: t, modificato: t },
-    { id: 'n3', gruppoId: 'ggiov', data: piu(L, -3), titolo: 'Idea per il gruppo', testo: 'Per il giovedì provare un role-play registrato con il telefono, da riguardare insieme. Chiedere prima il consenso a tutti. #idee', autore, creato: t, modificato: t },
+    { id: 'n4', ragazzoId: 'rluca01', categoria: 'scuola', data: piu(L, -18), titolo: 'Colloquio con l\'insegnante', testo: 'Sentita la prof.ssa Ferraro: in classe **meno litigi** nell\'ultimo mese, ma fatica ancora nelle verifiche orali. Propone di usare il quaderno dei segnali anche in classe. #scuola #regolazione', autore, creato: t, modificato: t },
+    { id: 'n1', categoria: 'scuola', ragazzoId: 'romar03', data: piu(L, -15), titolo: 'Telefonata con la scuola', testo: 'La professoressa di lettere segnala che Omar in classe **aiuta i compagni in difficoltà**. Da riportare al gruppo come risorsa. #scuola #risorse', autore, creato: t, modificato: t },
+    { id: 'n2', categoria: 'osservazione', ragazzoId: 'rsara02', data: piu(L, -8), titolo: 'Osservazione', testo: 'Arrivata in anticipo, ha chiacchierato con Giulia fuori dalla stanza: sembra aver trovato un\'alleata nel gruppo. #amicizie', autore: 'Elena', creato: t, modificato: t },
+    { id: 'n3', categoria: 'altro', gruppoId: 'ggiov', data: piu(L, -3), titolo: 'Idea per il gruppo', testo: 'Per il giovedì provare un role-play registrato con il telefono, da riguardare insieme. Chiedere prima il consenso a tutti. #idee', autore, creato: t, modificato: t },
   ];
   const sospesi = [
     { id: 'q1', gruppoId: 'gmart', testo: 'Lettera a un\'emozione', autore, creato: t },
@@ -161,7 +195,7 @@ export function creaDemo() {
     { id: 'q5', gruppoId: 'ggiov', testo: 'Uscita al bar: ordinare da soli', autore, creato: t },
     { id: 'q6', ragazzoId: 'rluca01', testo: 'Parlare del rapporto con il papà', autore, creato: t },
   ];
-  return { ragazzi, gruppi, sedute, note, sospesi };
+  return { ragazzi, gruppi, sedute, note, sospesi, persone: structuredClone(PERSONE) };
 }
 
 function argomentoDi(titolo, gid, i) {
