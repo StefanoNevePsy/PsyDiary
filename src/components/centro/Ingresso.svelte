@@ -2,7 +2,7 @@
   // Prima di entrare: accesso con Google, chiave dell'aula, attesa del dispositivo.
   import { onMount } from 'svelte';
   import { sync, pulsanteGoogle, accessoDev, creaChiave, inserisciChiave, nuovaFrase, preparaChiave, riprova, esci } from '../../lib/centro/sync.svelte.js';
-  import { CONFIG } from '../../lib/centro/config.js';
+  import { CONFIG, demo } from '../../lib/centro/config.js';
   import Icona from '../Icona.svelte';
 
   let box = $state();
@@ -53,6 +53,10 @@
         <div class="google" bind:this={box}></div>
       {/if}
       {#if sync.errore}<p class="sotto piccolo">{sync.errore}</p>{/if}
+      <div class="demo">
+        <p class="sotto piccolo">Vuoi solo dare un'occhiata? La demo usa dati inventati e non tocca quelli dell'aula.</p>
+        <button class="btn" onclick={() => demo(true)}>Guarda la demo</button>
+      </div>
 
     {:else if sync.fase === 'chiave' && !sync.cfg}
       <h1 class="display">La chiave dell'aula</h1>
@@ -107,6 +111,7 @@
   .mono { font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.05em; }
   .attesa { font-size: 26px; animation: respiro 2.4s ease-in-out infinite; }
   @keyframes respiro { 50% { opacity: 0.35; } }
+  .demo { display: grid; gap: var(--s-2); justify-items: start; border-top: 1px dashed var(--matita); padding-top: var(--s-4); }
   .chi { border-top: 1px dashed var(--matita); padding-top: var(--s-3); }
   .link { border: 0; background: none; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 </style>

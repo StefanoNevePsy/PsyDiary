@@ -15,14 +15,14 @@
 
   const TEMI = [['auto', 'Come il dispositivo'], ['chiaro', 'Carta'], ['scuro', 'Inchiostro']];
   async function reset() {
-    if (!confirm('Cancellare tutto quello che hai scritto nel prototipo e ripartire dai dati di prova?')) return;
+    if (!confirm('Cancellare tutto quello che hai scritto nella demo e ripartire dai dati di prova?')) return;
     await ricominciaDemo();
     location.hash = '#/calendario';
   }
 </script>
 
 <section class="impostazioni">
-  <header><p class="eti">{REALE ? io().email : 'Prototipo'}</p><h1 class="display">Impostazioni</h1></header>
+  <header><p class="eti">{REALE ? io().email : 'Demo'}</p><h1 class="display">Impostazioni</h1></header>
 
   <section class="blocco">
     <h2 class="eti">Aspetto</h2>
@@ -59,7 +59,7 @@
   {:else}
   <section class="blocco">
     <h2 class="eti">Chi sta scrivendo</h2>
-    <p class="sotto">Nel prototipo puoi cambiare persona per provare i permessi. I tirocinanti scrivono ma non gestiscono: modificano solo le proprie note, e vedono per intero solo i ragazzi condivisi con loro.</p>
+    <p class="sotto">Nella demo puoi cambiare persona per provare i permessi. I tirocinanti scrivono ma non gestiscono: modificano solo le proprie note, e vedono per intero solo i ragazzi condivisi con loro.</p>
     <div class="scelte" role="radiogroup" aria-label="Persona">
       {#each dati.persone as u (u.id)}
         <button role="radio" aria-checked={io().id === u.id} onclick={() => cambiaUtente(u.id)}>
@@ -78,7 +78,7 @@
 
   <section class="blocco">
     <h2 class="eti">Dati</h2>
-    <p class="sotto"><Icona nome="lucchetto" /> Prototipo: tutto resta in questo browser, con dati di prova inventati.</p>
+    <p class="sotto"><Icona nome="lucchetto" /> Demo: dati inventati, tutto resta in questo browser.</p>
     <button class="btn" onclick={reset}><Icona nome="torna" /> Ricomincia dai dati di prova</button>
   </section>
   {/if}

@@ -9,7 +9,8 @@
 # Segreti (… → Secrets):
 #   CLASPRC_JSON            (facoltativo) contenuto di ~/.clasprc.json dopo "npx @google/clasp@2.4.2 login"
 #
-# Senza CUSTODE_URL il sito resta il prototipo con dati di prova.
+# Senza CUSTODE_URL il sito è la demo con dati inventati. Con CUSTODE_URL la
+# demo resta disponibile dal pulsante "Guarda la demo" o da …/?demo
 name: Pubblica PsyDiary
 
 on:
@@ -57,12 +58,23 @@ jobs:
         run: |
           {
             echo "## PsyDiary"
-            if [ -n "${{ vars.CUSTODE_URL }}" ]; then echo "- Versione collegata al custode: \`${{ vars.CUSTODE_URL }}\`"; else echo "- **Prototipo** con dati di prova: manca la variabile \`CUSTODE_URL\` (vedi docs/messa-in-servizio.md)"; fi
+            if [ -n "${{ vars.CUSTODE_URL }}" ]; then echo "- Versione collegata al custode: \`${{ vars.CUSTODE_URL }}\`"; else echo "- **Demo** con dati inventati: manca la variabile \`CUSTODE_URL\` (vedi docs/messa-in-servizio.md)"; fi
             if [ -n "${{ vars.GOOGLE_CLIENT_ID }}" ]; then echo "- Client ID di Google impostato"; else echo "- Manca \`GOOGLE_CLIENT_ID\`"; fi
             echo "- Il custode pronto per Apps Script è tra gli artefatti di questa esecuzione (\`custode-apps-script\`)."
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/configure-pages@v5
+      - name: Controlla che GitHub Pages sia attivo
+        id: pagine
         if: github.ref_name == github.event.repository.default_branch
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: GitHub Pages non è attivo
+        if: github.ref_name == github.event.repository.default_branch && steps.pagine.outcome == 'failure'
+        run: |
+          echo "::error::GitHub Pages non è ancora attivo. Una volta sola: Settings → Pages → Source: GitHub Actions, poi Actions → Pubblica PsyDiary → Re-run."
+          echo "### ⚠️ Manca un clic: Settings → Pages → Source: **GitHub Actions**, poi rilancia questa Action." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
       - uses: actions/upload-pages-artifact@v3
         if: github.ref_name == github.event.repository.default_branch
         with:

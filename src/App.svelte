@@ -10,7 +10,8 @@
   import Aggiorna from './components/Aggiorna.svelte';
   import Ingresso from './components/centro/Ingresso.svelte';
   import StatoSync from './components/centro/StatoSync.svelte';
-  import { REALE } from './lib/centro/config.js';
+  import { REALE, DEMO } from './lib/centro/config.js';
+  import StrisciaDemo from './components/centro/StrisciaDemo.svelte';
   import { sync, avvia } from './lib/centro/sync.svelte.js';
   import Calendario from './views/Calendario.svelte';
   import SedutaPagina from './views/SedutaPagina.svelte';
@@ -55,6 +56,7 @@
 {:else}
 <a class="salta" href="#principale">Vai al contenuto</a>
 <Aggiorna />
+{#if DEMO}<StrisciaDemo />{/if}
 <header class="barra">
   <a class="marchio" href="#/calendario" aria-label="PsyDiary, calendario">
     <span class="display">Psy</span><span class="mano">diary</span>

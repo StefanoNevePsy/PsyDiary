@@ -43,8 +43,11 @@ tuo), e l'accesso al repository `StefanoNevePsy/psydiary` su GitHub.
 3. Vai su **Actions** → **Pubblica PsyDiary** → **Run workflow**.
 
 Dopo un paio di minuti il sito è su **https://stefanonevepsy.github.io/psydiary/**.
-Per ora è ancora il prototipo con i dati di prova: diventa la versione vera al
-passo 4.
+Per ora è la **demo** con dati inventati: si può già mostrare a chi vuoi. Diventa
+la versione vera al passo 4, e la demo resta sempre disponibile dal pulsante
+**Guarda la demo** nella pagina d'ingresso, o con il link
+**https://stefanonevepsy.github.io/psydiary/?demo**. La demo usa un archivio a
+parte nel browser e non tocca mai i dati dell'aula.
 
 > Il sito si pubblica dal ramo principale del repository (ora
 > `claude/prototipo`). Se preferisci chiamarlo `main`: Settings → Branches →
@@ -234,7 +237,7 @@ dispositivi perdono la chiave.
 | "Il custode non risponde" | La distribuzione deve essere *App web*, *Esegui come: Me*, *Chi ha accesso: Chiunque*. Apri l'URL `/exec`: deve rispondere `ok`. |
 | "configurato": false | Esegui di nuovo *configura* dall'editor; controlla il client ID (file o proprietà dello script). |
 | Un dispositivo resta "in attesa della chiave" | Apri PsyDiary su un dispositivo di un operatore e aspetta un minuto (o tocca il pallino in alto). |
-| Il sito è ancora il prototipo | Mancano le variabili del passo 4, o non è ripartita l'Action dopo averle impostate. |
+| Il sito è ancora la demo | Mancano le variabili del passo 4, o non è ripartita l'Action dopo averle impostate. |
 
 ## Provare in locale (facoltativo, per sviluppo)
 
