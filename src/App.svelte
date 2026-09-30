@@ -23,6 +23,7 @@
   import Sospesi from './views/Sospesi.svelte';
   import Nota from './views/Nota.svelte';
   import Impostazioni from './views/Impostazioni.svelte';
+  import Ricorrenze from './views/Ricorrenze.svelte';
 
   let errore = $state('');
 
@@ -44,7 +45,7 @@
     { id: 'diario', nome: 'Diario', ico: 'diario' },
     { id: 'sospesi', nome: 'In sospeso', ico: 'sospesi' },
   ];
-  const attiva = (id) => sezione === id || (id === 'ragazzi' && sezione === 'ragazzo') || (id === 'gruppi' && sezione === 'gruppo') || (id === 'calendario' && sezione === 'seduta');
+  const attiva = (id) => sezione === id || (id === 'ragazzi' && sezione === 'ragazzo') || (id === 'gruppi' && sezione === 'gruppo') || (id === 'calendario' && (sezione === 'seduta' || sezione === 'ricorrenze'));
   function tema() {
     const scuroOra = document.documentElement.dataset.tema === 'scuro' || (!document.documentElement.dataset.tema && matchMedia('(prefers-color-scheme: dark)').matches);
     impostaTema(scuroOra ? 'chiaro' : 'scuro');
@@ -100,6 +101,8 @@
     <Sospesi />
   {:else if sezione === 'nota'}
     {#key rotta.parti[1]}<Nota id={rotta.parti[1]} />{/key}
+  {:else if sezione === 'ricorrenze'}
+    <Ricorrenze />
   {:else if sezione === 'impostazioni'}
     <Impostazioni />
   {:else}

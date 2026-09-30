@@ -5,8 +5,8 @@ import { REALE } from './centro/config.js';
 
 // i dati veri stanno in un archivio a parte: mai mescolati con quelli di prova
 const NOME = REALE ? 'psydiary-aula' : 'psydiary';
-const VERSIONE = 2;
-export const TABELLE = ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'persone'];
+const VERSIONE = 3;
+export const TABELLE = ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'persone', 'serie'];
 // le immagini non stanno nello stato dell'app: si leggono quando servono
 const ALTRE = ['immagini'];
 

@@ -12,6 +12,9 @@
   import Editor from '../components/Editor.svelte';
   import Md from '../components/Md.svelte';
   import Icona from '../components/Icona.svelte';
+  import ElencoSerie from '../components/ElencoSerie.svelte';
+  import { serieInCorso } from '../lib/dati.svelte.js';
+  import { descrivi } from '../lib/serie.js';
   import Immagine from '../components/Immagine.svelte';
   import { scegliImmagine, togliImmagine } from '../lib/immagini.js';
 
@@ -33,8 +36,6 @@
     clearTimeout(timer);
     timer = setTimeout(() => salva('gruppi', $state.snapshot(g)), 400);
   }
-  function ric(k, v) { campo('ricorrenza', { ...(g.ricorrenza || { giorni: [], ora: '15:00', durata: 90, dal: O }), [k]: v }); }
-  function giorno(n) { const gi = g.ricorrenza?.giorni || []; ric('giorni', gi.includes(n) ? gi.filter((x) => x !== n) : [...gi, n].sort()); }
   let daAggiungere = $state('');
   function entra() {
     if (!daAggiungere) return;
@@ -60,7 +61,7 @@
   <div class="gruppo">
     <header class="testa">
       <a class="torna no-stampa" href="#/gruppi"><Icona nome="sinistra" /> Gruppi</a>
-      <p class="eti">{g.ricorrenza?.giorni?.length ? g.ricorrenza.giorni.map((n) => ['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'][n]).join(' e ') + ' · ' + g.ricorrenza.ora : 'senza giorno fisso'}{g.archiviato ? ' · archiviato' : ''}</p>
+      <p class="eti">{serieInCorso({ gruppoId: id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}{g.archiviato ? ' · archiviato' : ''}</p>
       {#if g.copertina || gestisce}
         <div class="copertina" class:vuota={!g.copertina}>
           {#if g.copertina}<Immagine id={g.copertina} forma="foglio" seme={g.id} alt={'Immagine del ' + g.nome} onclick={() => (ui.visore = g.copertina)} />{/if}
@@ -111,15 +112,11 @@
                 <label class="campo"><span>Nome</span><input class="input" value={g.nome} oninput={(e) => campo('nome', e.currentTarget.value)} /></label>
                 <label class="campo"><span>Tema</span><input class="input" value={g.tema || ''} oninput={(e) => campo('tema', e.currentTarget.value)} /></label>
               </div>
-              <div class="campo"><span>Giorni</span>
-                <div class="giorni">{#each GIORNI as [n, nome] (n)}<button type="button" class="scelta" aria-pressed={(g.ricorrenza?.giorni || []).includes(n)} onclick={() => giorno(n)}>{nome}</button>{/each}</div>
-              </div>
-              <div class="griglia tre">
-                <label class="campo"><span>Ora</span><input class="input" type="time" value={g.ricorrenza?.ora || ''} onchange={(e) => ric('ora', e.currentTarget.value)} /></label>
-                <label class="campo"><span>Durata (minuti)</span><input class="input" type="number" min="15" step="15" value={g.ricorrenza?.durata || 90} onchange={(e) => ric('durata', +e.currentTarget.value)} /></label>
-                <label class="campo"><span>Dal</span><input class="input" type="date" value={g.ricorrenza?.dal || ''} onchange={(e) => ric('dal', e.currentTarget.value)} /></label>
-              </div>
             </fieldset>
+            <section class="appuntamenti">
+              <h3 class="eti titolo-sez">Quando si incontra</h3>
+              <ElencoSerie gruppoId={id} />
+            </section>
             <fieldset disabled={!gestisce}>
               <legend class="eti">Membri</legend>
               <ul class="elenco-membri">
@@ -193,6 +190,8 @@
   .box { display: grid; gap: var(--s-2); }
   .box.retino { padding: var(--s-3) var(--s-4); border-radius: var(--r-grande); }
   .impostazioni { display: grid; gap: var(--s-6); }
+  .appuntamenti { display: grid; gap: var(--s-3); }
+  .titolo-sez { padding-bottom: 4px; border-bottom: 1px solid var(--matita); }
   fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--s-4); }
   legend { margin-bottom: var(--s-3); padding-bottom: 4px; border-bottom: 1px solid var(--matita); width: 100%; }
   .griglia { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); }

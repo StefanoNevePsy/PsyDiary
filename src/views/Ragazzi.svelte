@@ -2,6 +2,7 @@
   // Elenco dei ragazzi: chi sono, in che gruppo, quando li si rivede.
   import { dati, nomeCompleto, gruppiDi, puoGestire, salva, nuovoId, sedutePeriodo, soggetto, condiviso, visibileNota } from '../lib/dati.svelte.js';
   import Immagine from '../components/Immagine.svelte';
+  import { serieInCorso } from '../lib/dati.svelte.js';
   import { vai } from '../lib/rotta.svelte.js';
   import { eta, oggi, piu, relativa } from '../lib/date.js';
   import Icona from '../components/Icona.svelte';
@@ -29,7 +30,7 @@
     return s ? relativa(s.data) : '—';
   }
   async function nuovo() {
-    const r = await salva('ragazzi', { id: nuovoId('r'), nome: '', cognome: '', stato: 'attivo', inizio: O, genitori: [], noteStabili: '', ricorrenza: null });
+    const r = await salva('ragazzi', { id: nuovoId('r'), nome: '', cognome: '', stato: 'attivo', inizio: O, genitori: [], noteStabili: '' });
     vai('ragazzo/' + r.id + '?scheda=1');
   }
   const lettera = (r) => (r.cognome || r.nome || '?')[0].toUpperCase();
@@ -62,7 +63,7 @@
         <span class="sotto">{r.classe || ''}{r.scuola ? ', ' + r.scuola : ''}</span>
         <span class="gruppi">
           {#each gruppiDi(r.id) as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome.replace(/^(Gruppo|Laboratorio) del /, '')}</a>{/each}
-          {#if r.ricorrenza}<span class="ind">individuale</span>{/if}
+          {#if serieInCorso({ ragazzoId: r.id }).some((x) => x.tipo === 'individuale')}<span class="ind">individuale</span>{/if}
         </span>
         <span class="sotto num">{ultima(r.id)}</span>
         <span class="num">{prossima(r)}</span>

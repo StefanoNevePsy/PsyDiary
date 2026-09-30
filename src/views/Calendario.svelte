@@ -13,7 +13,7 @@
   import Foglio from '../components/Foglio.svelte';
   import Icona from '../components/Icona.svelte';
   import Immagine from '../components/Immagine.svelte';
-  import { gruppo as gruppoDi, ragazzo as ragazzoDi } from '../lib/dati.svelte.js';
+  import { gruppo as gruppoDi, ragazzo as ragazzoDi, serieDiSeduta } from '../lib/dati.svelte.js';
 
   const vista = $derived(rotta.parti[1] === 'mese' ? 'mese' : 'settimana');
   const base = $derived(/^\d{4}-\d{2}-\d{2}$/.test(rotta.parti[2] || '') ? rotta.parti[2] : oggi());
@@ -86,6 +86,10 @@
       <h1 class="display">{titolo}</h1>
     </div>
     <div class="comandi">
+      <div class="gruppo-btn azioni-cal">
+        <button class="btn pieno piccolo" onclick={() => apriCrea({ data: vista === 'mese' ? O : (giorni.includes(O) ? O : lun) })}><Icona nome="piu" /> Seduta</button>
+        <a class="btn nudo piccolo" href="#/ricorrenze" title="Appuntamenti che si ripetono"><span class="giro">↻</span> Ricorrenze</a>
+      </div>
       <div class="gruppo-btn">
         <button class="btn nudo" onclick={() => sposta(-1)} aria-label={vista === 'mese' ? 'Mese precedente' : 'Settimana precedente'}><Icona nome="sinistra" /></button>
         <a class="btn" href={`#/calendario/${vista}/${O}`}>Oggi</a>
@@ -115,7 +119,7 @@
                   <span class="ora">{s.ora}<span class="fine">–{fineOra(s.ora, s.durata)}</span></span>
                   <span class="tit">
                     <span class="nome display">{titoloSeduta(s)}</span>
-                    <span class="eti tipo">{TIPI[s.tipo].breve}{assenti(s) ? ` · ${assenti(s)} assent${assenti(s) > 1 ? 'i' : 'e'}` : ''}</span>
+                    <span class="eti tipo">{#if s.serieId || serieDiSeduta(s)}<span class="giro-mini" title="Si ripete">↻ </span>{/if}{TIPI[s.tipo].breve}{assenti(s) ? ` · ${assenti(s)} assent${assenti(s) > 1 ? 'i' : 'e'}` : ''}</span>
                   </span>
                   {#if s.argomento}<span class="piano">{piano(s)}</span>{:else if st === 'futura'}<span class="piano vuoto">nessun piano ancora</span>{/if}
                   {#if segno(s)}<span class="mano segno">{segno(s)}</span>{/if}
@@ -210,8 +214,12 @@
   .niente { color: var(--inchiostro-3); padding-top: 10px; }
   .aggiungi {
     align-self: start; margin-top: 4px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px dashed var(--matita-forte);
-    background: transparent; border-radius: 50%; color: var(--inchiostro-2); cursor: pointer; opacity: 0; transition: opacity var(--d-breve);
+    background: transparent; border-radius: 50%; color: var(--inchiostro-2); cursor: pointer; opacity: 0.35; transition: opacity var(--d-breve);
   }
+  .giorno { position: relative; }
+  .giro { font-family: var(--f-mano); font-size: 18px; color: var(--spot-testo); line-height: 1; }
+  .giro-mini { letter-spacing: 0; }
+  .azioni-cal { gap: var(--s-2); }
   .giorno:hover .aggiungi, .aggiungi:focus-visible { opacity: 1; }
   .con-foglio .biglietto { width: min(100%, 300px); }
 
@@ -238,7 +246,8 @@
     .num { font-size: 30px; }
     .num :global(.cerchio) { left: -12px; top: -10px; width: 58px; height: 50px; }
     .biglietto { width: 100%; }
-    .aggiungi { display: none; }
+    .aggiungi { position: absolute; right: 0; top: var(--s-2); width: 34px; height: 34px; opacity: 0.8; }
+    .azioni-cal { width: 100%; justify-content: space-between; }
     .cella { min-height: 64px; padding: 4px; }
     .riga { font-size: 0; padding: 0; height: 5px; border-left: 0; background: var(--inchiostro); }
     .riga.stato-da-scrivere, .riga.stato-oggi { background: var(--spot); }

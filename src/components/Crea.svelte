@@ -3,9 +3,12 @@
   import { onMount, untrack } from 'svelte';
   import {
     dati, gruppo, ragazzo, nomeCompleto, ragazziCondivisi, ragazziAttivi, condiviso, salva, nuovoId, io, sedutePeriodo, soggetto, titoloSeduta, statoSeduta, TIPI, CATEGORIE_NOTA,
+    serieInCorso, creaSerie, puoGestire,
   } from '../lib/dati.svelte.js';
   import { vai } from '../lib/rotta.svelte.js';
-  import { oggi, lunga, giornoSettimana, relativa } from '../lib/date.js';
+  import { oggi, lunga, giornoSettimana, relativa, piu } from '../lib/date.js';
+  import { occorrenze, descrivi } from '../lib/serie.js';
+  import Ripeti from './Ripeti.svelte';
   import Icona from './Icona.svelte';
 
   let { opz = {}, chiudi } = $props();
@@ -34,11 +37,16 @@
   const delGiorno = $derived(sedutePeriodo(data, data));
   const recenti = $derived(sedutePeriodo(data === O ? data : O, O).filter((s) => statoSeduta(s) !== 'scritta'));
 
-  // ora proposta: quella del gruppo o della ricorrenza individuale
+  // ora proposta: quella degli appuntamenti ricorrenti che ci sono già
+  const giaInSerie = $derived(tipo === 'gruppo' && gruppoId ? serieInCorso({ gruppoId }) : ragazzoId && tipo !== 'nota' ? serieInCorso({ ragazzoId }).filter((x) => x.tipo === tipo) : []);
   $effect(() => {
-    if (tipo === 'gruppo' && gruppoId) { const g = gruppo(gruppoId); ora = g?.ricorrenza?.ora || ora || '15:00'; }
-    else if (['individuale', 'genitori', 'conoscenza'].includes(tipo) && ragazzoId) { const r = ragazzo(ragazzoId); ora = (tipo === 'individuale' && r?.ricorrenza?.ora) || ora || '16:00'; }
+    const se = giaInSerie[0];
+    if (se) ora = se.ora;
+    else if (!ora) ora = tipo === 'gruppo' ? '15:00' : '16:00';
   });
+  // si ripete?
+  let ripeti = $state(null);
+  let fineR = $state({ tipo: 'mai', al: '', volte: 10 });
 
   const KIND = [
     { id: 'gruppo', nome: 'Seduta di gruppo', ico: 'gruppo', dett: 'piano, resoconto, una riga per ragazzo' },
@@ -62,11 +70,21 @@
       fine('nota/' + n.id);
       return;
     }
+    if (ripeti) {
+      const se = await creaSerie({
+        tipo, ora: ora || '15:00', durata: tipo === 'gruppo' ? 90 : 60, ripeti, dal: data,
+        ...(tipo === 'gruppo' ? { gruppoId } : { ragazzoId }), ...(tipo === 'genitori' || tipo === 'conoscenza' ? { chi } : {}),
+        ...(fineR.tipo === 'data' && fineR.al ? { al: fineR.al } : {}), ...(fineR.tipo === 'volte' ? { volte: fineR.volte } : {}),
+      });
+      const prima = occorrenze(se, data, piu(data, 400))[0];
+      fine(prima ? 'seduta/' + encodeURIComponent(`v:${se.id}:${prima}`) : 'calendario/settimana/' + data);
+      return;
+    }
     const k = tipo === 'gruppo' ? 'g:' + gruppoId : tipo + ':' + ragazzoId;
     const esiste = sedutePeriodo(data, data).find((s) => soggetto(s) === k);
     if (esiste) { fine('seduta/' + encodeURIComponent(esiste.id)); return; }
     const s = {
-      id: nuovoId('s'), tipo, data, ora: ora || '15:00', durata: tipo === 'gruppo' ? gruppo(gruppoId)?.ricorrenza?.durata || 90 : 60,
+      id: nuovoId('s'), tipo, data, ora: ora || '15:00', durata: giaInSerie[0]?.durata || (tipo === 'gruppo' ? 90 : 60),
       argomento: '', resoconto: '', prossima: '', autori: {},
       ...(tipo === 'gruppo' ? { gruppoId, presenze: {}, partecipanti: {} } : { ragazzoId }),
       ...(tipo === 'genitori' || tipo === 'conoscenza' ? { chi } : {}),
@@ -146,20 +164,24 @@
           {#if tipo !== 'nota'}<label class="campo"><span>Ora</span><input class="input" type="time" bind:value={ora} /></label>{/if}
         </div>
         {#if tipo === 'genitori' || tipo === 'conoscenza'}<label class="campo"><span>Chi c'è</span><input class="input" bind:value={chi} placeholder="es. madre e padre" /></label>{/if}
-        {#if tipo !== 'nota' && data > O}<p class="sotto piccolo">È nel futuro: si apre il piano, per segnarti cosa vuoi fare.</p>{/if}
+        {#if tipo !== 'nota' && puoGestire()}
+          {#if giaInSerie.length}<p class="sotto piccolo gia">↻ Ha già: {giaInSerie.map((x) => descrivi(x)).join(' · ')}. Queste sedute compaiono da sole nel calendario.</p>{/if}
+          <Ripeti {data} {ora} bind:ripeti bind:fine={fineR} />
+        {/if}
+        {#if tipo !== 'nota' && data > O && !ripeti}<p class="sotto piccolo">È nel futuro: si apre il piano, per segnarti cosa vuoi fare.</p>{/if}
       </div>
       <footer>
         {#if !opz.tipo}<button type="button" class="btn nudo" onclick={() => (tipo = '')}><Icona nome="sinistra" /> Indietro</button>{:else}<span></span>{/if}
-        <button class="btn pieno" disabled={!pronto}>{tipo === 'nota' ? 'Scrivi la nota' : 'Apri il foglio'} <Icona nome="freccia" /></button>
+        <button class="btn pieno" disabled={!pronto}>{tipo === 'nota' ? 'Scrivi la nota' : ripeti ? 'Crea e apri la prima' : 'Apri il foglio'} <Icona nome="freccia" /></button>
       </footer>
     {/if}
   </form>
 </dialog>
 
 <style>
-  dialog { padding: 0; border: 0; background: transparent; width: min(560px, calc(100vw - 24px)); margin: 10vh auto auto; color: inherit; overflow: visible; }
+  dialog { padding: 0; border: 0; background: transparent; width: min(560px, calc(100vw - 24px)); margin: 5vh auto auto; color: inherit; overflow: visible; }
   dialog::backdrop { background: oklch(0.2 0.03 265 / 0.35); }
-  .foglio { position: relative; border-radius: var(--r-grande); background: var(--carta-2); border: 1px solid var(--inchiostro); box-shadow: var(--ombra), 6px 6px 0 var(--spot-retino); padding: var(--s-5); display: grid; gap: var(--s-4); animation: apre var(--d-media) var(--e-uscita); }
+  .foglio { position: relative; max-height: 90dvh; overflow-y: auto; border-radius: var(--r-grande); background: var(--carta-2); border: 1px solid var(--inchiostro); box-shadow: var(--ombra), 6px 6px 0 var(--spot-retino); padding: var(--s-5); display: grid; gap: var(--s-4); animation: apre var(--d-media) var(--e-uscita); }
   header { display: flex; justify-content: space-between; align-items: start; gap: var(--s-3); }
   h2 { font-size: var(--t-lg); line-height: 1.05; }
   .subito { display: grid; gap: 4px; }
@@ -175,6 +197,7 @@
   .tipo > span { display: grid; gap: 2px; }
   .nome { font-weight: 700; }
   .campi { display: grid; gap: var(--s-4); }
+  .gia { margin: 0; padding: 6px 10px; border-radius: var(--r); background: var(--carta-3); }
   .categorie { display: flex; flex-wrap: wrap; gap: 6px; }
   .cat { min-height: 32px; padding: 2px 12px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
   .cat:disabled { opacity: 0.35; cursor: not-allowed; }

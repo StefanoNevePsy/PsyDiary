@@ -4,6 +4,8 @@
   import { oggi, piu, relativa, lunga, nomeGiorno } from '../lib/date.js';
   import { anteprima } from '../lib/testo.js';
   import Icona from '../components/Icona.svelte';
+  import { serieInCorso } from '../lib/dati.svelte.js';
+  import { descrivi } from '../lib/serie.js';
   import Immagine from '../components/Immagine.svelte';
 
   const O = oggi();
@@ -13,7 +15,7 @@
   const prossima = (g) => sedutePeriodo(O, piu(O, 30)).find((s) => s.gruppoId === g.id);
   const daScrivere = (g) => storicoGruppo(g.id).filter((v) => v.tipo === 'gruppo' && v.stato === 'da-scrivere').length;
   async function nuovo() {
-    const g = await salva('gruppi', { id: nuovoId('g'), nome: 'Nuovo gruppo', tema: '', obiettivi: '', membri: [], ricorrenza: { giorni: [], ora: '15:00', durata: 90, dal: O } });
+    const g = await salva('gruppi', { id: nuovoId('g'), nome: 'Nuovo gruppo', tema: '', obiettivi: '', membri: [] });
     vai('gruppo/' + g.id + '?impostazioni=1');
   }
 </script>
@@ -33,7 +35,7 @@
       <a class="carta" href={'#/gruppo/' + g.id}>
         {#if g.copertina}<span class="copertina"><Immagine id={g.copertina} forma="foglio" tinta={i % 2 ? 'spot' : 'inchiostro'} seme={g.id} /></span>{/if}
         <span class="numero display" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-        <span class="eti">{g.ricorrenza?.giorni?.length ? `${GIORNI[g.ricorrenza.giorni[0]]} · ${g.ricorrenza.ora}` : 'senza giorno fisso'}</span>
+        <span class="eti">{serieInCorso({ gruppoId: g.id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}</span>
         <span class="nome display">{g.nome}</span>
         {#if g.tema}<span class="tema mano">{g.tema}</span>{/if}
         <span class="membri sotto">{membriAl(g, O).map((r) => nomeBreve(ragazzo(r))).join(', ') || 'nessun membro'}</span>

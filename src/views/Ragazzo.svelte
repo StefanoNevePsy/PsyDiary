@@ -16,6 +16,9 @@
   import Md from '../components/Md.svelte';
   import Immagine from '../components/Immagine.svelte';
   import Icona from '../components/Icona.svelte';
+  import ElencoSerie from '../components/ElencoSerie.svelte';
+  import { serieInCorso } from '../lib/dati.svelte.js';
+  import { descrivi } from '../lib/serie.js';
 
   let { id } = $props();
   const r = $derived(ragazzo(id));
@@ -42,12 +45,6 @@
   function familiare(i, k, v) { const g = [...(r.genitori || [])]; g[i] = { ...g[i], [k]: v }; campo('genitori', g); }
   function togliFamiliare(i) { campo('genitori', (r.genitori || []).filter((_, j) => j !== i)); }
   const GIORNI = [['', 'nessuna'], [1, 'lunedì'], [2, 'martedì'], [3, 'mercoledì'], [4, 'giovedì'], [5, 'venerdì'], [6, 'sabato']];
-  function ricorrenza(k, v) {
-    const base = r.ricorrenza || { giorni: [], ora: '16:00', durata: 60, dal: O };
-    let nuova = { ...base, [k]: v };
-    if (k === 'giorni') nuova = v ? { ...base, giorni: [+v], dal: base.giorni.length ? base.dal : O } : null;
-    campo('ricorrenza', nuova);
-  }
   const SI_NO = [['', '—'], ['sì', 'sì'], ['no', 'no']];
   // [chiave, etichetta, tipo, opzioni, larga]
   const SEZIONI = [
@@ -116,7 +113,7 @@
           </p>
           <p class="appartiene">
             {#each gruppi as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{/each}
-            {#if tutto && r.ricorrenza?.giorni?.length}<span>Individuale ogni {r.ricorrenza.ogni === 2 ? 'due settimane' : 'settimana'}, {GIORNI.find((x) => x[0] === r.ricorrenza.giorni[0])?.[1]} {r.ricorrenza.ora}</span>{/if}
+            {#if tutto}{#each serieInCorso({ ragazzoId: id }) as se (se.id)}<span>{TIPI[se.tipo].breve} {descrivi(se)}</span>{/each}{/if}
           </p>
         </div>
       </div>
@@ -181,20 +178,11 @@
               <label class="campo"><span>Situazione familiare</span>
                 <textarea class="input" rows="2" value={r.noteFamiglia || ''} placeholder="Con chi vive, fratelli, separazioni, affidi" oninput={(e) => campo('noteFamiglia', e.currentTarget.value)}></textarea></label>
             </fieldset>
-            <fieldset disabled={!gestisce}>
-              <legend class="eti">Sedute individuali</legend>
-              <div class="griglia">
-                <label class="campo"><span>Giorno fisso</span>
-                  <select class="input" value={r.ricorrenza?.giorni?.[0] ?? ''} onchange={(e) => ricorrenza('giorni', e.currentTarget.value)}>
-                    {#each GIORNI as [v, n] (v)}<option value={v}>{n}</option>{/each}
-                  </select></label>
-                {#if r.ricorrenza}
-                  <label class="campo"><span>Ora</span><input class="input" type="time" value={r.ricorrenza.ora} onchange={(e) => ricorrenza('ora', e.currentTarget.value)} /></label>
-                  <label class="campo"><span>Frequenza</span>
-                    <select class="input" value={r.ricorrenza.ogni || 1} onchange={(e) => ricorrenza('ogni', +e.currentTarget.value)}><option value={1}>ogni settimana</option><option value={2}>ogni due settimane</option></select></label>
-                {/if}
-              </div>
-            </fieldset>
+            <section class="appuntamenti">
+              <h3 class="eti titolo-sez">Appuntamenti ricorrenti</h3>
+              <p class="sotto piccolo">Individuali, genitori, conoscenza: compaiono da soli nel calendario, pronti per gli appunti.</p>
+              <ElencoSerie ragazzoId={id} />
+            </section>
             <div class="stabili">
               <h3 class="eti">Da tenere a mente</h3>
               <Editor testo={r.noteStabili || ''} etichetta="Da tenere a mente" soloLettura={!gestisce}
@@ -301,6 +289,8 @@
   .aggiungi { justify-self: start; }
   .avviso { display: flex; gap: var(--s-2); align-items: center; font-size: var(--t-sm); }
   .stabili { display: grid; gap: var(--s-2); }
+  .appuntamenti { display: grid; gap: var(--s-2); }
+  .titolo-sez { padding-bottom: 4px; border-bottom: 1px solid var(--matita); }
   .elimina { justify-self: start; color: var(--spot-testo); }
   .conoscenza { display: grid; gap: var(--s-3); justify-items: start; }
   .intro { max-width: 60ch; }

@@ -54,6 +54,8 @@ ok(!r.dati.ambiti.includes('r:rmart07'), 'l\'ambito di Martina non le è nemmeno
 
 r = chiama('marco@aula.it', 'sync', { invii: [voce('rluca01', 'ragazzo', 'aula', 1)] });
 ok(r.dati.esiti[0].errore === 'vietato', 'un tirocinante non modifica i ragazzi');
+r = chiama('marco@aula.it', 'sync', { invii: [voce('ri1', 'serie', 'aula')] });
+ok(r.dati.esiti[0].errore === 'vietato', 'né crea appuntamenti ricorrenti');
 r = chiama('marco@aula.it', 'sync', { invii: [voce('n1', 'nota', 'r:rluca01')] });
 ok(r.dati.esiti[0].errore === 'vietato', 'né scrive nel personale di un ragazzo non condiviso');
 r = chiama('marco@aula.it', 'sync', { invii: [voce('n2', 'nota', 'aula'), voce('sgr1', 'seduta', 'aula', 1)] });

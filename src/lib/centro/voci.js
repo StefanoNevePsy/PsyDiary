@@ -6,13 +6,15 @@
 // Del ragazzo, chiunque vede solo questi campi; il resto è la sua "scheda".
 export const CAMPI_PUBBLICI = ['id', 'nome', 'cognome', 'nascita', 'scuola', 'classe', 'foto', 'stato', 'creato', 'modificato'];
 export const idScheda = (rid) => rid + 'sc';
-const TIPO_DI = { gruppi: 'gruppo', sedute: 'seduta', note: 'nota', sospesi: 'sospeso' };
-export const TABELLA_DI = { gruppo: 'gruppi', seduta: 'sedute', nota: 'note', sospeso: 'sospesi', ragazzo: 'ragazzi', scheda: 'ragazzi' };
+const TIPO_DI = { gruppi: 'gruppo', sedute: 'seduta', note: 'nota', sospesi: 'sospeso', serie: 'serie' };
+export const TABELLA_DI = { gruppo: 'gruppi', seduta: 'sedute', nota: 'note', sospeso: 'sospesi', serie: 'serie', ragazzo: 'ragazzi', scheda: 'ragazzi' };
 
 export function ambitoDi(tabella, o) {
   if (tabella === 'sedute') return o.tipo === 'gruppo' ? 'aula' : 'r:' + o.ragazzoId;
   if (tabella === 'note') return o.ragazzoId && o.categoria !== 'gruppo' ? 'r:' + o.ragazzoId : 'aula';
   if (tabella === 'sospesi') return o.ragazzoId ? 'r:' + o.ragazzoId : 'aula';
+  // appuntamenti ricorrenti: quelli di un ragazzo sono personali (individuali, genitori…)
+  if (tabella === 'serie') return o.tipo === 'gruppo' ? 'aula' : 'r:' + o.ragazzoId;
   return 'aula';
 }
 

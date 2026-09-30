@@ -273,7 +273,7 @@ function gestisciErrore(e) {
 
 /** Accesso tolto: niente dati dell'aula su questo dispositivo. */
 async function cancellaDatiAula() {
-  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi']) for (const o of [...dati[t]]) await elimina(t, o.id, true);
+  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'serie']) for (const o of [...dati[t]]) await elimina(t, o.id, true);
   await op('voci', 'readwrite', (s) => s.clear());
   await op('meta', 'readwrite', (s) => s.clear());
   await C.dimenticaTutto();
@@ -376,7 +376,7 @@ export async function creaChiave(frase, preparata) {
   sync.io.cifratura = true;
   aggiornaFase();
   // tutto quello che c'è già su questo dispositivo parte verso il custode
-  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi']) for (const o of dati[t]) coda.add(t + '|' + o.id);
+  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'serie']) for (const o of dati[t]) coda.add(t + '|' + o.id);
   await salvaCoda();
   return sincronizza();
 }

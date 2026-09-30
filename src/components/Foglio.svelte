@@ -10,6 +10,9 @@
   import Md from './Md.svelte';
   import Icona from './Icona.svelte';
   import Immagine from './Immagine.svelte';
+  import SerieDialogo from './SerieDialogo.svelte';
+  import { serieDiSeduta, eccezioneSerie, spostaSeduta } from '../lib/dati.svelte.js';
+  import { descrivi } from '../lib/serie.js';
 
   let { s: iniziale, alCambioId = () => {}, pagina = false } = $props();
 
@@ -85,7 +88,32 @@
     s = { ...vera };
     editorArgomento++;
   }
+  // appuntamento ricorrente: sposta, salta, gestisci la serie
+  const laSerie = $derived(serieDiSeduta(s));
+  let spostando = $state(false);
+  let nuovaData = $state('');
+  let nuovaOra = $state('');
+  let gestisci = $state(false);
+  function iniziaSposta() { nuovaData = s.data; nuovaOra = s.ora; spostando = true; }
+  async function sposta(e) {
+    e.preventDefault();
+    await scarica();
+    const base = dati.sedute.find((x) => x.id === s.id) || s;
+    const vera = await spostaSeduta(base, nuovaData, nuovaOra);
+    Object.assign(s, { id: vera.id, data: vera.data, ora: vera.ora, virtuale: false });
+    spostando = false;
+    alCambioId(vera.id);
+  }
   async function annulla() {
+    const vuota = !s.argomento && !s.resoconto && !s.prossima && !Object.values(s.partecipanti || {}).some(Boolean);
+    if (s.virtuale && laSerie && vuota) {
+      // una data della serie che non si fa: niente seduta da conservare
+      if (!confirm('Saltare questo appuntamento? Gli altri della serie restano.')) return;
+      clearTimeout(timer); coda = {};
+      await eccezioneSerie(laSerie, s.data, 'saltata');
+      alCambioId(null, true);
+      return;
+    }
     if (!confirm('Segnare la seduta come non svolta? Resta nello storico, ma sparisce dal calendario.')) return;
     await scarica();
     const base = dati.sedute.find((x) => x.id === s.id) || s;
@@ -99,6 +127,25 @@
 
 <article class="foglio" class:pagina aria-labelledby="titolo-seduta">
   <header>
+    {#if laSerie}
+      <div class="serie-riga no-stampa">
+        <span class="mano">↻</span><span class="sotto piccolo">{descrivi(laSerie)}</span>
+        {#if puoGestire()}
+          <button type="button" class="link" onclick={iniziaSposta}>sposta</button>
+          <button type="button" class="link" onclick={annulla}>salta</button>
+          <button type="button" class="link" onclick={() => (gestisci = true)}>tutta la serie…</button>
+        {/if}
+      </div>
+      {#if spostando}
+        <form class="sposta" onsubmit={sposta}>
+          <span class="eti">Solo questa volta</span>
+          <input class="input" type="date" bind:value={nuovaData} required aria-label="Nuova data" />
+          <input class="input" type="time" bind:value={nuovaOra} required aria-label="Nuova ora" />
+          <button class="btn pieno piccolo">Sposta</button>
+          <button type="button" class="btn nudo piccolo" onclick={() => (spostando = false)}>Annulla</button>
+        </form>
+      {/if}
+    {/if}
     <p class="eti">
       {dataTitolo} · {s.ora}–{fineOra(s.ora, s.durata)} · {TIPI[s.tipo].breve}
       {#if statoS === 'da-scrivere'}<span class="mano segno">da scrivere</span>{/if}
@@ -194,6 +241,7 @@
     {#if puoGestire() && !s.annullata}<button class="btn nudo piccolo" onclick={annulla}>Non svolta</button>{/if}
   </footer>
 </article>
+{#if gestisci && laSerie}<SerieDialogo se={laSerie} chiudi={() => (gestisci = false)} />{/if}
 
 <style>
   .foglio {
@@ -202,6 +250,11 @@
   }
   .foglio::before { content: ''; position: absolute; left: 68px; top: 0; bottom: 0; width: 1.5px; background: var(--spot); opacity: 0.55; }
   header { display: grid; gap: var(--s-2); }
+  .serie-riga { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .serie-riga .mano { font-size: 18px; }
+  .link { border: 0; background: none; padding: 0; font: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--spot-testo); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .sposta { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; padding: var(--s-2) var(--s-3); border: 1px dashed var(--matita-forte); border-radius: var(--r); }
+  .sposta .input { width: auto; min-height: 34px; }
   header .eti { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
   .segno { font-size: 19px; letter-spacing: 0; text-transform: none; }
   h2 { font-size: var(--t-xl); line-height: 1.02; }

@@ -24,9 +24,9 @@ var PD = (function () {
 
   var SCHEMA = 1;
   var RUOLI = ['admin', 'tirocinante'];
-  var TIPI = ['ragazzo', 'scheda', 'gruppo', 'seduta', 'nota', 'sospeso'];
+  var TIPI = ['ragazzo', 'scheda', 'gruppo', 'seduta', 'nota', 'sospeso', 'serie'];
   // I tirocinanti scrivono ma non gestiscono: niente ragazzi, schede, gruppi.
-  var SOLO_ADMIN = { ragazzo: true, scheda: true, gruppo: true };
+  var SOLO_ADMIN = { ragazzo: true, scheda: true, gruppo: true, serie: true };
   var STORIA_PER_VOCE = 15;   // versioni precedenti tenute per ogni voce
 
   var P = {

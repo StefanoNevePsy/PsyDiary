@@ -3,8 +3,9 @@ import * as A from './archivio.js';
 import { oggi, piu, giornoSettimana, daIso } from './date.js';
 import { tagDi, menzioniDi, semplice, daFare } from './testo.js';
 import { REALE } from './centro/config.js';
+import { occorrenze } from './serie.js';
 
-export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], persone: [] });
+export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], persone: [], serie: [] });
 
 // Chi usa l'app. Nel prototipo si può cambiare da Impostazioni per provare i ruoli.
 export const PERSONE_INIZIALI = [
@@ -64,12 +65,13 @@ export function nuovoId(p) {
 const ora = () => new Date().toISOString();
 
 export async function carica() {
-  const [ragazzi, gruppi, sedute, note, sospesi, persone] = await Promise.all(A.TABELLE.map((t) => A.tutti(t)));
+  const [ragazzi, gruppi, sedute, note, sospesi, persone, serie] = await Promise.all(A.TABELLE.map((t) => A.tutti(t)));
   if (REALE) {
-    Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone: [] });
+    Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone: [], serie });
   } else if (!ragazzi.length && !gruppi.length) {
     const { creaDemo } = await import('./demo.js');
     const d = creaDemo();
+    d.serie = d.serie || [];
     await A.mettiTutto(Object.fromEntries(A.TABELLE.map((t) => [t, d[t]])));
     try {
       // copertine dei gruppi e un disegno in una seduta, generati sul momento
@@ -81,7 +83,8 @@ export async function carica() {
       await A.mettiTutto({ gruppi: d.gruppi, sedute: d.sedute });
     } catch (e) { console.warn('Immagini di prova non create', e); }
     Object.assign(dati, d);
-  } else Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone });
+  } else Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone, serie });
+  await migraRicorrenze();
   if (!REALE && !dati.persone.length) {
     await A.mettiTutto({ persone: PERSONE_INIZIALI });
     dati.persone = structuredClone(PERSONE_INIZIALI);
@@ -149,29 +152,41 @@ export const CATEGORIE_NOTA = { gruppo: 'Nel gruppo', osservazione: 'Osservazion
 const idVirtuale = (tipo, sogg, data) => `v:${tipo}:${sogg}:${data}`;
 export const soggetto = (s) => (s.tipo === 'gruppo' ? 'g:' + s.gruppoId : s.tipo + ':' + s.ragazzoId);
 
-function ricorre(ric, data) {
-  if (!ric || !ric.giorni || !ric.giorni.length) return false;
-  if (ric.dal && data < ric.dal) return false;
-  if (ric.al && data > ric.al) return false;
-  if (!ric.giorni.includes(giornoSettimana(data))) return false;
-  if (ric.ogni === 2) {
-    const sett = Math.round((daIso(data) - daIso(ric.dal || data)) / (7 * 86400000));
-    if (sett % 2) return false;
-  }
-  return true;
+// ---- serie di appuntamenti (src/lib/serie.js) ----
+export const soggettoSerie = (se) => (se.tipo === 'gruppo' ? 'g:' + se.gruppoId : se.tipo + ':' + se.ragazzoId);
+function serieAttiva(se) {
+  if (se.tipo === 'gruppo') { const g = gruppo(se.gruppoId); return !!g && !g.archiviato; }
+  const r = ragazzo(se.ragazzoId); return !!r && r.stato !== 'concluso';
+}
+export const serieDi = ({ gruppoId, ragazzoId } = {}) => dati.serie
+  .filter((se) => (gruppoId ? se.gruppoId === gruppoId : ragazzoId ? se.ragazzoId === ragazzoId : true))
+  .sort((a, b) => (a.dal < b.dal ? -1 : 1));
+/** Le serie in corso (non finite prima di oggi) di un gruppo o ragazzo. */
+export const serieInCorso = (f) => serieDi(f).filter((se) => !se.al || se.al >= oggi());
+export const serie = (id) => dati.serie.find((x) => x.id === id) || null;
+/** La serie di una seduta: quella segnata, o quella che cade nello stesso giorno per lo stesso gruppo o ragazzo. */
+export function serieDiSeduta(s) {
+  if (!s) return null;
+  if (s.serieId) return serie(s.serieId);
+  const k = soggetto(s);
+  return dati.serie.find((se) => soggettoSerie(se) === k && occorrenze(se, s.data, s.data).length) || null;
+}
+function daSerie(se, d) {
+  const base = { id: `v:${se.id}:${d}`, virtuale: true, serieId: se.id, tipo: se.tipo, data: d, ora: se.ora, durata: se.durata || (se.tipo === 'gruppo' ? 90 : 60), argomento: '', resoconto: '', prossima: '', autori: {} };
+  if (se.tipo === 'gruppo') return { ...base, gruppoId: se.gruppoId, presenze: {}, partecipanti: {} };
+  return { ...base, ragazzoId: se.ragazzoId, ...(se.chi ? { chi: se.chi } : {}) };
 }
 
 export function sedutePeriodo(da, a) {
   const out = dati.sedute.filter((s) => s.data >= da && s.data <= a);
   const presenti = new Set(out.map((s) => soggetto(s) + '|' + s.data));
-  for (let d = da; d <= a; d = piu(d, 1)) {
-    for (const g of dati.gruppi) {
-      if (g.archiviato || !ricorre(g.ricorrenza, d) || presenti.has('g:' + g.id + '|' + d)) continue;
-      out.push({ id: idVirtuale('gruppo', g.id, d), virtuale: true, tipo: 'gruppo', gruppoId: g.id, data: d, ora: g.ricorrenza.ora, durata: g.ricorrenza.durata || 90, argomento: '', resoconto: '', prossima: '', presenze: {}, partecipanti: {}, autori: {} });
-    }
-    for (const r of dati.ragazzi) {
-      if (r.stato === 'concluso' || !ricorre(r.ricorrenza, d) || presenti.has('individuale:' + r.id + '|' + d)) continue;
-      out.push({ id: idVirtuale('individuale', r.id, d), virtuale: true, tipo: 'individuale', ragazzoId: r.id, data: d, ora: r.ricorrenza.ora, durata: r.ricorrenza.durata || 60, argomento: '', resoconto: '', prossima: '', autori: {} });
+  for (const se of dati.serie) {
+    if (!serieAttiva(se)) continue;
+    for (const d of occorrenze(se, da, a)) {
+      const k = soggettoSerie(se) + '|' + d;
+      if (presenti.has(k)) continue;
+      presenti.add(k);
+      out.push(daSerie(se, d));
     }
   }
   return out.filter((s) => !s.annullata && visibileSeduta(s)).sort((x, y) => (x.data + x.ora).localeCompare(y.data + y.ora));
@@ -180,13 +195,94 @@ export function sedutePeriodo(da, a) {
 export function seduta(id) {
   const s = dati.sedute.find((x) => x.id === id);
   if (s) return visibileSeduta(s) ? s : null;
-  const m = /^v:(gruppo|individuale):([a-z0-9]+):(\d{4}-\d{2}-\d{2})$/.exec(id || '');
-  if (!m) return null;
+  let m = /^v:([a-z0-9]+):(\d{4}-\d{2}-\d{2})$/.exec(id || '');
+  let se = null, d = null;
+  if (m) { se = serie(m[1]); d = m[2]; }
+  else {
+    // indirizzi di prima delle serie: v:gruppo:<id>:<data>
+    m = /^v:(gruppo|individuale):([a-z0-9]+):(\d{4}-\d{2}-\d{2})$/.exec(id || '');
+    if (!m) return null;
+    d = m[3];
+    se = dati.serie.find((x) => (m[1] === 'gruppo' ? x.gruppoId === m[2] && x.tipo === 'gruppo' : x.ragazzoId === m[2] && x.tipo === 'individuale')) || null;
+  }
+  if (!se) return null;
   // già salvata? si ritrova con lo stesso indirizzo
-  const k = m[1] === 'gruppo' ? 'g:' + m[2] : 'individuale:' + m[2];
-  const salvata = dati.sedute.find((x) => soggetto(x) === k && x.data === m[3] && !x.annullata);
-  if (salvata) return salvata;
-  return sedutePeriodo(m[3], m[3]).find((x) => x.id === id) || null;
+  const salvata = dati.sedute.find((x) => soggetto(x) === soggettoSerie(se) && x.data === d && !x.annullata);
+  if (salvata) return visibileSeduta(salvata) ? salvata : null;
+  if (!occorrenze(se, d, d).length) return null;
+  const v = daSerie(se, d);
+  return visibileSeduta(v) ? v : null;
+}
+
+// ---- gestione delle serie ----
+export async function creaSerie(d) {
+  const x = { eccezioni: {}, ...d, id: nuovoId('ri') };
+  if (!x.volte) delete x.volte;
+  if (!x.al) delete x.al;
+  return salva('serie', x);
+}
+/** Cambia orario, giorni, ritmo "da questa data in poi": il passato resta com'era. */
+export async function modificaSerieDa(se, da, nuovi) {
+  const vecchia = $state.snapshot(se);
+  if (da <= vecchia.dal) return salva('serie', { ...vecchia, ...nuovi });
+  const ecc = vecchia.eccezioni || {};
+  const prima = { ...vecchia, al: piu(da, -1), volte: undefined, eccezioni: Object.fromEntries(Object.entries(ecc).filter(([k]) => k < da)) };
+  if (vecchia.volte) {
+    // "dopo N volte": la nuova serie fa le volte rimaste
+    const fatte = occorrenze({ ...vecchia, eccezioni: null }, vecchia.dal, piu(da, -1)).length;
+    nuovi = { volte: Math.max(1, vecchia.volte - fatte), ...nuovi };
+  }
+  delete prima.volte;
+  await salva('serie', prima);
+  const ecc2 = Object.fromEntries(Object.entries(ecc).filter(([k]) => k >= da));
+  return creaSerie({ ...vecchia, volte: undefined, ...nuovi, dal: da, eccezioni: ecc2 });
+}
+/** La serie finisce con questa data (compresa). */
+export async function terminaSerie(se, al) {
+  const s = { ...$state.snapshot(se), al };
+  delete s.volte;
+  return salva('serie', s);
+}
+export const eliminaSerie = (se) => elimina('serie', se.id);
+/** Una sola data della serie non si fa (o è stata spostata). */
+export async function eccezioneSerie(se, data, tipo = 'saltata') {
+  const s = $state.snapshot(se);
+  return salva('serie', { ...s, eccezioni: { ...(s.eccezioni || {}), [data]: tipo } });
+}
+export async function togliEccezione(se, data) {
+  const s = $state.snapshot(se);
+  const e = { ...(s.eccezioni || {}) };
+  delete e[data];
+  return salva('serie', { ...s, eccezioni: e });
+}
+/** Sposta una sola seduta (di una serie o no) a un altro giorno o orario. */
+export async function spostaSeduta(s, data, oraNuova) {
+  const se = serieDiSeduta(s);
+  if (se && data !== s.data) await eccezioneSerie(se, s.data, 'spostata');
+  const vera = await materializza(s);
+  return salva('sedute', { ...$state.snapshot(vera), data, ora: oraNuova || vera.ora, ...(se ? { serieId: se.id } : {}) });
+}
+
+// Prima delle serie la ricorrenza stava dentro il gruppo o il ragazzo: si trasforma una volta
+async function migraRicorrenze() {
+  for (const g of [...dati.gruppi]) {
+    const r = g.ricorrenza;
+    if (!r) continue;
+    if (r.giorni && r.giorni.length && !dati.serie.some((x) => x.gruppoId === g.id)) {
+      await creaSerie({ tipo: 'gruppo', gruppoId: g.id, ora: r.ora || '15:00', durata: r.durata || 90, ripeti: { come: 'settimane', ogni: r.ogni || 1, giorni: r.giorni }, dal: r.dal || oggi(), ...(r.al ? { al: r.al } : {}) });
+    }
+    const x = { ...$state.snapshot(g) }; delete x.ricorrenza;
+    await salva('gruppi', x, !REALE);
+  }
+  for (const k of [...dati.ragazzi]) {
+    const r = k.ricorrenza;
+    if (r === undefined) continue;
+    if (r && r.giorni && r.giorni.length && !dati.serie.some((x) => x.ragazzoId === k.id && x.tipo === 'individuale')) {
+      await creaSerie({ tipo: 'individuale', ragazzoId: k.id, ora: r.ora || '16:00', durata: r.durata || 60, ripeti: { come: 'settimane', ogni: r.ogni || 1, giorni: r.giorni }, dal: r.dal || oggi(), ...(r.al ? { al: r.al } : {}) });
+    }
+    const x = { ...$state.snapshot(k) }; delete x.ricorrenza;
+    await salva('ragazzi', x, !REALE);
+  }
 }
 /** Una seduta prevista diventa vera alla prima modifica. */
 export async function materializza(s) {
@@ -311,7 +407,7 @@ export function diarioRagazzo(rid) {
 export function storicoGruppo(gid) {
   const g = gruppo(gid);
   if (!g) return [];
-  const da = g.ricorrenza?.dal || piu(oggi(), -365);
+  const da = serieDi({ gruppoId: gid }).map((x) => x.dal).sort()[0] || piu(oggi(), -365);
   const tutte = sedutePeriodo(da, piu(oggi(), 60)).filter((s) => s.gruppoId === gid);
   return tutte.filter((s) => !s.virtuale || s.data < oggi()).map((s) => voceSeduta(s)).concat(
     dati.note.filter((n) => n.gruppoId === gid).map(voceNota),

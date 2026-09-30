@@ -14,6 +14,7 @@ ok(ambitoDi('note', { ragazzoId: 'r1', categoria: 'gruppo' }) === 'aula' && ambi
 ok(ambitoDi('sospesi', { ragazzoId: 'r1' }) === 'r:r1' && ambitoDi('sospesi', { gruppoId: 'g' }) === 'aula', 'idee in sospeso');
 ok(idVociDi('ragazzi', 'r1').join() === 'r1,r1sc' && destinazione({ tipo: 'scheda', id: 'r1sc' }).id === 'r1', 'id delle voci del ragazzo');
 ok(vociDi('persone', { id: 'x' }).length === 0, 'le persone non viaggiano come voci');
+ok(ambitoDi('serie', { tipo: 'gruppo', gruppoId: 'g' }) === 'aula' && ambitoDi('serie', { tipo: 'genitori', ragazzoId: 'r1' }) === 'r:r1', 'serie: di gruppo in aula, del ragazzo nel suo ambito');
 
 const base = { resoconto: 'Inizio.', presenze: { a: false }, argomento: 'x' };
 ok(unisci(base, { ...base, argomento: 'mio' }, { ...base, resoconto: 'Inizio. Loro.' }).argomento === 'mio', 'campi diversi: tutti e due');
