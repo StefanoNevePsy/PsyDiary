@@ -38,6 +38,7 @@
 
 <main class="ingresso">
   <div class="foglio">
+    <p class="sotto piccolo"><a href="./privacy.html">Informativa privacy · Aula 3 - Correggio</a></p>
     <p class="marchio"><span class="display">Psy</span><span class="mano">diary</span></p>
 
     {#if sync.fase === 'fuori'}
