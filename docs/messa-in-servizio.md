@@ -32,21 +32,33 @@ telefoni. Ci vogliono circa 30–40 minuti, una volta sola. Tutto il resto
   operatore e nessuno può chiuderlo fuori.
 
 Ti servono: l'account Google con cui vuoi tenere i dati (quello dell'aula o il
-tuo), e l'accesso al repository `StefanoNevePsy/psydiary` su GitHub.
+tuo), e l'accesso al repository `StefanoNevePsy/PsyDiary` su GitHub.
+
+**Riepilogo dei passi**
+
+| | Passo | Tempo | Stato |
+|---|---|---|---|
+| 1 | GitHub Pages | 2 min | ✅ già fatto: il sito è online |
+| 2 | Client ID di Google | 10 min | da fare |
+| 3 | Custode su Apps Script | 10 min | da fare |
+| 4 | Collegare il sito al custode (2 variabili su GitHub) | 3 min | da fare (automatico con la strada 3A + `gh`) |
+| 5 | Primo accesso e chiave dell'aula | 5 min | da fare |
+| 6 | Collega e tirocinanti | 5 min | da fare |
 
 ---
 
-## Passo 1 · Attiva GitHub Pages (2 minuti)
+## Passo 1 · GitHub Pages ✅ (già fatto)
 
-1. Su GitHub apri il repository **psydiary** → **Settings** → **Pages**.
-2. In *Build and deployment* → *Source* scegli **GitHub Actions**.
-3. Vai su **Actions** → **Pubblica PsyDiary** → **Run workflow**.
+Pages è attivo e l'Action pubblica il sito a ogni modifica. Il sito è su
+**https://stefanonevepsy.github.io/PsyDiary/** (con le maiuscole: l'indirizzo
+segue il nome del repository).
 
-Dopo un paio di minuti il sito è su **https://stefanonevepsy.github.io/psydiary/**.
+Se un giorno servisse rifarlo: repository → **Settings → Pages** → *Source*:
+**GitHub Actions**, poi **Actions → Pubblica PsyDiary → Run workflow**.
 Per ora è la **demo** con dati inventati: si può già mostrare a chi vuoi. Diventa
 la versione vera al passo 4, e la demo resta sempre disponibile dal pulsante
 **Guarda la demo** nella pagina d'ingresso, o con il link
-**https://stefanonevepsy.github.io/psydiary/?demo**. La demo usa un archivio a
+**https://stefanonevepsy.github.io/PsyDiary/?demo**. La demo usa un archivio a
 parte nel browser e non tocca mai i dati dell'aula.
 
 > Il sito si pubblica dal ramo principale del repository (ora
@@ -85,10 +97,15 @@ fa tutta dal browser.
 
 ### A · Con un comando (consigliata se hai Node.js sul computer)
 
+Serve Node.js 20 o più recente (https://nodejs.org) e, facoltativa ma comoda,
+la CLI di GitHub già collegata (`gh auth login`).
+
 1. Una volta sola: apri **https://script.google.com/home/usersettings** e
    attiva **Google Apps Script API**.
-2. Nel terminale, nella cartella del repository:
+2. Nel terminale:
    ```sh
+   git clone https://github.com/StefanoNevePsy/PsyDiary.git
+   cd PsyDiary
    npm ci
    npm run custode:installa -- IL-TUO-CLIENT-ID.apps.googleusercontent.com
    ```
@@ -161,7 +178,7 @@ dell'esecuzione deve comparire "Versione collegata al custode".
 
 ## Passo 5 · Il primo accesso e la chiave dell'aula (5 minuti)
 
-1. Apri **https://stefanonevepsy.github.io/psydiary/** ed entra con **lo
+1. Apri **https://stefanonevepsy.github.io/PsyDiary/** ed entra con **lo
    stesso account Google che ha installato il custode**.
 2. PsyDiary ti propone la **chiave dell'aula**: 25 caratteri in 5 gruppi.
    **Stampala** (pulsante *Stampa*) e conservala in un posto sicuro (un
@@ -176,6 +193,10 @@ dell'esecuzione deve comparire "Versione collegata al custode".
    - **computer (Chrome/Edge)**: icona ⊕ *Installa* nella barra dell'indirizzo;
    - **iPhone/iPad**: Safari → Condividi → *Aggiungi alla schermata Home*;
    - **Android**: Chrome → ⋮ → *Installa app*.
+4. Crea gruppi e ragazzi (Gruppi → *Nuovo gruppo*, Ragazzi → *Nuovo ragazzo*)
+   e i loro **appuntamenti ricorrenti** (nella scheda del gruppo o del ragazzo,
+   o dal calendario con *+ Seduta → Si ripete*): da lì in poi le sedute
+   compaiono da sole nel calendario, pronte per gli appunti.
 
 ## Passo 6 · Aggiungi la collega e i tirocinanti
 
@@ -232,7 +253,7 @@ dispositivi perdono la chiave.
 
 | Sintomo | Cosa fare |
 |---|---|
-| Il pulsante "Accedi con Google" non compare, o dà errore di origine | Passo 2.4: l'origine deve essere esattamente `https://stefanonevepsy.github.io` (senza `/psydiary`). Le modifiche possono richiedere qualche minuto. |
+| Il pulsante "Accedi con Google" non compare, o dà errore di origine | Passo 2.4: l'origine deve essere esattamente `https://stefanonevepsy.github.io` (senza `/PsyDiary`). Le modifiche possono richiedere qualche minuto. |
 | "L'account … non è abilitato" | Aggiungilo in *Persone e accessi* e salva. |
 | "Il custode non risponde" | La distribuzione deve essere *App web*, *Esegui come: Me*, *Chi ha accesso: Chiunque*. Apri l'URL `/exec`: deve rispondere `ok`. |
 | "configurato": false | Esegui di nuovo *configura* dall'editor; controlla il client ID (file o proprietà dello script). |
