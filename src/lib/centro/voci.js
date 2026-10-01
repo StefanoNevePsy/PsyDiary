@@ -66,6 +66,7 @@ export function applica(voce, attuale, dati) {
 // Campo per campo; se entrambi hanno cambiato lo stesso testo non si perde
 // niente: si tengono tutte e due le versioni una sotto l'altra.
 const uguale = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const righe = (t) => t.split('\n').map((x) => x.trim()).filter(Boolean);
 const oggetto = (x) => x && typeof x === 'object' && !Array.isArray(x);
 
 export function unisci(base, mia, loro, chiLoro = 'un altro dispositivo') {
@@ -88,7 +89,15 @@ export function unisci(base, mia, loro, chiLoro = 'un altro dispositivo') {
     if (mia.includes(loro)) return mia;
     if (loro.includes(mia)) return loro;
     // tutti e due hanno aggiunto in fondo: si tengono entrambe le aggiunte
-    if (typeof base === 'string' && base && mia.startsWith(base) && loro.startsWith(base)) return mia + '\n' + loro.slice(base.length).replace(/^\n+/, '');
+    if (typeof base === 'string' && base && mia.startsWith(base) && loro.startsWith(base)) {
+      // ...ma se una delle due contiene gia' le aggiunte dell'altra (chi ha
+      // unito prima, o un invio la cui risposta si era persa) non si ripetono
+      const am = righe(mia.slice(base.length)), al = loro.slice(base.length);
+      if (am.every((x) => righe(al).includes(x))) return loro;
+      if (righe(al).every((x) => am.includes(x))) return mia;
+      const nuove = al.split('\n').filter((x) => !x.trim() || !am.includes(x.trim())).join('\n').replace(/^\n+/, '');
+      return mia + '\n' + nuove;
+    }
     return `${mia}\n\n> Scritto nello stesso momento da ${chiLoro}:\n\n${loro}`;
   }
   return mia === undefined ? loro : mia;   // numeri, liste, booleani: vince questo dispositivo

@@ -119,6 +119,16 @@ var PD = (function () {
     return JSON.stringify(v === undefined ? null : v);
   }
 
+  // Scritture che l'app puo' ripetere quando la risposta si perde per strada
+  // (con Apps Script capita: l'azione e' fatta ma l'app vede un errore). Con lo
+  // stesso identificativo di richiesta il custode restituisce la risposta di
+  // allora invece di rifare l'azione. "sync" si protegge da solo, voce per voce.
+  var RIPETIBILI = {
+    'cifratura.imposta': true, 'dispositivo.registra': true, 'dispositivi.abilita': true,
+    'dispositivo.togli': true, 'accessi.salva': true,
+  };
+  var RE_RICHIESTA = /^[A-Za-z0-9_-]{8,64}$/;
+
   function creaCustode(amb) {
     var A = amb.archivio;
     var inLock = false;
@@ -310,6 +320,13 @@ var PD = (function () {
               var attualeFile = file(dove), attuale = attualeFile.voci[v.id] || null;
               if (attuale && !vedeAmbito(u, dove)) throw err('vietato', 'Voce non accessibile.');
               var versione = attuale ? attuale.version : 0;
+              // Reinvio di un invio gia' accettato (la risposta si era persa per
+              // strada): stessa busta, stesso autore, versione appena dopo la base
+              if (attuale && versione === v.versioneBase + 1 && attuale.aggiornatoDa === u.email &&
+                  dove === v.ambito && !!attuale.eliminato === !!v.eliminato && stabile(attuale.busta || null) === stabile(v.busta || null)) {
+                esiti.push({ id: v.id, ok: true, version: versione, ambito: v.ambito });
+                return;
+              }
               if (versione !== v.versioneBase) throw err('conflitto', 'Modificata nel frattempo.', { attuale: attuale ? Object.assign({ ambito: dove }, attuale) : null });
               if (attuale && attuale.tipo !== v.tipo) throw err('richiesta-non-valida', 'Il tipo di una voce non cambia.');
               if (!eAdmin(u) && attuale && v.tipo === 'nota' && attuale.creatoDa !== u.email) throw err('vietato', 'Puoi modificare solo le note che hai scritto tu.');
@@ -392,9 +409,22 @@ var PD = (function () {
         var identita;
         try { identita = amb.verificaToken(richiesta.token); } catch (e) { throw err('non-autenticato', 'Accesso scaduto o non valido: rientra con Google.'); }
         var u = utenteDa(identita);
-        return { ok: true, dati: fn(u, richiesta.dati && typeof richiesta.dati === 'object' ? richiesta.dati : {}) };
+        var chiave = amb.ricordo && RIPETIBILI[richiesta.azione] && typeof richiesta.rid === 'string' && RE_RICHIESTA.test(richiesta.rid)
+          ? 'rid:' + u.email + ':' + richiesta.azione + ':' + richiesta.rid : null;
+        if (chiave) {
+          var gia = null;
+          try { gia = amb.ricordo.leggi(chiave); } catch (e0) { gia = null; }
+          if (gia) return JSON.parse(gia);
+        }
+        var risposta = { ok: true, dati: fn(u, richiesta.dati && typeof richiesta.dati === 'object' ? richiesta.dati : {}) };
+        if (chiave) {
+          var testo = JSON.stringify(risposta);
+          if (testo.length < 90000) { try { amb.ricordo.scrivi(chiave, testo); } catch (e1) { /* solo una comodita' */ } }
+        }
+        return risposta;
       } catch (e) {
         if (e instanceof Errore) return { ok: false, errore: e.codice, messaggio: e.message, extra: e.extra };
+        if (e && e.occupato) return { ok: false, errore: 'occupato', messaggio: 'Il custode è occupato con un\'altra richiesta: riprova tra qualche secondo.' };
         return { ok: false, errore: 'interno', messaggio: 'Errore interno del custode: ' + String(e && e.message || e).slice(0, 300) };
       }
     }

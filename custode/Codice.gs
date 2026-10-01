@@ -25,9 +25,16 @@ function doPost(e) {
   try {
     var corpo = (e && e.postData && e.postData.contents) || '';
     if (corpo.length > 20 * 1024 * 1024) risposta = { ok: false, errore: 'richiesta-non-valida', messaggio: 'Richiesta troppo grande.' };
-    else risposta = custode_().gestisci(JSON.parse(corpo));
+    else {
+      var richiesta;
+      try { richiesta = JSON.parse(corpo); } catch (e) { richiesta = undefined; }
+      risposta = richiesta === undefined
+        ? { ok: false, errore: 'richiesta-non-valida', messaggio: 'Richiesta non leggibile.' }
+        : custode_().gestisci(richiesta);
+    }
   } catch (err) {
-    risposta = { ok: false, errore: 'richiesta-non-valida', messaggio: 'Richiesta non leggibile.' };
+    // Configurazione o servizi Google (Drive, cache) non disponibili: l'app riprova
+    risposta = { ok: false, errore: 'interno', messaggio: 'Errore interno del custode: ' + String(err && err.message || err).slice(0, 300) };
   }
   return ContentService.createTextOutput(JSON.stringify(risposta)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -41,6 +48,12 @@ function doGet() {
 }
 
 var _custode = null;
+// Le chiavi della cache di Apps Script hanno un limite di lunghezza
+function chiaveCache_(k) {
+  return 'r:' + Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, k)
+    .map(function (b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join('');
+}
+
 function custode_() {
   if (_custode) return _custode;
   _custode = PD.creaCustode({
@@ -48,6 +61,11 @@ function custode_() {
     verificaToken: verificaToken_,
     proprietario: function () { return impostazione_('PROPRIETARIO') || Session.getEffectiveUser().getEmail(); },
     ora: function () { return new Date().toISOString(); },
+    // Risposte alle scritture gia' fatte, per i reinvii dell'app (10 minuti)
+    ricordo: {
+      leggi: function (k) { return CacheService.getScriptCache().get(chiaveCache_(k)); },
+      scrivi: function (k, v) { CacheService.getScriptCache().put(chiaveCache_(k), v, 600); },
+    },
   });
   return _custode;
 }
@@ -127,7 +145,11 @@ function archivioDrive_() {
     esiste: function (p) { return !!file(p); },
     conLock: function (fn) {
       var lock = LockService.getScriptLock();
-      if (!lock.tryLock(25000)) throw new Error('Il custode è occupato: riprova tra qualche secondo.');
+      if (!lock.tryLock(25000)) {
+        var e = new Error('Il custode è occupato: riprova tra qualche secondo.');
+        e.occupato = true;
+        throw e;
+      }
       try { return fn(); } finally { lock.releaseLock(); }
     },
   };

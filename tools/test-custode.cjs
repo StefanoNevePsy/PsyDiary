@@ -93,6 +93,23 @@ ok(chiama('stefano@aula.it', 'immagine.leggi', { id: 'i123', ambito: 'r:rluca01'
 r = chiama('stefano@aula.it', 'sync', { invii: [Object.assign(voce('x9z', 'nota', 'aula'), { busta: busta('kvecchia') })] });
 ok(r.dati.esiti[0].errore === 'chiave-cambiata', 'buste con una chiave diversa rifiutate');
 
+// risposte perse per strada: il reinvio identico non diventa un conflitto
+{
+  const unica = (iv) => Object.assign(busta(), { iv });
+  const v1 = Object.assign(voce('rinv1', 'nota', 'aula'), { busta: unica('BBBBBBBBBBBBBBBB') });
+  const a = chiama('stefano@aula.it', 'sync', { invii: [v1] }).dati.esiti[0];
+  const b = chiama('stefano@aula.it', 'sync', { invii: [v1] }).dati.esiti[0];
+  ok(a.ok && b.ok && a.version === 1 && b.version === 1, 'stesso invio rimandato: accettato una volta sola');
+  const altra = Object.assign(voce('rinv1', 'nota', 'aula'), { busta: unica('CCCCCCCCCCCCCCCC') });
+  ok(chiama('stefano@aula.it', 'sync', { invii: [altra] }).dati.esiti[0].errore === 'conflitto', 'un invio diverso sulla stessa base resta un conflitto');
+  ok(chiama('elena@aula.it', 'sync', { invii: [v1] }).dati.esiti[0].errore === 'conflitto', 'e vale solo per chi l\'aveva mandato');
+  const rid = 'rid-prova-001';
+  const r1 = c.gestisci({ v: 1, token: 'dev:stefano@aula.it|stefano', azione: 'dispositivo.registra', rid, dati: { id: 'dstefano01', pubblica: 'AAAA', nome: 'Mac' } });
+  const r2 = c.gestisci({ v: 1, token: 'dev:stefano@aula.it|stefano', azione: 'dispositivo.registra', rid, dati: { id: 'dstefano01', pubblica: 'AAAA', nome: 'Mac' } });
+  ok(r1.ok && JSON.stringify(r1) === JSON.stringify(r2), 'scrittura rimandata con lo stesso identificativo: stessa risposta');
+  chiama('stefano@aula.it', 'dispositivo.togli', { id: 'dstefano01' });
+}
+
 // dispositivi
 const pub = 'AAAA';
 ok(chiama('giulia@aula.it', 'dispositivo.registra', { id: 'dgiulia001', pubblica: pub, nome: 'Telefono' }).dati.abilitato === false, 'dispositivo registrato, in attesa');

@@ -25,5 +25,11 @@ const u2 = unisci({ t: 'A' }, { t: 'B completamente' }, { t: 'C diverso' }, 'Ele
 ok(u2.t.includes('B completamente') && u2.t.includes('C diverso') && u2.t.includes('Elena'), 'riscritture diverse: tutte e due, con chi');
 ok(JSON.stringify(unisci(base, { ...base, presenze: { a: false, b: false } }, { ...base, presenze: {} }).presenze) === JSON.stringify({ b: false }), 'presenze unite campo per campo');
 ok(immaginiDi({ foto: 'i111', testo: 'x ![](img:i2222) y', copertina: 'i333' }).sort().join() === 'i111,i2222,i333', 'immagini citate');
+// la mia aggiunta e' gia' dentro la loro (l'altro ha unito prima, o la mia risposta si era persa)
+const b3 = { t: 'Resoconto.' };
+ok(unisci(b3, { t: 'Resoconto.\nStefano.' }, { t: 'Resoconto.\nElena.\nStefano.' }).t === 'Resoconto.\nElena.\nStefano.', 'aggiunte gia\' unite dall\'altra parte: non si ripetono');
+ok(unisci(b3, { t: 'Resoconto.\nElena.\nStefano.' }, { t: 'Resoconto.\nStefano.' }).t === 'Resoconto.\nElena.\nStefano.', '…in tutte e due le direzioni');
+ok(unisci(b3, { t: 'Resoconto.\nStefano.' }, { t: 'Resoconto.\nStefano.\nElena.' }).t === 'Resoconto.\nStefano.\nElena.', '…anche nell\'ordine inverso');
+ok(unisci(b3, { t: 'Resoconto.\nStefano.\nMarco.' }, { t: 'Resoconto.\nElena.\nStefano.' }).t === 'Resoconto.\nStefano.\nMarco.\nElena.', 'aggiunte in parte comuni: le comuni una volta sola');
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);

@@ -33,16 +33,47 @@ export const eOperatore = () => sync.io?.ruolo === 'admin';
 // Chiamate al custode
 class ErroreRete extends Error { constructor(m) { super(m); this.rete = true; } }
 class ErroreCustode extends Error { constructor(c, m, x) { super(m || c); this.codice = c; this.extra = x || null; this.custode = true; } }
-async function chiama(azione, d) {
+// Apps Script ogni tanto perde la risposta (404 "unable to open the file"),
+// risponde con una pagina d'errore o è occupato: si riprova da soli. Ogni
+// chiamata ha un identificativo che resta uguale nei tentativi: se l'azione
+// era già fatta il custode restituisce la risposta di allora.
+const ripetibile = (e) => e?.rete || (e?.custode && (e.codice === 'occupato' || e.codice === 'interno'));
+const ATTESE = [1500, 4000, 9000, 15000];
+const attendi = (ms) => new Promise((ok) => setTimeout(ok, ms));
+function nuovoRid() {
+  const b = crypto.getRandomValues(new Uint8Array(12));
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+async function chiama(azione, d, { tentativi = 4 } = {}) {
+  const rid = nuovoRid();
+  for (let n = 1; ; n++) {
+    try { return await chiamaUnaVolta(azione, d, rid); }
+    catch (e) {
+      if (!ripetibile(e) || n >= tentativi || (typeof navigator !== 'undefined' && navigator.onLine === false)) throw e;
+      const base = ATTESE[Math.min(n - 1, ATTESE.length - 1)];
+      await attendi(base + Math.random() * base * 0.3);
+    }
+  }
+}
+async function chiamaUnaVolta(azione, d, rid) {
   const token = await Auth.prendiToken();
-  let r;
+  // Apps Script chiude ogni esecuzione dopo 6 minuti: oltre non arriva più niente
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 330000);
+  let r, testo;
   try {
     // text/plain evita la richiesta preliminare CORS, che Apps Script non gestisce
-    r = await inviaAlCustode(CONFIG.custodeUrl, { v: 1, token, azione, dati: d || {} });
-  } catch (e) { throw new ErroreRete('Nessuna connessione con il custode.'); }
+    // se si perde solo la consegna della risposta, trasporto.js la richiede senza rifare il POST
+    r = await inviaAlCustode(CONFIG.custodeUrl, { v: 1, token, azione, rid, dati: d || {} },
+      { fetchImpl: (u, o) => fetch(u, { ...o, signal: ctrl.signal }) });
+    testo = r.ok ? await r.text() : '';
+  } catch (e) {
+    throw new ErroreRete(e?.name === 'AbortError' ? 'Il custode non ha risposto in tempo.' : 'Nessuna connessione con il custode.');
+  } finally { clearTimeout(timer); }
   if (!r.ok) throw new ErroreRete('Il custode non risponde (HTTP ' + r.status + ').');
   let j;
-  try { j = await r.json(); } catch (e) { throw new ErroreRete('Risposta del custode non leggibile.'); }
+  try { j = JSON.parse(testo); } catch (e) { throw new ErroreRete('Risposta del custode non leggibile.'); }
+  if (!j || typeof j !== 'object') throw new ErroreRete('Risposta del custode non leggibile.');
   if (!j.ok) {
     if (j.errore === 'non-autenticato') { Auth.invalida(); throw new Auth.ErroreAccesso(j.messaggio); }
     throw new ErroreCustode(j.errore, j.messaggio, j.extra);
