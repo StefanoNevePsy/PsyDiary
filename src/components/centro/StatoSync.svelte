@@ -30,8 +30,9 @@
   .s-coda .pallino, .s-lavoro .pallino { background: oklch(0.74 0.14 80); }
   .s-lavoro .pallino { animation: batte 1s ease-in-out infinite; }
   .s-errore .pallino { background: var(--spot); }
-  .s-errore { color: var(--spot-testo); }
+  .s-errore { color: var(--spot-testo); max-width: min(600px, 100%); }
+  .s-errore .testo { white-space: normal; text-align: left; }
   .s-spento .pallino { background: var(--inchiostro-3); }
   @keyframes batte { 50% { opacity: 0.3; } }
-  @media (max-width: 1100px) { .testo { display: none; } }
+  @media (max-width: 1100px) { .testo { display: none; } .s-errore .testo { display: inline; } }
 </style>

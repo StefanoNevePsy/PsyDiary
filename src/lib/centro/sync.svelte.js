@@ -14,6 +14,7 @@
  */
 import { CONFIG, REALE } from './config.js';
 import * as Auth from './accesso.js';
+import { inviaAlCustode } from './trasporto.js';
 import * as C from './cifra.js';
 import { vociDi, idVociDi, destinazione, applica, unisci, immaginiDi, TABELLA_DI } from './voci.js';
 import { dati, salva, elimina, centro, ganci } from '../dati.svelte.js';
@@ -37,8 +38,7 @@ async function chiama(azione, d) {
   let r;
   try {
     // text/plain evita la richiesta preliminare CORS, che Apps Script non gestisce
-    r = await fetch(CONFIG.custodeUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ v: 1, token, azione, dati: d || {} }), redirect: 'follow', cache: 'no-store' });
+    r = await inviaAlCustode(CONFIG.custodeUrl, { v: 1, token, azione, dati: d || {} });
   } catch (e) { throw new ErroreRete('Nessuna connessione con il custode.'); }
   if (!r.ok) throw new ErroreRete('Il custode non risponde (HTTP ' + r.status + ').');
   let j;
