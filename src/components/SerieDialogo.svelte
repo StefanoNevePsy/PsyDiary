@@ -26,7 +26,8 @@
   let ripeti = $state(S0?.ripeti || predefinita(N0.data || O));
   let fine = $state({ tipo: S0?.al ? 'data' : S0?.volte ? 'volte' : 'mai', al: S0?.al || '', volte: S0?.volte || 10 });
   let daQuando = $state(S0 ? (S0.dal > O ? S0.dal : O) : O);
-  let terminaIl = $state(O);
+  // la fine proposta non può stare prima dell'inizio della serie
+  let terminaIl = $state(S0 && S0.dal > O ? S0.dal : O);
   let errore = $state('');
 
   $effect(() => { if (su.startsWith('g:')) tipo = 'gruppo'; else if (tipo === 'gruppo') tipo = 'individuale'; });
@@ -94,12 +95,13 @@
     {/if}
     {#if errore}<p class="err">{errore}</p>{/if}
     <footer><button type="button" class="btn nudo" onclick={() => dialogo.close()}>Annulla</button><button class="btn pieno">{S0 ? 'Salva le modifiche' : 'Crea'}</button></footer>
+  </form>
 
     {#if S0}
-      <section class="gestione">
+      <section class="gestione foglio-sotto">
         <div class="riga3">
           <label class="campo"><span>Ultimo appuntamento il</span><input class="input" type="date" bind:value={terminaIl} min={S0.dal} /></label>
-          <button type="button" class="btn piccolo" onclick={termina}>Termina la serie</button>
+          <button type="button" class="btn piccolo" onclick={termina} disabled={!terminaIl || terminaIl < S0.dal}>Termina la serie</button>
         </div>
         {#if eccezioni.length}
           <div class="campo"><span>Date saltate o spostate</span>
@@ -109,7 +111,6 @@
         <button type="button" class="btn nudo piccolo pericolo" onclick={elimina}><Icona nome="cestino" /> Elimina la serie</button>
       </section>
     {/if}
-  </form>
 </dialog>
 
 <style>
@@ -126,6 +127,10 @@
   .quando small { font-size: var(--t-xs); }
   footer { display: flex; justify-content: flex-end; gap: var(--s-2); }
   .gestione { display: grid; gap: var(--s-3); padding-top: var(--s-4); border-top: 1px dashed var(--matita-forte); justify-items: start; }
+  /* sotto al modulo, nello stesso foglio */
+  dialog:has(.foglio-sotto) .foglio { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: 0; max-height: none; }
+  .foglio-sotto { background: var(--carta-2); border: 1px solid var(--inchiostro); border-top: 1px dashed var(--matita-forte); border-radius: 0 0 var(--r-grande) var(--r-grande); padding: var(--s-4) var(--s-5) var(--s-5); box-shadow: var(--ombra); }
+  dialog:has(.foglio-sotto) { max-height: 88dvh; overflow-y: auto; }
   .ecc { list-style: none; margin: 0; padding: 0; font-size: var(--t-sm); }
   .pericolo { color: var(--spot-testo); }
   .err { color: var(--spot-testo); font-weight: 600; margin: 0; }
