@@ -531,7 +531,9 @@ var PD = (function () {
           try { gia = amb.ricordo.leggi(chiave); } catch (e0) { gia = null; }
           if (gia) return JSON.parse(gia);
         }
-        var risposta = { ok: true, dati: fn(u, richiesta.dati && typeof richiesta.dati === 'object' ? richiesta.dati : {}) };
+        var esito = fn(u, richiesta.dati && typeof richiesta.dati === 'object' ? richiesta.dati : {});
+        // "dati" c'è sempre: l'app distingue così una risposta vera da quella di doGet
+        var risposta = { ok: true, dati: esito === undefined ? null : esito };
         if (chiave) {
           var testo = JSON.stringify(risposta);
           if (testo.length < 90000) { try { amb.ricordo.scrivi(chiave, testo); } catch (e1) { /* solo una comodita' */ } }

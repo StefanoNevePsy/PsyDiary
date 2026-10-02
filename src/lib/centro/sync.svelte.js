@@ -78,6 +78,8 @@ async function chiamaUnaVolta(azione, d, rid) {
     if (j.errore === 'non-autenticato') { Auth.invalida(); throw new Auth.ErroreAccesso(j.messaggio); }
     throw new ErroreCustode(j.errore, j.messaggio, j.extra);
   }
+  // la risposta di "sono attivo" (GET): la richiesta non è arrivata, si riprova
+  if (!('dati' in j)) throw new ErroreRete('Il custode non ha ricevuto la richiesta: riprovo.');
   return j.dati;
 }
 
@@ -265,6 +267,7 @@ async function invia() {
 async function ricevi(invii = []) {
   const cursori = (await meta('cursori')) || {};
   const r = await chiama('sync', { cursori, invii });
+  if (!r || !Array.isArray(r.voci) || !Array.isArray(r.esiti)) throw new ErroreRete('Risposta del custode incompleta: riprovo.');
   const inCoda = new Set([...coda].flatMap((k) => { const [t, id] = k.split('|'); return idVociDi(t, id); }));
   const mieInviate = new Set(invii.map((v) => v.id));
   // prima le lapidi, poi le voci vive (una voce che cambia ambito arriva come tutte e due)

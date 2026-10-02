@@ -79,7 +79,13 @@
   <p class="condivisione">
     <Icona nome={a.tutti || a.daPrima ? 'persone' : 'lucchetto'} />
     <span>{riassunto}</span>
-    {#if puoDecidere}<button type="button" class="link" onclick={apri}>{a.mio || a.orfano ? 'Chi lo vede' : 'Rendilo riservato'}</button>{/if}
+    {#if puoDecidere}<button type="button" class="btn piccolo condividi" onclick={apri}><Icona nome="persone" /> {a.mio || a.orfano ? 'Condividi · chi lo vede' : 'Rendilo riservato'}</button>{/if}
+  </p>
+{:else if REALE && !funziona && eAdmin()}
+  <!-- custode non ancora aggiornato: la condivisione c'è, ma il custode non la conosce -->
+  <p class="condivisione">
+    <Icona nome="persone" />
+    <span>di tutta l'aula · per scegliere chi lo vede va aggiornato il custode (vedi la guida: «Aggiornare il custode»)</span>
   </p>
 {/if}
 
@@ -114,7 +120,8 @@
 </dialog>
 
 <style>
-  .condivisione { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: var(--t-sm); color: var(--inchiostro-2); }
+  .condivisione { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; font-size: var(--t-sm); color: var(--inchiostro-2); }
+  .condividi { margin-left: 6px; }
   .condivisione :global(.ico) { width: 15px; height: 15px; }
   .link { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; color: var(--inchiostro); font-weight: 600; margin-left: 4px; }
   .link:focus-visible { outline: 2px solid var(--spot); outline-offset: 2px; }

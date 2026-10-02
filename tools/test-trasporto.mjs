@@ -24,4 +24,11 @@ assert.equal(p.chiamate.filter((c) => c.opzioni.method === 'POST').length, 1);
 for (const r of [risposta(200), risposta(404, endpoint, false), risposta(403), risposta(404, 'https://example.com/result')]) {
   p = await prova([r]); assert.equal(p.chiamate.length, 1);
 }
+// più account Google: il POST rimandato a /macros/u/1/… diventa un GET (doGet): si rimanda il POST lì
+const altroAccount = 'https://script.google.com/macros/u/1/s/test/exec';
+p = await prova([risposta(200, altroAccount, true), risposta(200)]);
+assert.deepEqual(p.chiamate.map((c) => [c.opzioni.method, c.url]), [['POST', endpoint], ['POST', altroAccount]]);
+assert.ok(p.chiamate[1].opzioni.body, 'il secondo POST porta la richiesta');
+p = await prova([risposta(200, altroAccount, true), risposta(200, altroAccount, true)]);
+assert.equal(p.chiamate.length, 2, 'stesso indirizzo: non si gira all\'infinito');
 console.log('ok: recupero della consegna Google, tentativi limitati, nessun salvataggio ripetuto');

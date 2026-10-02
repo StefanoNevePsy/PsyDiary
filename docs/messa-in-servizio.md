@@ -245,9 +245,8 @@ dispositivi perdono la chiave.
   Sui dispositivi compare "C'è una nuova versione di PsyDiary → Aggiorna"
   (mai a metà di una nota).
 - **Aggiornamenti del custode**: automatici se hai impostato `SCRIPT_ID`,
-  `CUSTODE_DEPLOYMENT_ID` e `CLASPRC_JSON`. Altrimenti, quando te lo dico, si
-  ripete il passo 3B punti 1–3 e poi *Distribuisci → Gestisci distribuzioni →
-  ✏️ → Versione: Nuova versione → Distribuisci* (così l'indirizzo non cambia).
+  `CUSTODE_DEPLOYMENT_ID` e `CLASPRC_JSON`. Altrimenti vedi qui sotto
+  «Aggiornare il custode».
 - **Sincronizzazione**: ogni modifica parte dopo un secondo e mezzo; gli
   aggiornamenti degli altri arrivano ogni minuto e quando riapri l'app. Il
   pallino in alto dice lo stato (verde: tutto salvato; giallo: da inviare;
@@ -256,6 +255,28 @@ dispositivi perdono la chiave.
 - **Storia**: per ogni voce il custode tiene le ultime 15 versioni (per ora si
   recuperano su richiesta, non ancora dall'app). Drive tiene inoltre la
   cronologia delle versioni dei file.
+
+## Aggiornare il custode
+
+Serve quando una novità riguarda anche il custode (per esempio i pazienti, i
+gruppi e le classi riservati: finché il custode non è aggiornato, sulla
+pagina di un paziente o di un gruppo compare «per scegliere chi lo vede va
+aggiornato il custode»). Dieci minuti, i dati non si toccano:
+
+1. GitHub → **Actions** → l'ultima esecuzione di *Pubblica PsyDiary* → in
+   fondo, *Artifacts* → **custode-apps-script** (zip). Dentro c'è
+   `custode-completo.gs`.
+2. Apri il progetto **PsyDiary · custode** su https://script.google.com.
+3. Nel file `Codice.gs` cancella tutto e incolla `custode-completo.gs`.
+   Salva (💾).
+4. **Distribuisci → Gestisci distribuzioni** → ✏️ sulla distribuzione
+   esistente → *Versione*: **Nuova versione** → **Distribuisci**. Così
+   l'indirizzo `/exec` resta lo stesso e l'app non va riconfigurata.
+5. Riapri PsyDiary (o premi il pallino in alto): sotto il nome di ogni
+   paziente e gruppo compare **Condividi · chi lo vede**.
+
+Per non doverlo più fare a mano: imposta `SCRIPT_ID`, `CUSTODE_DEPLOYMENT_ID`
+e `CLASPRC_JSON` (vedi l'inizio del workflow `pubblica.yml`).
 
 ## Sicurezza, in chiaro
 
