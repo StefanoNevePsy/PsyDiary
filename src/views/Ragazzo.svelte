@@ -4,6 +4,7 @@
   import Allegati from '../components/Allegati.svelte';
   import InBreve from '../components/InBreve.svelte';
   import Suggerimenti from '../components/Suggerimenti.svelte';
+  import Etichette from '../components/Etichette.svelte';
   import { RAPIDI, suggerimentiRuoli } from '../lib/famiglia.js';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
   // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
@@ -124,6 +125,7 @@
             {#if tutto && r.inizio}<span>in carico dal {breveAnno(r.inizio)}</span>{/if}
             {#if r.stato === 'concluso'}<span class="mano concluso">percorso concluso</span>{/if}
           </p>
+          {#if tutto && (gestisce || r.etichette?.length)}<p class="etich"><Etichette valori={r.etichette || []} modificabile={gestisce} alCambio={(x) => campo('etichette', x)} /></p>{/if}
           <p class="appartiene">
             {#each gruppi as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{/each}
             {#if tutto}{#each serieInCorso({ ragazzoId: id }) as se (se.id)}<span>{TIPI[se.tipo].breve} {descrivi(se)}</span>{/each}{/if}
@@ -267,6 +269,7 @@
   .testa { display: grid; gap: var(--s-3); margin-bottom: var(--s-5); border-bottom: 1.5px solid var(--inchiostro); }
   .torna { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-sm); font-weight: 600; text-decoration: none; color: var(--inchiostro-2); }
   .intesta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-5); }
+  .etich { margin: 6px 0 0; }
   .nomi { flex: 0 1 auto; }
   .intesta > :global(.in-breve) { flex: 1 1 520px; align-self: stretch; padding-top: var(--s-2); }
   @media (max-width: 899px) { .intesta > :global(.in-breve) { flex-basis: 100%; } }
