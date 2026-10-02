@@ -2,6 +2,7 @@
   import { T, M } from '../lib/parole.svelte.js';
   import Scelta from '../components/Scelta.svelte';
   import Allegati from '../components/Allegati.svelte';
+  import InBreve from '../components/InBreve.svelte';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
   // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
   import {
@@ -120,6 +121,7 @@
             {#if tutto}{#each serieInCorso({ ragazzoId: id }) as se (se.id)}<span>{TIPI[se.tipo].breve} {descrivi(se)}</span>{/each}{/if}
           </p>
         </div>
+        {#if tutto}<InBreve {r} apriAnagrafica={() => (scheda = 'anagrafica')} />{/if}
       </div>
       {#if tutto}
         <div class="schede no-stampa" role="tablist">
@@ -250,7 +252,10 @@
   .ragazzo { max-width: 1240px; margin: 0 auto; padding: var(--s-5) var(--s-6) var(--s-8); }
   .testa { display: grid; gap: var(--s-3); margin-bottom: var(--s-5); border-bottom: 1.5px solid var(--inchiostro); }
   .torna { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-sm); font-weight: 600; text-decoration: none; color: var(--inchiostro-2); }
-  .intesta { display: flex; align-items: center; gap: var(--s-5); }
+  .intesta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-5); }
+  .nomi { flex: 0 1 auto; }
+  .intesta > :global(.in-breve) { flex: 1 1 520px; align-self: stretch; padding-top: var(--s-2); }
+  @media (max-width: 899px) { .intesta > :global(.in-breve) { flex-basis: 100%; } }
   .foto { position: relative; width: 132px; flex: none; display: grid; gap: 4px; justify-items: center; }
   .foto > :global(.cornice) { width: 132px; height: 132px; }
   .foto-azioni { display: flex; }
