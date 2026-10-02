@@ -1,4 +1,5 @@
 <script>
+  import Scelta from './Scelta.svelte';
   // "Si ripete?": mai, ogni settimana, ogni 2/3/4 settimane, una volta al mese.
   // Con i giorni della settimana e la fine (mai, una data, dopo N volte).
   import { giornoSettimana, lunga } from '../lib/date.js';
@@ -36,12 +37,10 @@
   {:else if ripeti && ripeti.come === 'mese'}
     <div class="campo"><span>Quale giorno del mese</span>
       <div class="riga">
-        <select class="input" value={ripeti.settimana} onchange={(e) => (ripeti = { ...ripeti, settimana: +e.currentTarget.value })}>
-          {#each [1, 2, 3, 4, -1] as k (k)}<option value={k}>{k === -1 ? "l'ultimo" : 'il ' + ETICHETTE_ORDINALI[k]}</option>{/each}
-        </select>
-        <select class="input" value={ripeti.giorno} onchange={(e) => (ripeti = { ...ripeti, giorno: +e.currentTarget.value })}>
-          {#each GIORNI as [n] (n)}<option value={n}>{['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'][n]}</option>{/each}
-        </select>
+        <Scelta value={ripeti.settimana} onchange={(v) => (ripeti = { ...ripeti, settimana: v })} etichetta="Quale settimana"
+          opzioni={[1, 2, 3, 4, -1].map((k) => ({ valore: k, etichetta: k === -1 ? "l'ultimo" : 'il ' + ETICHETTE_ORDINALI[k] }))} />
+        <Scelta value={ripeti.giorno} onchange={(v) => (ripeti = { ...ripeti, giorno: v })} etichetta="Giorno della settimana"
+          opzioni={GIORNI.map(([n]) => ({ valore: n, etichetta: ['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'][n] }))} />
         <span class="sotto piccolo">del mese</span>
       </div>
     </div>

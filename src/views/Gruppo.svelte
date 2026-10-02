@@ -17,6 +17,7 @@
   import { descrivi } from '../lib/serie.js';
   import Immagine from '../components/Immagine.svelte';
   import { scegliImmagine, togliImmagine } from '../lib/immagini.js';
+  import Scelta from '../components/Scelta.svelte';
 
   let { id } = $props();
   const g = $derived(gruppo(id));
@@ -36,12 +37,33 @@
     clearTimeout(timer);
     timer = setTimeout(() => salva('gruppi', $state.snapshot(g)), 400);
   }
+  // Da quando un ragazzo è nel gruppo: dall'inizio (nessuna data: conta per
+  // tutte le sedute del gruppo), da oggi, o da un giorno preciso.
+  const inizio = $derived.by(() => {
+    if (!g) return null;
+    const date = [...dati.serie.filter((x) => x.gruppoId === g.id).map((x) => x.dal), ...dati.sedute.filter((x) => x.gruppoId === g.id).map((x) => x.data)].filter(Boolean).sort();
+    return date[0] || null;
+  });
+  const QUANDO = [{ valore: 'inizio', etichetta: "dall'inizio del gruppo" }, { valore: 'oggi', etichetta: 'da oggi' }, { valore: 'data', etichetta: 'dal giorno…' }];
   let daAggiungere = $state('');
+  let quando = $state(null);
+  let quandoData = $state(O);
+  const quandoScelto = $derived(quando ?? (inizio && inizio < O ? 'inizio' : 'oggi'));
+  const dalScelto = (q, d) => (q === 'inizio' ? null : q === 'data' ? d || O : O);
   function entra() {
     if (!daAggiungere) return;
-    campo('membri', [...(g.membri || []), { ragazzoId: daAggiungere, dal: O }]);
+    campo('membri', [...(g.membri || []), { ragazzoId: daAggiungere, dal: dalScelto(quandoScelto, quandoData) }]);
     daAggiungere = '';
   }
+  // cambiare la data di ingresso di chi è già nel gruppo
+  let inModifica = $state(null);
+  function modificaIngresso(m) { inModifica = { rid: m.ragazzoId, quando: m.dal ? 'data' : 'inizio', data: m.dal || inizio || O }; }
+  function salvaIngresso() {
+    const x = inModifica;
+    campo('membri', (g.membri || []).map((m) => (m.ragazzoId === x.rid && !(m.al && m.al < O) ? { ...m, dal: dalScelto(x.quando, x.data) } : m)));
+    inModifica = null;
+  }
+  const testoDal = (dal) => (dal ? 'dal ' + breveAnno(dal) : "dall'inizio");
   function esce(rid) {
     if (!confirm(`${nomeCompleto(ragazzo(rid))} esce dal gruppo da oggi? Le sedute passate restano nel suo diario.`)) return;
     campo('membri', (g.membri || []).map((m) => (m.ragazzoId === rid && !m.al ? { ...m, al: piu(O, -1) } : m)));
@@ -121,17 +143,27 @@
               <legend class="eti">Membri</legend>
               <ul class="elenco-membri">
                 {#each (g.membri || []).filter((m) => !m.al || m.al >= O) as m (m.ragazzoId)}
-                  <li><a class="display" href={'#/ragazzo/' + m.ragazzoId}>{nomeCompleto(ragazzo(m.ragazzoId))}</a><span class="sotto piccolo">dal {breveAnno(m.dal)}</span>
-                    {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => esce(m.ragazzoId)}>Esce dal gruppo</button>{/if}</li>
+                  <li><a class="display" href={'#/ragazzo/' + m.ragazzoId}>{nomeCompleto(ragazzo(m.ragazzoId))}</a>
+                    {#if inModifica?.rid === m.ragazzoId}
+                      <span class="modifica-dal">
+                        <Scelta breve bind:value={inModifica.quando} etichetta="Da quando" opzioni={QUANDO.filter((q) => q.valore !== 'oggi')} />
+                        {#if inModifica.quando === 'data'}<input class="input data" type="date" bind:value={inModifica.data} aria-label="Data di ingresso" />{/if}
+                        <button type="button" class="btn piccolo" onclick={salvaIngresso}>Salva</button>
+                        <button type="button" class="btn nudo piccolo" onclick={() => (inModifica = null)}>Annulla</button>
+                      </span>
+                    {:else}
+                      {#if gestisce}<button type="button" class="link sotto piccolo" title="Cambia da quando è nel gruppo" onclick={() => modificaIngresso(m)}>{testoDal(m.dal)}</button>
+                      {:else}<span class="sotto piccolo">{testoDal(m.dal)}</span>{/if}
+                      {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => esce(m.ragazzoId)}>Esce dal gruppo</button>{/if}
+                    {/if}</li>
                 {/each}
               </ul>
               {#if gestisce && candidati.length}
                 <div class="entra">
-                  <select class="input" bind:value={daAggiungere} aria-label="Ragazzo da aggiungere">
-                    <option value="">Aggiungi un ragazzo…</option>
-                    {#each candidati as r (r.id)}<option value={r.id}>{nomeCompleto(r)}</option>{/each}
-                  </select>
-                  <button type="button" class="btn piccolo" onclick={entra} disabled={!daAggiungere}>Entra da oggi</button>
+                  <span class="chi"><Scelta bind:value={daAggiungere} vuota="Aggiungi un ragazzo…" etichetta="Ragazzo da aggiungere" opzioni={candidati.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></span>
+                  <Scelta breve value={quandoScelto} onchange={(v) => (quando = v)} etichetta="Da quando è nel gruppo" opzioni={QUANDO} />
+                  {#if quandoScelto === 'data'}<input class="input data" type="date" bind:value={quandoData} max={O} aria-label="Nel gruppo dal" />{/if}
+                  <button type="button" class="btn piccolo" onclick={entra} disabled={!daAggiungere}>Aggiungi</button>
                 </div>
               {/if}
               {#if usciti.length}<p class="sotto piccolo">Usciti: {usciti.map((m) => `${nomeBreve(ragazzo(m.ragazzoId))} (${breveAnno(m.al)})`).join(', ')}</p>{/if}
@@ -202,8 +234,11 @@
   .elenco-membri { list-style: none; margin: 0; padding: 0; }
   .elenco-membri li { display: flex; align-items: baseline; gap: var(--s-3); padding: 8px 0; border-bottom: 1px dashed var(--matita); }
   .elenco-membri a { font-size: 18px; text-decoration: none; flex: 1; }
-  .entra { display: flex; gap: var(--s-2); align-items: center; }
-  .entra select { max-width: 280px; }
+  .entra { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); align-items: center; margin-top: var(--s-2); }
+  .entra .chi { flex: 1 1 200px; max-width: 300px; }
+  .input.data { width: auto; }
+  .modifica-dal { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+  .link { background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; font: inherit; }
   .avviso { display: flex; gap: var(--s-2); align-items: center; font-size: var(--t-sm); }
   p.vuoto { padding: var(--s-7); text-align: center; color: var(--inchiostro-2); }
   @media (max-width: 1000px) {

@@ -135,13 +135,24 @@ async function caricaImmagini(voce) {
   await scriviMeta('caricate', [...caricate]);
   await scriviMeta('ambitiImmagini', ambitiImmagini);
 }
+// Il custode conserva solo byte cifrati: il tipo si riconosce dall'inizio del file
+function tipoDaiByte(u8) {
+  const testo = new TextDecoder().decode(u8.slice(0, 256)).trimStart();
+  if (u8[0] === 0xff && u8[1] === 0xd8) return 'image/jpeg';
+  if (u8[0] === 0x89 && u8[1] === 0x50) return 'image/png';
+  if (testo.startsWith('GIF8')) return 'image/gif';
+  if (testo.startsWith('RIFF') && testo.slice(8, 12) === 'WEBP') return 'image/webp';
+  if (testo.startsWith('%PDF')) return 'application/pdf';
+  if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<svg/i.test(testo)) return 'image/svg+xml';
+  return 'application/octet-stream';
+}
 async function recuperaImmagine(id) {
   const ambito = ambitiImmagini[id];
   if (!ambito || !chiave()) return false;
   try {
     const r = await chiama('immagine.leggi', { id, ambito });
     const u8 = await C.decifraByte(chiave(), r.busta, aad(ambito, 'img:' + id));
-    const tipo = u8[0] === 0xff && u8[1] === 0xd8 ? 'image/jpeg' : u8[0] === 0x89 ? 'image/png' : 'image/webp';
+    const tipo = tipoDaiByte(u8);
     await salvaDaCustode(id, new Blob([u8], { type: tipo }));
     caricate.add(id);
     return true;

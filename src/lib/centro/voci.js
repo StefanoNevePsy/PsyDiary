@@ -83,6 +83,20 @@ export function unisci(base, mia, loro, chiLoro = 'un altro dispositivo') {
     }
     return out;
   }
+  // liste di oggetti con id (allegati): si uniscono elemento per elemento
+  const conId = (x) => Array.isArray(x) && x.every((y) => y && typeof y.id === 'string');
+  if (conId(mia) && conId(loro)) {
+    const b0 = conId(base) ? base : [];
+    const per = (l) => Object.fromEntries(l.map((y) => [y.id, y]));
+    const B = per(b0), M = per(mia), L = per(loro);
+    const out = [];
+    for (const y of mia) {
+      if (B[y.id] && !L[y.id] && uguale(y, B[y.id])) continue;   // tolto dall'altra parte
+      out.push(L[y.id] ? unisci(B[y.id], y, L[y.id], chiLoro) : y);
+    }
+    for (const y of loro) if (!M[y.id] && !B[y.id]) out.push(y);  // aggiunto dall'altra parte
+    return out;
+  }
   if (typeof mia === 'string' && typeof loro === 'string') {
     if (!mia.trim()) return loro;
     if (!loro.trim()) return mia;
@@ -114,5 +128,6 @@ export function immaginiDi(o) {
   })(o);
   if (o && typeof o.foto === 'string' && o.foto) out.add(o.foto);
   if (o && typeof o.copertina === 'string' && o.copertina) out.add(o.copertina);
+  if (o && Array.isArray(o.allegati)) o.allegati.forEach((x) => { if (x && typeof x.id === 'string' && x.id) out.add(x.id); });
   return [...out];
 }

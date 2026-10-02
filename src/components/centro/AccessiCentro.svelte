@@ -1,4 +1,5 @@
 <script>
+  import Scelta from '../Scelta.svelte';
   // Persone e accessi, sul custode: chi entra (per email), con che ruolo, e per
   // ogni tirocinante quali ragazzi vede per intero.
   import { onMount } from 'svelte';
@@ -12,6 +13,7 @@
   let errore = $state('');
   let messaggio = $state('');
   let aperto = $state(null);
+  const RUOLI = [{ valore: 'admin', etichetta: 'operatore' }, { valore: 'tirocinante', etichetta: 'tirocinante' }];
   let nuovo = $state({ nome: '', email: '', ruolo: 'tirocinante' });
   let dispositivi = $state([]);
 
@@ -81,9 +83,7 @@
             <span class="display nome">{p.nome}</span>
             <span class="sotto piccolo">{p.email}</span>
             <span class="spazio"></span>
-            <select class="input breve" value={p.ruolo} onchange={(e) => cambia(p.email, { ruolo: e.currentTarget.value })} aria-label={'Ruolo di ' + p.nome}>
-              <option value="admin">operatore</option><option value="tirocinante">tirocinante</option>
-            </select>
+            <Scelta breve value={p.ruolo} onchange={(v) => cambia(p.email, { ruolo: v })} etichetta={'Ruolo di ' + p.nome} opzioni={RUOLI} />
             {#if p.ruolo === 'tirocinante'}
               <button class="btn piccolo" aria-expanded={aperto === p.email} onclick={() => (aperto = aperto === p.email ? null : p.email)}>{n ? `${n} condivisi` : 'solo gruppi'}</button>
             {/if}
@@ -116,7 +116,7 @@
     <form class="nuovo" onsubmit={aggiungi}>
       <input class="input" placeholder="Nome" bind:value={nuovo.nome} aria-label="Nome" />
       <input class="input" type="email" placeholder="email Google" bind:value={nuovo.email} aria-label="Email" required />
-      <select class="input" bind:value={nuovo.ruolo} aria-label="Ruolo"><option value="tirocinante">tirocinante</option><option value="admin">operatore</option></select>
+      <Scelta bind:value={nuovo.ruolo} etichetta="Ruolo" opzioni={RUOLI} />
       <button class="btn piccolo"><Icona nome="piu" /> Aggiungi</button>
     </form>
     <div class="salva">

@@ -1,4 +1,5 @@
 <script>
+  import Scelta from './Scelta.svelte';
   // Un appuntamento ricorrente: si crea, si modifica "da una data in poi",
   // si termina o si elimina. Le sedute già scritte non si toccano mai.
   import { onMount, untrack } from 'svelte';
@@ -69,11 +70,8 @@
 
     {#if !S0 && !N0.gruppoId && !N0.ragazzoId}
       <label class="campo"><span>Con</span>
-        <select class="input" bind:value={su} required>
-          <option value="" disabled>Scegli…</option>
-          <optgroup label="Gruppi">{#each gruppi as g (g.id)}<option value={'g:' + g.id}>{g.nome}</option>{/each}</optgroup>
-          <optgroup label="Ragazzi">{#each ragazzi as r (r.id)}<option value={'r:' + r.id}>{nomeCompleto(r)}</option>{/each}</optgroup>
-        </select></label>
+        <Scelta bind:value={su} required opzioni={[...gruppi.map((g) => ({ valore: 'g:' + g.id, etichetta: g.nome, gruppo: 'Gruppi' })),
+          ...ragazzi.map((r) => ({ valore: 'r:' + r.id, etichetta: nomeCompleto(r), gruppo: 'Ragazzi' }))]} /></label>
     {/if}
     {#if su.startsWith('r:')}
       <div class="campo"><span>Tipo</span>
@@ -83,7 +81,7 @@
     <div class="riga3">
       {#if !S0}<label class="campo"><span>A partire dal</span><input class="input" type="date" bind:value={dal} required /></label>{/if}
       <label class="campo"><span>Ora</span><input class="input" type="time" bind:value={ora} required /></label>
-      <label class="campo"><span>Durata (min)</span><input class="input" type="number" min="15" step="15" bind:value={durata} /></label>
+      <label class="campo"><span>Durata (min)</span><input class="input" type="number" min="5" max="600" step="1" inputmode="numeric" bind:value={durata} /></label>
     </div>
     {#if tipo === 'genitori' || tipo === 'conoscenza'}<label class="campo"><span>Chi c'è di solito</span><input class="input" bind:value={chi} placeholder="es. madre e padre" /></label>{/if}
     <Ripeti data={S0 ? daQuando : dal} bind:ripeti bind:fine {ora} permettiMai={false} />

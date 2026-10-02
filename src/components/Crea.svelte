@@ -1,4 +1,5 @@
 <script>
+  import Scelta from './Scelta.svelte';
   // "Scrivi": il punto unico da cui si comincia una nota o una seduta.
   import { onMount, untrack } from 'svelte';
   import {
@@ -136,23 +137,15 @@
       <div class="campi">
         {#if tipo === 'gruppo'}
           <label class="campo"><span>Gruppo</span>
-            <select class="input" bind:value={gruppoId} required>
-              <option value="" disabled>Scegli…</option>
-              {#each gruppiAttivi as g (g.id)}<option value={g.id}>{g.nome}</option>{/each}
-            </select></label>
+            <Scelta bind:value={gruppoId} required opzioni={gruppiAttivi.map((g) => ({ valore: g.id, etichetta: g.nome }))} /></label>
         {:else if ['individuale', 'genitori', 'conoscenza'].includes(tipo)}
           <label class="campo"><span>Ragazzo</span>
-            <select class="input" bind:value={ragazzoId} required>
-              <option value="" disabled>Scegli…</option>
-              {#each ragazzi as r (r.id)}<option value={r.id}>{nomeCompleto(r)}</option>{/each}
-            </select></label>
+            <Scelta bind:value={ragazzoId} required opzioni={ragazzi.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></label>
         {:else}
           <label class="campo"><span>Su</span>
-            <select class="input" bind:value={su}>
-              <option value="aula">L'aula in generale</option>
-              <optgroup label="Gruppi">{#each gruppiAttivi as g (g.id)}<option value={'g:' + g.id}>{g.nome}</option>{/each}</optgroup>
-              <optgroup label="Ragazzi">{#each tuttiRagazzi as r (r.id)}<option value={'r:' + r.id}>{nomeCompleto(r)}</option>{/each}</optgroup>
-            </select></label>
+            <Scelta bind:value={su} opzioni={[{ valore: 'aula', etichetta: "L'aula in generale" },
+              ...gruppiAttivi.map((g) => ({ valore: 'g:' + g.id, etichetta: g.nome, gruppo: 'Gruppi' })),
+              ...tuttiRagazzi.map((r) => ({ valore: 'r:' + r.id, etichetta: nomeCompleto(r), gruppo: 'Ragazzi' }))]} /></label>
           <div class="campo"><span>Che nota è</span>
             <div class="categorie">{#each Object.entries(CATEGORIE_NOTA) as [k, n] (k)}<button type="button" class="cat" aria-pressed={categoria === k} disabled={soloGruppo && k !== 'gruppo'} onclick={() => (categoria = k)}>{n}</button>{/each}</div>
             {#if soloGruppo}<p class="sotto piccolo">Non hai accesso completo a questo ragazzo: puoi scrivere solo note su come sta nel gruppo.</p>{/if}

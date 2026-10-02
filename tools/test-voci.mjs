@@ -31,5 +31,12 @@ ok(unisci(b3, { t: 'Resoconto.\nStefano.' }, { t: 'Resoconto.\nElena.\nStefano.'
 ok(unisci(b3, { t: 'Resoconto.\nElena.\nStefano.' }, { t: 'Resoconto.\nStefano.' }).t === 'Resoconto.\nElena.\nStefano.', '…in tutte e due le direzioni');
 ok(unisci(b3, { t: 'Resoconto.\nStefano.' }, { t: 'Resoconto.\nStefano.\nElena.' }).t === 'Resoconto.\nStefano.\nElena.', '…anche nell\'ordine inverso');
 ok(unisci(b3, { t: 'Resoconto.\nStefano.\nMarco.' }, { t: 'Resoconto.\nElena.\nStefano.' }).t === 'Resoconto.\nStefano.\nMarco.\nElena.', 'aggiunte in parte comuni: le comuni una volta sola');
+// allegati aggiunti o tolti su due dispositivi
+const al = (id, nome) => ({ id, nome, tipo: 'image/png' });
+const ub = { allegati: [al('a1', 'uno')] };
+const uu = unisci(ub, { allegati: [al('a1', 'uno'), al('a2', 'mio')] }, { allegati: [al('a1', 'uno'), al('a3', 'loro')] });
+ok(uu.allegati.map((x) => x.id).join() === 'a1,a2,a3', 'allegati aggiunti da due persone: ci sono tutti');
+ok(unisci(ub, { allegati: [al('a1', 'uno'), al('a2', 'mio')] }, { allegati: [] }).allegati.map((x) => x.id).join() === 'a2', 'tolto dall\'altra parte: sparisce, il mio resta');
+ok(immaginiDi({ allegati: [al('a1x', 'g')] }).includes('a1x'), 'gli allegati viaggiano come le immagini');
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);

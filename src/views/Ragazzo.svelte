@@ -1,4 +1,6 @@
 <script>
+  import Scelta from '../components/Scelta.svelte';
+  import Allegati from '../components/Allegati.svelte';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
   // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
   import {
@@ -83,6 +85,7 @@
     if (!confirm(`Eliminare ${nomeCompleto(r)} e tutte le sue note individuali? Le sedute di gruppo restano.`)) return;
     for (const s of dati.sedute.filter((x) => x.ragazzoId === id)) await elimina('sedute', s.id);
     for (const n of dati.note.filter((x) => x.ragazzoId === id)) await elimina('note', n.id);
+    for (const a of r.allegati || []) togliImmagine(a.id);
     await elimina('ragazzi', id);
     vai('ragazzi');
   }
@@ -148,9 +151,7 @@
                     <label class="campo" class:larga>
                       <span>{nome}</span>
                       {#if tipo === 'select'}
-                        <select class="input" value={r[k] ?? ''} onchange={(e) => campo(k, e.currentTarget.value)}>
-                          {#each opzioni as [v, n] (v)}<option value={v}>{n}</option>{/each}
-                        </select>
+                        <Scelta value={r[k] ?? ''} onchange={(v) => campo(k, v)} etichetta={nome} opzioni={opzioni.map(([v, n]) => ({ valore: v, etichetta: n }))} />
                       {:else if tipo === 'area'}
                         <textarea class="input" rows="2" value={r[k] || ''} oninput={(e) => campo(k, e.currentTarget.value)}></textarea>
                       {:else}
@@ -178,6 +179,7 @@
               <label class="campo"><span>Situazione familiare</span>
                 <textarea class="input" rows="2" value={r.noteFamiglia || ''} placeholder="Con chi vive, fratelli, separazioni, affidi" oninput={(e) => campo('noteFamiglia', e.currentTarget.value)}></textarea></label>
             </fieldset>
+            <Allegati elenco={r.allegati || []} {gestisce} alCambio={(x) => campo('allegati', x)} />
             <section class="appuntamenti">
               <h3 class="eti titolo-sez">Appuntamenti ricorrenti</h3>
               <p class="sotto piccolo">Individuali, genitori, conoscenza: compaiono da soli nel calendario, pronti per gli appunti.</p>
