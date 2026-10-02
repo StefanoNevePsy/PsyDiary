@@ -31,11 +31,11 @@ function codifica(img, lato, qualita) {
 }
 
 /** Converte e salva un file immagine; restituisce l'id. */
-export async function salvaImmagine(file) {
+export async function salvaImmagine(file, { lato = LATO } = {}) {
   if (!file || !/^image\//.test(file.type || 'image/')) throw new Error('Non è un\'immagine');
   const { img, url } = await carica(file);
   try {
-    const grande = await codifica(img, LATO, 0.8);
+    const grande = await codifica(img, lato, 0.8);
     const mini = await codifica(img, MINI, 0.72);
     const id = 'i' + crypto.getRandomValues(new Uint32Array(2)).join('').slice(0, 14);
     await A.metti('immagini', {
@@ -131,11 +131,11 @@ export async function togliImmagine(id) {
 }
 
 /** Apre il selettore di file e restituisce l'id dell'immagine salvata (o null). */
-export function scegliImmagine() {
+export function scegliImmagine(opz = {}) {
   return new Promise((ok, ko) => {
     const i = document.createElement('input');
     i.type = 'file'; i.accept = 'image/*';
-    i.onchange = () => (i.files[0] ? salvaImmagine(i.files[0]).then(ok, ko) : ok(null));
+    i.onchange = () => (i.files[0] ? salvaImmagine(i.files[0], opz).then(ok, ko) : ok(null));
     i.click();
   });
 }

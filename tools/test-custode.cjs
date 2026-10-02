@@ -199,6 +199,22 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   ok(el2.gruppi.gcla3b && el2.gruppi.gcla3b.tutti && el2.gruppi.gcla3b.proprietario === 'stefano@aula.it', 'Elena sa che è di Stefano, aperta a tutti');
 }
 
+// programmi: di serie di tutta l'aula, riservabili come i gruppi
+{
+  const vede = (email, a) => chiama(email, 'sync', {}).dati.ambiti.includes(a);
+  let r = chiama('stefano@aula.it', 'sync', { invii: [voce('plife', 'programma', 'aula')] });
+  ok(r.dati.esiti[0].ok, 'Stefano mette un programma nella biblioteca dell\'aula');
+  ok(chiama('marco@aula.it', 'sync', { invii: [voce('pmarco', 'programma', 'aula')] }).dati.esiti[0].errore === 'vietato', 'i tirocinanti non scrivono programmi');
+  ok(chiama('marco@aula.it', 'sync', {}).dati.voci.some((v) => v.id === 'plife'), 'ma li leggono');
+  ok(chiama('elena@aula.it', 'programma.condivisione', { id: 'plife', condivisi: [] }).errore === 'vietato', 'Elena non rende riservato il programma di Stefano');
+  ok(chiama('stefano@aula.it', 'programma.condivisione', { id: 'plife', condivisi: ['elena@aula.it'] }).ok, 'Stefano lo rende riservato, condiviso con Elena');
+  const vp = chiama('stefano@aula.it', 'sync', { cursori: {} }).dati.voci.find((v) => v.id === 'plife');
+  r = chiama('stefano@aula.it', 'sync', { invii: [voce('plife', 'programma', 'p:plife', vp.version)] });
+  ok(r.dati.esiti[0].ok && vede('elena@aula.it', 'p:plife') && !vede('marco@aula.it', 'p:plife'), 'passa in p:plife: Elena lo vede, Marco no');
+  ok(chiama('elena@aula.it', 'sync', {}).dati.programmi.plife.proprietario === 'stefano@aula.it', 'e sa di chi è');
+  ok((chiama('stefano@aula.it', 'io').dati.funzioni || []).includes('programmi'), 'il custode dichiara i programmi');
+}
+
 // esportazione completa: solo chi ospita il custode, tutto, e resta nel registro
 {
   ok(chiama('elena@aula.it', 'esporta.inizia').errore === 'vietato', 'un\'operatrice non fa l\'esportazione completa');

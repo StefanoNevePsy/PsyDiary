@@ -1,5 +1,52 @@
 // Dati di prova, tutti inventati, attorno alla data di oggi.
 import { oggi, piu, lunedi, giornoSettimana } from './date.js';
+import { daTesto } from './programmi.js';
+
+// un programma di esempio per la biblioteca
+const LIFE_SKILLS = `Percorso di life skills per le scuole medie: otto incontri in tre moduli, più qualche attività libera per i momenti in cui serve altro.
+
+# Problem solving
+## Il problema in tre parole
+Obiettivi: riconoscere e nominare un problema
+Durata: 60
+- [ ] Cerchio: una cosa che oggi non va
+- [ ] Scenette a coppie: il problema in tre parole
+- [ ] Cartellone dei problemi della classe
+## Tante soluzioni
+Obiettivi: generare alternative senza giudicarle
+- [ ] Brainstorming a gruppi (vale tutto)
+- [ ] Ogni gruppo sceglie le tre soluzioni più strane
+## Provare e valutare
+Obiettivi: scegliere una soluzione e verificarla
+- [ ] Gioco di ruolo con la soluzione scelta
+- [ ] Cosa ha funzionato? Cosa cambierei?
+
+# Emozioni
+## Il termometro delle emozioni
+Obiettivi: dare un nome e un'intensità alle emozioni
+- [ ] Termometro alla lavagna
+- [ ] Ognuno si posiziona: com'è oggi?
+## La rabbia
+Obiettivi: riconoscere i segnali della rabbia nel corpo
+- [ ] Sagoma del corpo: dove sento la rabbia
+- [ ] Tre modi per abbassare il termometro
+## Le emozioni degli altri
+Obiettivi: empatia
+- [ ] Indovina l'emozione (mimo)
+
+# Decision making
+## Pro e contro
+Obiettivi: valutare le conseguenze
+- [ ] Bilancia dei pro e contro su una scelta vera della classe
+## Decidere insieme
+Obiettivi: prendere una decisione di gruppo
+- [ ] Assemblea di classe con regole di parola
+
+# Attività libere
+## Gioco del gomitolo
+Per sciogliere il clima: ognuno lancia il gomitolo e dice una cosa bella di chi lo riceve.
+## Silent ball
+Per ritrovare la concentrazione.`;
 
 const PERSONE = [
   { id: 'stefano', nome: 'Stefano', ruolo: 'admin' },
@@ -196,7 +243,8 @@ export function creaDemo() {
     { id: 'q5', gruppoId: 'ggiov', testo: 'Uscita al bar: ordinare da soli', autore, creato: t },
     { id: 'q6', ragazzoId: 'rluca01', testo: 'Parlare del rapporto con il papà', autore, creato: t },
   ];
-  return { ragazzi, gruppi, sedute, note, sospesi, persone: structuredClone(PERSONE) };
+  const programmi = [{ ...daTesto(LIFE_SKILLS, 'Life skills a scuola'), id: 'plifeskills', destinatari: ['classe', 'gruppo'], creato: t, modificato: t }];
+  return { ragazzi, gruppi, sedute, note, sospesi, persone: structuredClone(PERSONE), programmi };
 }
 
 function argomentoDi(titolo, gid, i) {

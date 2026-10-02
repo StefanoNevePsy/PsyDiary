@@ -124,7 +124,13 @@ function gruppoRiservato(gid) {
   const a = centro.gruppi?.[gid];
   return !!a && !a.tutti;
 }
-const opzVoci = { riservato, gruppoRiservato };
+// Programmi riservati: di serie i programmi sono di tutta l'aula
+function programmaRiservato(pid) {
+  if (!(sync.io?.funzioni || []).includes('programmi')) return false;
+  const a = centro.programmi?.[pid];
+  return !!a && !a.tutti;
+}
+const opzVoci = { riservato, gruppoRiservato, programmaRiservato };
 
 // coda: "tabella|id" degli oggetti cambiati qui e non ancora inviati
 let coda = new Set();
@@ -207,7 +213,7 @@ async function invia() {
     const o = oggettoLocale(tabella, id);
     const voci = o ? vociDi(tabella, $state.snapshot(o), opzVoci) : idVociDi(tabella, id).map((vid) => ({ id: vid, eliminato: true }));
     for (const v of voci) {
-      if (!v.eliminato && !/^(aula|[rg]:[a-z0-9]{2,40})$/.test(v.ambito)) { console.warn('voce senza ambito valido', v); continue; }
+      if (!v.eliminato && !/^(aula|[rgp]:[a-z0-9]{2,40})$/.test(v.ambito)) { console.warn('voce senza ambito valido', v); continue; }
       const l = await voceLocale(v.id);
       if (v.eliminato) {
         if (!l || !l.version) continue;   // mai arrivata al custode: niente da togliere
@@ -287,6 +293,15 @@ async function ricevi(invii = []) {
     let d = null;
     try { d = await apriVoce(v); } catch (e) { console.warn('voce illeggibile', v.id, e); continue; }
     if (d) ricordaImmagini(v.ambito, d);
+    if (v.eliminato && inCoda.has(v.id)) {
+      // tolta (o spostata dove non la vedo più) mentre la stavo modificando:
+      // la modifica non può più partire, vince la rimozione
+      const { tabella, id } = destinazione(v);
+      coda.delete(tabella + '|' + id);
+      await scriviInLocale(v, null);
+      await togliVoce(v.id);
+      continue;
+    }
     if (inCoda.has(v.id) && l) {
       // modificata qui e là: si unisce, e la versione unita ripartirà
       const { tabella, id } = destinazione(v);
@@ -316,6 +331,7 @@ async function ricevi(invii = []) {
     centro.pazienti = p; centro.pazientiNoti = true;
     await scriviMeta('pazienti', p);
   }
+  if (r.programmi) { centro.programmi = { ...r.programmi }; await scriviMeta('programmi', centro.programmi); }
   if (r.gruppi) {
     const g = { ...r.gruppi };
     for (const [gid, a] of Object.entries(centro.gruppi || {})) if (a.locale && !g[gid] && coda.has('gruppi|' + gid)) g[gid] = a;
@@ -375,11 +391,11 @@ function confermaNegato(codice) {
 
 /** Accesso tolto: niente dati dell'aula su questo dispositivo. */
 async function cancellaDatiAula() {
-  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'serie']) for (const o of [...dati[t]]) await elimina(t, o.id, true);
+  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'serie', 'programmi']) for (const o of [...dati[t]]) await elimina(t, o.id, true);
   await op('voci', 'readwrite', (s) => s.clear());
   await op('meta', 'readwrite', (s) => s.clear());
   await C.dimenticaTutto();
-  coda.clear(); chiavi = {}; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
+  coda.clear(); chiavi = {}; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.programmi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +486,7 @@ export async function avvia() {
   centro.pazienti = (await meta('pazienti')) || null;
   centro.pazientiNoti = !!centro.pazienti;
   centro.gruppi = (await meta('gruppi')) || null;
+  centro.programmi = (await meta('programmi')) || null;
   chiavi = await C.portachiavi();
   if (sync.io && sync.io.email === u.email) { centro.io = sync.io; aggiornaFase(); } else sync.fase = 'fuori';
   try { await prepara(); } catch (e) { gestisciErrore(e); }
@@ -486,7 +503,7 @@ export async function creaChiave(frase, preparata) {
   sync.io.cifratura = true;
   aggiornaFase();
   // tutto quello che c'è già su questo dispositivo parte verso il custode
-  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'serie']) for (const o of dati[t]) coda.add(t + '|' + o.id);
+  for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'serie', 'programmi']) for (const o of dati[t]) coda.add(t + '|' + o.id);
   await salvaCoda();
   return sincronizza();
 }
@@ -526,7 +543,7 @@ export async function verificaFrase(frase) {
  */
 export async function raccogliTutto(avanza = () => {}) {
   const ini = await chiama('esporta.inizia');
-  const tabelle = { ragazzi: {}, gruppi: {}, sedute: {}, note: {}, sospesi: {}, serie: {} };
+  const tabelle = { ragazzi: {}, gruppi: {}, sedute: {}, note: {}, sospesi: {}, serie: {}, programmi: {} };
   const ambitoImm = {};
   const ambiti = ini.ambiti;
   for (let i = 0; i < ambiti.length; i += 25) {
@@ -565,6 +582,19 @@ export async function raccogliTutto(avanza = () => {}) {
 }
 export const gestisceCondivisioni = gestisceRiservati;
 export const gestisceCondivisioniGruppi = gestisceGruppi;
+export const gestisceCondivisioniProgrammi = () => (sync.io?.funzioni || []).includes('programmi');
+/** Con chi è condiviso un programma della biblioteca (poi viaggia nell'ambito giusto). */
+export async function condividiProgramma(pid, scelta) {
+  if (coda.has('programmi|' + pid)) await sincronizza();
+  if (coda.has('programmi|' + pid)) throw new Error('Il programma non è ancora arrivato al custode: riprova quando c\'è rete.');
+  const a = await chiama('programma.condivisione', { id: pid, ...scelta });
+  centro.programmi = { ...(centro.programmi || {}), [pid]: a };
+  await scriviMeta('programmi', centro.programmi);
+  coda.add('programmi|' + pid);
+  await salvaCoda();
+  await sincronizza();
+  return a;
+}
 /**
  * Con chi è condiviso un gruppo o una classe. Poi il gruppo e tutto ciò che
  * gli appartiene (sedute, note, ricorrenze, idee) ripartono nell'ambito giusto.

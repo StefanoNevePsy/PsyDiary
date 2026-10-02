@@ -18,6 +18,9 @@ const dati = {
   note: [{ id: 'n1', data: '2026-09-12', categoria: 'scuola', titolo: 'Colloquio', testo: 'Insegnante;\nnuova riga', ragazzoId: 'rluca', autore: 'Stefano' }, { id: 'n2', data: '2026-09-13', testo: 'Riunione', autore: 'Elena' }],
   sospesi: [], serie: [{ id: 'se1', tipo: 'individuale', ragazzoId: 'rluca', ora: '15:00', dal: '2026-09-01', ripeti: { come: 'settimane', ogni: 1, giorni: [3] } }],
 };
+dati.programmi = [{ id: 'plife', nome: 'Life skills', destinatari: ['classe'], moduli: [{ id: 'm1', nome: 'Emozioni', immagine: 'imfoto', unita: [{ id: 'u1', titolo: 'Il termometro', attivita: '- [ ] lavagna' }] }], libere: [] }];
+dati.gruppi[0].programmi = [{ id: 'as1', programmaId: 'plife', nome: 'Life skills', moduli: dati.programmi[0].moduli, libere: [], saltate: [] }];
+dati.sedute[1].programma = { assegnazione: 'as1', unita: 'u1' };
 const file = new Map([['imfoto', new Blob([new Uint8Array([0xff, 0xd8, 1])], { type: 'image/jpeg' })], ['aggeno', new Blob(['{"id":"g1"}'], { type: 'application/json' })], ['imdis', new Blob([new Uint8Array([0x89, 0x50])], { type: 'image/png' })]]);
 const { voci, riepilogo } = componi(dati, file, { da: 'Stefano', il: '2026-10-02T10:00:00Z' });
 const P = (p) => voci.find((v) => v.percorso === p);
@@ -48,6 +51,11 @@ ok(riepilogo.pazienti === 2 && riepilogo.mancanti.includes('apdf'), 'riepilogo c
 ok(nomeFile('  CON:..  ') === 'CON' && nomeFile('') === 'senza nome', 'nomi di file sicuri');
 ok(mdHtml('# T\n- a\n- [ ] b\n\ntesto <script>').includes('&lt;script&gt;'), 'HTML protetto da testo che sembra codice');
 ok(mdPulito('![x](img:zz)', () => null).includes('immagine non disponibile'), 'immagine mancante segnalata');
+
+ok(P('programmi/Life skills/programma.md')?.testo.includes('## Il termometro') && P('programmi/Life skills/programma.html').testo.includes('allegati/Emozioni'), 'i programmi con le immagini dei moduli');
+ok(P('gruppi/Classe 3ªB Manzoni/diario.md').testo.includes('*Programma: Life skills · Emozioni · Il termometro*'), 'nel diario la seduta dice quale unità era');
+ok(P('tabelle/programmi-assegnati.csv').testo.includes('Life skills;3ªB/Manzoni;classe'), 'tabella dei programmi assegnati');
+ok(JSON.parse(P('psydiary.json').testo).tabelle.programmi.length === 1, 'e nel JSON');
 
 // lo zip, cifrato
 const zip = await creaZip(voci, { password: 'FRASE-DI-PROVA' });

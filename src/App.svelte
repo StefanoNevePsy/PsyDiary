@@ -26,6 +26,8 @@
   import Impostazioni from './views/Impostazioni.svelte';
   import Ricorrenze from './views/Ricorrenze.svelte';
   import RiceviGenogramma from './components/RiceviGenogramma.svelte';
+  import Programmi from './views/Programmi.svelte';
+  import Programma from './views/Programma.svelte';
 
   let errore = $state('');
 
@@ -46,8 +48,9 @@
     { id: 'gruppi', nome: 'Gruppi', ico: 'gruppo' },
     { id: 'diario', nome: 'Diario', ico: 'diario' },
     { id: 'sospesi', nome: 'In sospeso', ico: 'sospesi' },
+    { id: 'programmi', nome: 'Programmi', ico: 'programma' },
   ];
-  const attiva = (id) => sezione === id || (id === 'ragazzi' && sezione === 'ragazzo') || (id === 'gruppi' && sezione === 'gruppo') || (id === 'calendario' && (sezione === 'seduta' || sezione === 'ricorrenze'));
+  const attiva = (id) => sezione === id || (id === 'ragazzi' && sezione === 'ragazzo') || (id === 'gruppi' && sezione === 'gruppo') || (id === 'programmi' && sezione === 'programma') || (id === 'calendario' && (sezione === 'seduta' || sezione === 'ricorrenze'));
   function tema() {
     const scuroOra = document.documentElement.dataset.tema === 'scuro' || (!document.documentElement.dataset.tema && matchMedia('(prefers-color-scheme: dark)').matches);
     impostaTema(scuroOra ? 'chiaro' : 'scuro');
@@ -104,6 +107,10 @@
     <Sospesi />
   {:else if sezione === 'nota'}
     {#key rotta.parti[1]}<Nota id={rotta.parti[1]} />{/key}
+  {:else if sezione === 'programmi'}
+    <Programmi />
+  {:else if sezione === 'programma'}
+    {#key rotta.parti[1]}<Programma id={rotta.parti[1]} />{/key}
   {:else if sezione === 'ricorrenze'}
     <Ricorrenze />
   {:else if sezione === 'impostazioni'}

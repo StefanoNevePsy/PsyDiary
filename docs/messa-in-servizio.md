@@ -278,6 +278,24 @@ aggiornato il custode»). Dieci minuti, i dati non si toccano:
 Per non doverlo più fare a mano: imposta `SCRIPT_ID`, `CUSTODE_DEPLOYMENT_ID`
 e `CLASPRC_JSON` (vedi l'inizio del workflow `pubblica.yml`).
 
+## Programmi e protocolli
+
+In **Programmi** c'è la biblioteca: ogni programma ha moduli (con
+un'immagine), unità in ordine e un menù di attività libere. Si crea a mano o
+incollando un documento («# Modulo», «## Unità», «Obiettivi: …»). Di serie è
+di tutta l'aula; con *Rendilo riservato* lo vedono solo le persone scelte.
+
+- **Assegnare**: dalla pagina di un gruppo, una classe o un paziente,
+  riquadro *Programmi → Assegna*. Il gruppo riceve una copia: l'ordine dei
+  moduli si cambia lì (*Anticipa* porta un modulo per primo) senza toccare
+  la biblioteca. Se il programma cambia, compare *C'è una versione nuova →
+  Aggiorna*.
+- **Nelle sedute**: compare l'unità da fare (*Usa* la porta nel piano, *Un'altra…*
+  sceglie un'altra unità o un'attività libera, *Salta* la toglie). Il ritmo è
+  per sedute: una seduta annullata non consuma niente.
+- **Fatta**: quando la seduta ha il resoconto; si può segnare *non fatta*
+  (resta da fare per la volta dopo).
+
 ## Esportazione completa (per passare a un altro sistema)
 
 In **Impostazioni → Esportazione completa → Esporta tutto…** chi ospita il

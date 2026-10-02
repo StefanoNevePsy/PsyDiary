@@ -11,6 +11,7 @@
 //   aula/                   le note sull'aula in generale
 // Funzioni pure (niente rete, niente DOM): testate in tools/test-esporta.mjs.
 import { SEZIONI } from './anagrafica.js';
+import { aTesto } from './programmi.js';
 
 export const FORMATO = 'psydiary-esportazione';
 export const VERSIONE = 1;
@@ -95,7 +96,7 @@ ${corpo}
  * Restituisce { voci: [{ percorso, testo } | { percorso, blob }], riepilogo }.
  */
 export function componi(dati, file = new Map(), opz = {}) {
-  const T = { ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], serie: [], ...dati };
+  const T = { ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], serie: [], programmi: [], ...dati };
   const il = opz.il || new Date().toISOString();
   const voci = [];
   const testo = (percorso, t) => voci.push({ percorso, testo: t });
@@ -114,6 +115,8 @@ export function componi(dati, file = new Map(), opz = {}) {
   for (const r of pazienti) cartelle.set('r:' + r.id, cartella('pazienti', nomeCompleto(r), r.id));
   for (const g of gruppi) cartelle.set('g:' + g.id, cartella('gruppi', (g.tipo === 'classe' ? 'Classe ' : '') + (g.nome || 'Gruppo'), g.id));
   cartelle.set('aula', 'aula');
+  const programmi = [...T.programmi].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'it'));
+  for (const p of programmi) cartelle.set('p:' + p.id, cartella('programmi', p.nome || 'Programma', p.id));
   const nomeR = (id) => { const r = T.ragazzi.find((x) => x.id === id); return r ? nomeCompleto(r) : '(paziente non presente)'; };
   const nomeG = (id) => T.gruppi.find((x) => x.id === id)?.nome || '(gruppo non presente)';
 
@@ -162,6 +165,12 @@ export function componi(dati, file = new Map(), opz = {}) {
       parti.push(`## ${titoloVoce(v)}`, '');
       if (v.tipo === 'seduta') {
         const s = v.o;
+        if (s.programma) {
+          const sogg = T.gruppi.find((g) => g.id === s.gruppoId) || T.ragazzi.find((r) => r.id === s.ragazzoId);
+          const a = (sogg?.programmi || []).find((x) => x.id === s.programma.assegnazione);
+          const u = a && [...(a.moduli || []).flatMap((m) => (m.unita || []).map((x) => ({ ...x, modulo: m.nome }))), ...(a.libere || [])].find((x) => x.id === s.programma.unita);
+          if (u) parti.push(`*Programma: ${a.nome}${u.modulo ? ' · ' + u.modulo : ''} · ${u.titolo}${s.programma.esito === 'non-fatta' ? ' (non fatta)' : ''}*`, '');
+        }
         if (s.argomento) parti.push('**Piano**', '', mdPulito(s.argomento, imm), '');
         if (s.resoconto) parti.push('**Resoconto**', '', mdPulito(s.resoconto, imm), '');
         const pres = Object.entries(s.presenze || {}).filter(([, x]) => x === false).map(([rid]) => nomeR(rid));
@@ -240,6 +249,16 @@ export function componi(dati, file = new Map(), opz = {}) {
     }, null, 2));
   }
 
+  // ---- programmi della biblioteca ----
+  for (const p of programmi) {
+    const chiave = 'p:' + p.id, dir = cartelle.get(chiave);
+    const md = `# ${p.nome || 'Programma'}\n\n${aTesto(p)}`;
+    testo(`${dir}/programma.md`, md);
+    const immagini = (p.moduli || []).filter((m) => m.immagine && file.get(m.immagine)).map((m) => `<figure style="display:inline-block;margin:0 12px 12px 0;text-align:center"><img src="${esc(percorsoFile(chiave, m.immagine, m.nome || 'modulo'))}" alt="" style="width:96px;height:96px;object-fit:cover;border-radius:50%"><figcaption class="sotto">${esc(m.nome)}</figcaption></figure>`).join('');
+    testo(`${dir}/programma.html`, pagina(p.nome || 'Programma', (immagini ? `<p>${immagini}</p>` : '') + mdHtml(md).replace(/^<h3>(.*?)<\/h3>/, '<h1>$1</h1>')));
+    testo(`${dir}/dati.json`, JSON.stringify(p, null, 2));
+  }
+
   // ---- aula: note senza paziente né gruppo ----
   const aula = vociDiario('aula');
   if (aula.length) {
@@ -275,6 +294,12 @@ export function componi(dati, file = new Map(), opz = {}) {
     [...T.note].sort((a, b) => String(a.data).localeCompare(String(b.data))).map((n) => ({ ...n, categoria: CATEGORIE[n.categoria] || n.categoria || '', paziente_id: n.ragazzoId || '', paziente: n.ragazzoId ? nomeR(n.ragazzoId) : '', gruppo_id: n.gruppoId || '', gruppo: n.gruppoId ? nomeG(n.gruppoId) : '', testo: mdPulito(n.testo, () => null) }))));
   testo('tabelle/ricorrenze.csv', csv(['id', 'tipo', 'paziente_id', 'gruppo_id', 'dal', 'al', 'volte', 'ora', 'durata', 'descrizione'],
     T.serie.map((x) => ({ ...x, tipo: TIPI_SEDUTA[x.tipo] || x.tipo, paziente_id: x.ragazzoId || '', gruppo_id: x.gruppoId || '', descrizione: descriviSerie(x) }))));
+  testo('tabelle/programmi.csv', csv(['id', 'nome', 'destinatari', 'moduli', 'unita', 'attivita_libere', 'descrizione'],
+    programmi.map((p) => ({ id: p.id, nome: p.nome, destinatari: (p.destinatari || []).join(', '), moduli: (p.moduli || []).map((m) => m.nome).join(' | '), unita: (p.moduli || []).reduce((n, m) => n + (m.unita || []).length, 0), attivita_libere: (p.libere || []).length, descrizione: p.descrizione || '' }))));
+  testo('tabelle/programmi-assegnati.csv', csv(['programma', 'a', 'tipo', 'dal', 'concluso', 'ordine_moduli', 'unita_saltate'],
+    [...gruppi.map((g) => [g, g.nome, g.tipo === 'classe' ? 'classe' : 'gruppo']), ...pazienti.map((r) => [r, nomeCompleto(r), 'paziente'])].flatMap(([o, nome, tipo]) => (o.programmi || []).map((a) => ({
+      programma: a.nome, a: nome, tipo, dal: a.dal || '', concluso: a.chiusa ? 'sì' : '', ordine_moduli: (a.moduli || []).map((m) => m.nome).join(' | '), unita_saltate: (a.saltate || []).length,
+    })))));
   testo('tabelle/sospesi.csv', csv(['id', 'testo', 'paziente_id', 'gruppo_id', 'usatoIn', 'creato'], T.sospesi.map((x) => ({ ...x, paziente_id: x.ragazzoId || '', gruppo_id: x.gruppoId || '' }))));
   testo('tabelle/allegati.csv', csv(['proprietario', 'id', 'nome', 'tipo', 'genogramma', 'file'],
     [...pazienti.map((r) => ['r:' + r.id, r]), ...gruppi.map((g) => ['g:' + g.id, g])].flatMap(([k, o]) => (o.allegati || []).map((a) => ({
@@ -286,7 +311,7 @@ export function componi(dati, file = new Map(), opz = {}) {
   testo('psydiary.json', JSON.stringify({
     formato: FORMATO, versione: VERSIONE, esportato: il, da: opz.da || '',
     nota: 'Tutte le tabelle di PsyDiary, campo per campo. Gli allegati sono nelle cartelle dei pazienti e dei gruppi (vedi tabelle/allegati.csv).',
-    tabelle: { pazienti: T.ragazzi, gruppi: T.gruppi, sedute: T.sedute, note: T.note, ricorrenze: T.serie, sospesi: T.sospesi },
+    tabelle: { pazienti: T.ragazzi, gruppi: T.gruppi, sedute: T.sedute, note: T.note, ricorrenze: T.serie, sospesi: T.sospesi, programmi: T.programmi },
   }, null, 2));
 
   // ---- indice e istruzioni ----
@@ -296,6 +321,7 @@ export function componi(dati, file = new Map(), opz = {}) {
 <h2>Pazienti</h2><ul>${pazienti.map((r) => li('r:' + r.id, nomeCompleto(r), 'scheda.html', r.stato === 'concluso' ? ' <span class="sotto">(concluso)</span>' : '')).join('')}</ul>
 <h2>Classi</h2><ul>${gruppi.filter((g) => g.tipo === 'classe').map((g) => li('g:' + g.id, g.nome, 'classe.html')).join('') || '<li class="sotto">nessuna</li>'}</ul>
 <h2>Gruppi</h2><ul>${gruppi.filter((g) => g.tipo !== 'classe').map((g) => li('g:' + g.id, g.nome, 'gruppo.html')).join('') || '<li class="sotto">nessuno</li>'}</ul>
+${programmi.length ? `<h2>Programmi</h2><ul>${programmi.map((p) => li('p:' + p.id, p.nome, 'programma.html')).join('')}</ul>` : ''}
 ${aula.length ? '<h2>Aula</h2><ul><li><a href="aula/diario.html">Note sull\'aula</a></li></ul>' : ''}
 <h2>Per altri sistemi</h2><ul><li><a href="psydiary.json">psydiary.json</a>: tutto, campo per campo</li><li>tabelle/: un CSV per tipo di dato</li><li><a href="LEGGIMI.txt">LEGGIMI.txt</a></li></ul>`, ''));
   testo('LEGGIMI.txt', leggimi({ il, da: opz.da, pazienti: pazienti.length, gruppi: gruppi.length, sedute: T.sedute.length, note: T.note.length, mancanti: mancanti.size }));

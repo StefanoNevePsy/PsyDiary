@@ -44,9 +44,9 @@
         // prototipo: i dati di questo browser
         const d = $state.snapshot(dati);
         const file = new Map();
-        const ids = new Set(['ragazzi', 'gruppi', 'sedute', 'note'].flatMap((t) => d[t].flatMap((o) => immaginiDi(o))));
+        const ids = new Set(['ragazzi', 'gruppi', 'sedute', 'note', 'programmi'].flatMap((t) => (d[t] || []).flatMap((o) => immaginiDi(o))));
         for (const id of ids) { const f = await fileImmagine(id).catch(() => null); if (f?.blob) file.set(id, f.blob); }
-        raccolta = { dati: { ragazzi: d.ragazzi, gruppi: d.gruppi, sedute: d.sedute, note: d.note, sospesi: d.sospesi, serie: d.serie }, file };
+        raccolta = { dati: { ragazzi: d.ragazzi, gruppi: d.gruppi, sedute: d.sedute, note: d.note, sospesi: d.sospesi, serie: d.serie, programmi: d.programmi }, file };
       }
       fase = 'zip';
       avanzamento = 'Compongo le pagine e le tabelle…';

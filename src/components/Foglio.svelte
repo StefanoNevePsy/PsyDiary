@@ -12,6 +12,7 @@
   import Icona from './Icona.svelte';
   import Immagine from './Immagine.svelte';
   import SerieDialogo from './SerieDialogo.svelte';
+  import DalProgramma from './DalProgramma.svelte';
   import { serieDiSeduta, eccezioneSerie, spostaSeduta } from '../lib/dati.svelte.js';
   import { descrivi } from '../lib/serie.js';
 
@@ -54,7 +55,7 @@
     const campi = $state.snapshot(x);
     untrack(() => {
       if (Object.keys(coda).length) return;   // sto scrivendo io: prima si salva
-      for (const k of ['argomento', 'resoconto', 'prossima', 'presenze', 'partecipanti', 'chi', 'autori', 'ora', 'data']) {
+      for (const k of ['argomento', 'resoconto', 'prossima', 'presenze', 'partecipanti', 'chi', 'autori', 'ora', 'data', 'programma']) {
         if (JSON.stringify(campi[k]) !== JSON.stringify(s[k])) s[k] = campi[k];
       }
     });
@@ -124,6 +125,15 @@
   }
   // per ricreare l'editor quando il piano cambia da un pulsante
   let editorArgomento = $state(0);
+  // programmi: collegare un'unità porta le sue attività nel piano
+  function collegaUnita(prog, testo) {
+    let a = s.argomento || '';
+    if (testo && !a.includes(testo.split('\n')[0])) a = (a.trim() ? a.replace(/\s+$/, '') + '\n\n' : '') + testo;
+    modifica({ programma: prog, argomento: a });
+    editorArgomento++;
+  }
+  const scollegaUnita = () => modifica({ programma: null });
+  const esitoUnita = (e) => modifica({ programma: { ...s.programma, esito: e || undefined } });
   const dataTitolo = $derived(lunga(s.data));
 </script>
 
@@ -183,6 +193,10 @@
       {/if}
       <button class="btn piccolo" onclick={prendiDallaScorsa}><Icona nome="freccia" /> Portalo nel piano</button>
     </aside>
+  {/if}
+
+  {#if s.tipo === 'gruppo' || s.tipo === 'individuale'}
+    <DalProgramma {s} collega={collegaUnita} scollega={scollegaUnita} esito={esitoUnita} />
   {/if}
 
   <section class="sez">

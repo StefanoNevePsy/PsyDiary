@@ -6,16 +6,17 @@
 // Del ragazzo, chiunque vede solo questi campi; il resto è la sua "scheda".
 export const CAMPI_PUBBLICI = ['id', 'nome', 'cognome', 'nascita', 'scuola', 'classe', 'foto', 'stato', 'creato', 'modificato'];
 export const idScheda = (rid) => rid + 'sc';
-const TIPO_DI = { gruppi: 'gruppo', sedute: 'seduta', note: 'nota', sospesi: 'sospeso', serie: 'serie' };
-export const TABELLA_DI = { gruppo: 'gruppi', seduta: 'sedute', nota: 'note', sospeso: 'sospesi', serie: 'serie', ragazzo: 'ragazzi', scheda: 'ragazzi' };
+const TIPO_DI = { gruppi: 'gruppo', sedute: 'seduta', note: 'nota', sospesi: 'sospeso', serie: 'serie', programmi: 'programma' };
+export const TABELLA_DI = { gruppo: 'gruppi', seduta: 'sedute', nota: 'note', sospeso: 'sospesi', serie: 'serie', ragazzo: 'ragazzi', scheda: 'ragazzi', programma: 'programmi' };
 
 /**
  * opz.riservato(rid): paziente riservato · opz.gruppoRiservato(gid): gruppo o
  * classe riservati. Un gruppo riservato porta con sé sedute, note, ricorrenze e
  * idee in sospeso nel suo ambito "g:<id>"; quelli di tutta l'aula stanno in "aula".
  */
-export function ambitoDi(tabella, o, { riservato = () => false, gruppoRiservato = () => false } = {}) {
+export function ambitoDi(tabella, o, { riservato = () => false, gruppoRiservato = () => false, programmaRiservato = () => false } = {}) {
   const diGruppo = (gid) => (gid && gruppoRiservato(gid) ? 'g:' + gid : 'aula');
+  if (tabella === 'programmi') return programmaRiservato(o.id) ? 'p:' + o.id : 'aula';
   if (tabella === 'gruppi') return diGruppo(o.id);
   if (tabella === 'sedute') return o.tipo === 'gruppo' ? diGruppo(o.gruppoId) : 'r:' + o.ragazzoId;
   if (tabella === 'note') {
@@ -47,7 +48,7 @@ export function vociDi(tabella, o, opz = {}) {
     ];
   }
   if (!TIPO_DI[tabella]) return [];
-  const dati = tabella === 'gruppi' && 'accesso' in o ? (({ accesso, ...x }) => x)(o) : o;
+  const dati = (tabella === 'gruppi' || tabella === 'programmi') && 'accesso' in o ? (({ accesso, ...x }) => x)(o) : o;
   return [{ id: o.id, tipo: TIPO_DI[tabella], ambito: ambitoDi(tabella, o, opz), dati }];
 }
 /** Gli id delle voci di un oggetto (anche quando l'oggetto non c'è più). */
@@ -147,5 +148,8 @@ export function immaginiDi(o) {
   if (o && typeof o.foto === 'string' && o.foto) out.add(o.foto);
   if (o && typeof o.copertina === 'string' && o.copertina) out.add(o.copertina);
   if (o && Array.isArray(o.allegati)) o.allegati.forEach((x) => { if (x && typeof x.id === 'string' && x.id) out.add(x.id); });
+  // immagini dei moduli: nei programmi e nelle loro copie assegnate a gruppi e pazienti
+  const moduli = (l) => (Array.isArray(l) ? l : []).forEach((m) => { if (m && typeof m.immagine === 'string' && m.immagine) out.add(m.immagine); });
+  if (o) { moduli(o.moduli); (Array.isArray(o.programmi) ? o.programmi : []).forEach((a) => moduli(a?.moduli)); }
   return [...out];
 }

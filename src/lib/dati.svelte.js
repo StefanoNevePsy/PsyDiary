@@ -5,7 +5,7 @@ import { tagDi, menzioniDi, semplice, daFare } from './testo.js';
 import { REALE } from './centro/config.js';
 import { occorrenze } from './serie.js';
 
-export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], persone: [], serie: [] });
+export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], persone: [], serie: [], programmi: [] });
 
 // Chi usa l'app. Nel prototipo si può cambiare da Impostazioni per provare i ruoli.
 export const PERSONE_INIZIALI = [
@@ -21,7 +21,7 @@ export const sessione = $state({ utenteId: 'stefano', tema: 'auto' });
 // pazienti di cui questo account vede la scheda (null: custode che non li gestisce)
 // gruppi: lo stesso per gruppi e classi (senza voce: di tutta l'aula, come prima)
 // pazientiNoti: il custode ha già detto quali pazienti vede questo account
-export const centro = $state({ io: null, pazienti: null, gruppi: null, pazientiNoti: false });
+export const centro = $state({ io: null, pazienti: null, gruppi: null, programmi: null, pazientiNoti: false });
 /** La persona che sta usando l'app (sempre aggiornata con i permessi). */
 export function io() {
   if (REALE) {
@@ -87,6 +87,22 @@ export function nascostoGruppo(g) {
   return !(a.tutti || a.proprietario === io().id || (a.condivisi || []).includes(io().id));
 }
 export const gruppiVisibili = () => dati.gruppi.filter((g) => !nascostoGruppo(g));
+
+// ---- programmi e protocolli (src/lib/programmi.js) ----
+export const programma = (id) => dati.programmi.find((p) => p.id === id) || null;
+/** Chi vede un programma della biblioteca. Senza registro: tutta l'aula (di serie). */
+export function accessoProgramma(pid) {
+  const a = REALE ? centro.programmi?.[pid] : programma(pid)?.accesso;
+  if (!a) return { tutti: true, daPrima: true, condivisi: [] };
+  if (REALE) return a;
+  return { ...a, condivisi: a.condivisi || [], mio: a.proprietario === io().id };
+}
+export function nascostoProgramma(p) {
+  if (REALE || !p?.accesso) return false;
+  const a = p.accesso;
+  return !(a.tutti || a.proprietario === io().id || (a.condivisi || []).includes(io().id));
+}
+export const programmiVisibili = () => dati.programmi.filter((p) => !nascostoProgramma(p)).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'it'));
 export const TIPI_GRUPPO = { terapeutico: { nome: 'Gruppo terapeutico', breve: 'gruppo', nuovo: 'Nuovo gruppo' }, classe: { nome: 'Classe', breve: 'classe', nuovo: 'Nuova classe' } };
 export const tipoGruppo = (g) => (g?.tipo === 'classe' ? 'classe' : 'terapeutico');
 /** Un gruppo o una classe nuovi sono di chi li crea, come i pazienti. */
@@ -123,9 +139,9 @@ export function nuovoId(p) {
 const ora = () => new Date().toISOString();
 
 export async function carica() {
-  const [ragazzi, gruppi, sedute, note, sospesi, persone, serie] = await Promise.all(A.TABELLE.map((t) => A.tutti(t)));
+  const [ragazzi, gruppi, sedute, note, sospesi, persone, serie, programmi] = await Promise.all(A.TABELLE.map((t) => A.tutti(t)));
   if (REALE) {
-    Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone: [], serie });
+    Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone: [], serie, programmi });
   } else if (!ragazzi.length && !gruppi.length) {
     const { creaDemo } = await import('./demo.js');
     const d = creaDemo();
@@ -141,7 +157,7 @@ export async function carica() {
       await A.mettiTutto({ gruppi: d.gruppi, sedute: d.sedute });
     } catch (e) { console.warn('Immagini di prova non create', e); }
     Object.assign(dati, d);
-  } else Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone, serie });
+  } else Object.assign(dati, { ragazzi, gruppi, sedute, note, sospesi, persone, serie, programmi });
   await migraRicorrenze();
   if (!REALE && !dati.persone.length) {
     await A.mettiTutto({ persone: PERSONE_INIZIALI });

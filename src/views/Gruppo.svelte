@@ -23,6 +23,8 @@
   import Scelta from '../components/Scelta.svelte';
   import Condivisione from '../components/Condivisione.svelte';
   import Alunni from '../components/Alunni.svelte';
+  import Assegnazioni from '../components/Assegnazioni.svelte';
+  import { prossimeN } from '../lib/programmi.js';
   import Allegati from '../components/Allegati.svelte';
   import { conteggio, genogrammaDiClasse } from '../lib/classe.js';
   import { conGenogramma } from '../lib/allega-geno.svelte.js';
@@ -36,6 +38,14 @@
   let filtro = $state({ tipi: [], tag: [], da: '', a: '', testo: '' });
   const voci = $derived(g ? storicoGruppo(id).filter((v) => v.data <= O || v.tipo === 'nota') : []);
   const prossime = $derived(g ? sedutePeriodo(O, piu(O, 35)).filter((s) => s.gruppoId === id).slice(0, 3) : []);
+  // le sedute future senza piano: l'unità che il programma proporrà, una per seduta
+  const proposte = $derived.by(() => {
+    const a = (g?.programmi || []).find((x) => !x.chiusa);
+    if (!a) return {};
+    const libere = prossime.filter((s) => !s.programma && !s.argomento);
+    const unita = prossimeN(a, dati.sedute.filter((x) => x.tipo === 'gruppo' && x.gruppoId === id), libere.length);
+    return Object.fromEntries(libere.map((s, i) => [s.id, unita[i]]).filter((x) => x[1]));
+  });
   const membri = $derived(g ? membriAl(g, O) : []);
   const usciti = $derived(g ? (g.membri || []).filter((m) => m.al && m.al < O) : []);
   const GIORNI = [[1, 'lun'], [2, 'mar'], [3, 'mer'], [4, 'gio'], [5, 'ven'], [6, 'sab']];
@@ -163,6 +173,8 @@
                   <span class="display quando">{lunga(s.data)}</span>
                   {#if s.argomento}
                     <span class="piano">{daFare(s.argomento).length ? daFare(s.argomento).slice(0, 3).join(' · ') : anteprima(s.argomento, 80)}</span>
+                  {:else if proposte[s.id]}
+                    <span class="piano proposta"><span class="eti">dal programma</span> {proposte[s.id].unita.titolo}</span>
                   {:else}
                     <span class="mano vuoto">cosa facciamo?</span>
                   {/if}
@@ -235,6 +247,7 @@
         <div class="azioni">
           <button class="btn pieno" onclick={() => apriCrea({ tipo: 'nota', gruppoId: id })}><Icona nome="matita" /> {classe ? 'Nota sulla classe' : 'Nota sul gruppo'}</button>
         </div>
+        <Assegnazioni o={g} tipo={classe ? 'classe' : 'gruppo'} {gestisce} alCambio={(x) => campo('programmi', x)} />
         <div class="box retino">
           <h3 class="eti">Obiettivi</h3>
           <Editor testo={g.obiettivi || ''} compatto etichetta="Obiettivi del gruppo" soloLettura={!gestisce}
@@ -280,6 +293,8 @@
   .box { display: grid; gap: var(--s-2); }
   .box.retino { padding: var(--s-3) var(--s-4); border-radius: var(--r-grande); }
   .impostazioni { display: grid; gap: var(--s-6); }
+  .proposta { color: var(--inchiostro-2); font-style: italic; }
+  .proposta .eti { font-style: normal; font-size: 10px; display: block; }
   .disegna { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin-top: var(--s-2); }
   .avviso { color: var(--spot-testo); font-size: var(--t-sm); }
   .appuntamenti { display: grid; gap: var(--s-3); }

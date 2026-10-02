@@ -6,6 +6,7 @@
   import Suggerimenti from '../components/Suggerimenti.svelte';
   import Etichette from '../components/Etichette.svelte';
   import Condivisione from '../components/Condivisione.svelte';
+  import Assegnazioni from '../components/Assegnazioni.svelte';
   import { RAPIDI, suggerimentiRuoli } from '../lib/famiglia.js';
   import { SEZIONI } from '../lib/anagrafica.js';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
@@ -220,6 +221,7 @@
             <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'individuale', ragazzoId: id })}>Seduta individuale</button>
             <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'genitori', ragazzoId: id })}>Incontro genitori</button>
           </div>
+          {#if tutto && (gestisce || r.programmi?.length)}<Assegnazioni o={r} tipo="individuale" {gestisce} alCambio={(x) => campo('programmi', x)} />{/if}
           {#if r.noteStabili && scheda !== 'anagrafica'}
             <div class="box retino">
               <h3 class="eti">Da tenere a mente</h3>
