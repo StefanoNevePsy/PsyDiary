@@ -5,7 +5,7 @@
   // qualche parte, propone di aggiornare quello.
   import { onMount } from 'svelte';
   import { T, M } from '../lib/parole.svelte.js';
-  import { dati, nomeCompleto, puoGestire, condiviso, ragazziAttivi } from '../lib/dati.svelte.js';
+  import { dati, nomeCompleto, puoGestire, condiviso, ragazziAttivi, gruppiVisibili, tipoGruppo } from '../lib/dati.svelte.js';
   import { rotta, vai } from '../lib/rotta.svelte.js';
   import { REALE } from '../lib/centro/config.js';
   import { sync } from '../lib/centro/sync.svelte.js';
@@ -35,15 +35,20 @@
     ricevi(richiesta).then((x) => {
       if (!x) { stato = ''; return; }
       g = x;
-      const gia = doveAllegato(x.id).filter((r) => condiviso(r.id));
-      dove = gia[0]?.id || '';
+      const valide = new Set(candidati.map((c) => c.valore));
+      dove = doveAllegato(x.id).find((k) => valide.has(k)) || '';
       stato = 'scelta';
       queueMicrotask(() => dialogo?.showModal());
     });
   });
 
-  const candidati = $derived(ragazziAttivi().filter((r) => condiviso(r.id)).sort((a, b) => nomeCompleto(a).localeCompare(nomeCompleto(b), 'it')));
-  const giaIn = $derived(g ? doveAllegato(g.id).map((r) => r.id) : []);
+  // dove si può allegare: anagrafiche dei pazienti, classi e gruppi
+  const candidati = $derived([
+    ...ragazziAttivi().filter((r) => condiviso(r.id)).map((r) => ({ valore: 'r:' + r.id, etichetta: nomeCompleto(r), gruppo: M('tanti') })),
+    ...gruppiVisibili().filter((x) => !x.archiviato && tipoGruppo(x) === 'classe').map((x) => ({ valore: 'g:' + x.id, etichetta: x.nome, gruppo: 'Classi' })),
+    ...gruppiVisibili().filter((x) => !x.archiviato && tipoGruppo(x) !== 'classe').map((x) => ({ valore: 'g:' + x.id, etichetta: x.nome, gruppo: 'Gruppi' })),
+  ]);
+  const giaIn = $derived(g ? doveAllegato(g.id) : []);
 
   async function allega() {
     if (!dove) return;
@@ -52,7 +57,7 @@
       await allegaA(dove, g);
       conferma(richiesta, true);
       dialogo?.close();
-      vai('ragazzo/' + dove + '?scheda=1');
+      vai(dove.startsWith('g:') ? 'gruppo/' + dove.slice(2) + '?impostazioni=1' : 'ragazzo/' + dove.slice(2) + '?scheda=1');
     } catch (x) { errore = x.message; stato = 'scelta'; }
   }
   function rinuncia() {
@@ -70,9 +75,9 @@
       <p class="avviso">Gli allegati dell'anagrafica li gestiscono gli operatori: chiedi a loro di allegarlo.</p>
       <div class="bottoni"><button type="button" class="btn pieno" onclick={rinuncia}>Chiudi</button></div>
     {:else}
-      <Scelta bind:value={dove} etichetta={'Allega all\'anagrafica di'} vuota={'Scegli ' + T('un') + '…'}
-        opzioni={candidati.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) + (giaIn.includes(r.id) ? ' · già allegato: si aggiorna' : '') }))} />
-      {#if giaIn.length && dove && giaIn.includes(dove)}<p class="sotto piccolo">Lo stesso genogramma è già nell'anagrafica: viene sostituito con questa versione.</p>{/if}
+      <Scelta bind:value={dove} etichetta="Allega a" vuota={'Scegli ' + T('un') + ', una classe o un gruppo…'}
+        opzioni={candidati.map((c) => ({ ...c, etichetta: c.etichetta + (giaIn.includes(c.valore) ? ' · già allegato: si aggiorna' : '') }))} />
+      {#if giaIn.length && dove && giaIn.includes(dove)}<p class="sotto piccolo">Lo stesso genogramma è già lì: viene sostituito con questa versione.</p>{/if}
       <p class="sotto piccolo">Viene cifrato e sincronizzato come gli altri allegati.</p>
       {#if errore}<p class="avviso">{errore}</p>{/if}
       <div class="bottoni">

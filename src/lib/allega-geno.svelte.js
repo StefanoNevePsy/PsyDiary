@@ -15,15 +15,21 @@ export async function conGenogramma(elenco, g) {
   return nuovo;
 }
 
-/** Dove è già allegato il genogramma con questo id (di GenoGram Creator). */
+const ha = (o, idGeno) => (o.allegati || []).some((a) => a.genogramma?.id === idGeno);
+/**
+ * Dove è già allegato il genogramma con questo id (di GenoGram Creator):
+ * chiavi "r:<id>" (pazienti) e "g:<id>" (gruppi e classi).
+ */
 export function doveAllegato(idGeno) {
-  return dati.ragazzi.filter((r) => (r.allegati || []).some((a) => a.genogramma?.id === idGeno));
+  return [...dati.ragazzi.filter((r) => ha(r, idGeno)).map((r) => 'r:' + r.id), ...dati.gruppi.filter((g) => ha(g, idGeno)).map((g) => 'g:' + g.id)];
 }
 
-/** Allega (o aggiorna) il genogramma nell'anagrafica del paziente e salva. */
-export async function allegaA(rid, g) {
-  const r = dati.ragazzi.find((x) => x.id === rid);
-  if (!r) throw new Error('Paziente non trovato.');
-  const allegati = await conGenogramma(r.allegati, g);
-  await salva('ragazzi', { ...$state.snapshot(r), allegati });
+/** Allega (o aggiorna) il genogramma al paziente ("r:<id>") o al gruppo ("g:<id>") e salva. */
+export async function allegaA(chiave, g) {
+  const [k, id] = [chiave.slice(0, 1), chiave.slice(2)];
+  const tabella = k === 'g' ? 'gruppi' : 'ragazzi';
+  const o = dati[tabella].find((x) => x.id === id);
+  if (!o) throw new Error(k === 'g' ? 'Gruppo non trovato.' : 'Paziente non trovato.');
+  const allegati = await conGenogramma(o.allegati, g);
+  await salva(tabella, { ...$state.snapshot(o), allegati });
 }

@@ -22,6 +22,11 @@
   import { scegliImmagine, togliImmagine } from '../lib/immagini.js';
   import Scelta from '../components/Scelta.svelte';
   import Condivisione from '../components/Condivisione.svelte';
+  import Alunni from '../components/Alunni.svelte';
+  import Allegati from '../components/Allegati.svelte';
+  import { conteggio, genogrammaDiClasse } from '../lib/classe.js';
+  import { conGenogramma } from '../lib/allega-geno.svelte.js';
+  import { apriInGenoGram } from '../lib/ponte-geno.js';
   import { tipoGruppo, TIPI_GRUPPO, accessoGruppo } from '../lib/dati.svelte.js';
 
   let { id } = $props();
@@ -37,6 +42,18 @@
   const gestisce = $derived(puoGestire());
   const classe = $derived(tipoGruppo(g) === 'classe');
   const TIPI_OPZ = Object.entries(TIPI_GRUPPO).map(([valore, t]) => ({ valore, etichetta: t.nome }));
+  // il genogramma delle relazioni in classe: si parte dagli alunni, in GenoGram Creator
+  const genoClasse = $derived((g?.allegati || []).find((a) => a.genogramma?.id === 'classe_' + id) || null);
+  let erroreGeno = $state('');
+  async function disegna() {
+    erroreGeno = '';
+    const geno = genogrammaDiClasse(g);
+    try {
+      campo('allegati', await conGenogramma(g.allegati, geno));
+      const ok = await apriInGenoGram(geno);
+      if (!ok) erroreGeno = 'GenoGram Creator non ha risposto: riprova da "Modifica in GenoGram Creator" sul genogramma.';
+    } catch (e) { erroreGeno = e.message; }
+  }
 
   let timer = null;
   function campo(k, v) {
@@ -116,7 +133,7 @@
           {#if g.copertina}<Immagine id={g.copertina} forma="foglio" seme={g.id} alt={'Immagine del ' + g.nome} onclick={() => (ui.visore = g.copertina)} />{/if}
           {#if gestisce}
             <div class="cop-azioni no-stampa">
-              <button class="btn piccolo" onclick={copertina}><Icona nome="matita" /> {g.copertina ? 'Cambia immagine' : "Aggiungi un'immagine al gruppo"}</button>
+              <button class="btn piccolo" onclick={copertina}><Icona nome="matita" /> {g.copertina ? 'Cambia immagine' : (classe ? "Aggiungi un'immagine alla classe" : "Aggiungi un'immagine al gruppo")}</button>
               {#if g.copertina}<button class="btn piccolo" onclick={togliCopertina} aria-label="Togli l'immagine"><Icona nome="chiudi" /></button>{/if}
             </div>
           {/if}
@@ -126,6 +143,7 @@
       <Condivisione {g} />
       {#if g.tema}<p class="tema mano">{g.tema}</p>{/if}
       <p class="membri">
+        {#if classe && g.alunni?.length}<span class="sotto">{conteggio(g.alunni)}</span>{/if}
         {#each membri as rid (rid)}<a href={'#/ragazzo/' + rid}>{nomeBreve(ragazzo(rid))}</a>{/each}
       </p>
       <div class="schede no-stampa" role="tablist">
@@ -164,12 +182,23 @@
                 <label class="campo"><span>Tema</span><input class="input" value={g.tema || ''} oninput={(e) => campo('tema', e.currentTarget.value)} /></label>
               </div>
             </fieldset>
+            {#if classe}<Alunni alunni={g.alunni || []} {gestisce} alCambio={(x) => campo('alunni', x)} />{/if}
+            <section class="allegati-gruppo">
+              <Allegati elenco={g.allegati || []} {gestisce} alCambio={(x) => campo('allegati', x)} />
+              {#if classe && gestisce && !genoClasse}
+                <div class="disegna">
+                  <button type="button" class="btn piccolo" onclick={disegna} disabled={!g.alunni?.length}><Icona nome="apri" /> Disegna le relazioni in GenoGram Creator</button>
+                  <span class="sotto piccolo">{g.alunni?.length ? 'Apre un genogramma con gli alunni già disposti: tracci le relazioni e poi «Invia a PsyDiary».' : 'Prima aggiungi gli alunni.'}</span>
+                </div>
+              {/if}
+              {#if erroreGeno}<p class="avviso">{erroreGeno}</p>{/if}
+            </section>
             <section class="appuntamenti">
               <h3 class="eti titolo-sez">Quando si incontra</h3>
               <ElencoSerie gruppoId={id} />
             </section>
             <fieldset disabled={!gestisce}>
-              <legend class="eti">{classe ? 'Alunni' : 'Membri'}</legend>
+              <legend class="eti">{classe ? M('tanti') + ' seguiti in questa classe' : 'Membri'}</legend>
               <ul class="elenco-membri">
                 {#each (g.membri || []).filter((m) => !m.al || m.al >= O) as m (m.ragazzoId)}
                   <li><a class="display" href={'#/ragazzo/' + m.ragazzoId}>{nomeCompleto(ragazzo(m.ragazzoId))}</a>
@@ -209,7 +238,7 @@
         <div class="box retino">
           <h3 class="eti">Obiettivi</h3>
           <Editor testo={g.obiettivi || ''} compatto etichetta="Obiettivi del gruppo" soloLettura={!gestisce}
-            segnaposto="Su cosa lavora il gruppo" alCambio={(t) => campo('obiettivi', t)} />
+            segnaposto={classe ? 'Su cosa lavora la classe' : 'Su cosa lavora il gruppo'} alCambio={(t) => campo('obiettivi', t)} />
         </div>
         <div class="box"><ElencoSospesi tipo="gruppo" {id} /></div>
       </aside>
@@ -251,6 +280,8 @@
   .box { display: grid; gap: var(--s-2); }
   .box.retino { padding: var(--s-3) var(--s-4); border-radius: var(--r-grande); }
   .impostazioni { display: grid; gap: var(--s-6); }
+  .disegna { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin-top: var(--s-2); }
+  .avviso { color: var(--spot-testo); font-size: var(--t-sm); }
   .appuntamenti { display: grid; gap: var(--s-3); }
   .titolo-sez { padding-bottom: 4px; border-bottom: 1px solid var(--matita); }
   fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--s-4); }
