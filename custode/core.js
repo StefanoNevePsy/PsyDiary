@@ -143,7 +143,7 @@ var PD = (function () {
     function utenteDa(identita) {
       var email = String(identita.email || '').toLowerCase();
       var voce = leggiAccessi().utenti[email];
-      if (email && email === proprietario()) {
+      if (email && email === String(proprietario() || '').trim().toLowerCase()) {
         // chi ospita il custode è sempre operatore: nessuno può chiuderlo fuori
         return { email: email, nome: (voce && voce.nome) || identita.nome || email, ruolo: 'admin', ragazzi: [], proprietario: true };
       }

@@ -90,7 +90,8 @@ export async function carica() {
     dati.persone = structuredClone(PERSONE_INIZIALI);
   }
   try {
-    const u = localStorage.getItem('psy:utente'); if (u) sessione.utenteId = u;
+    // (prima ci finiva anche l'account Google, in JSON: non è una persona della demo)
+    const u = localStorage.getItem('psy:utente'); if (u && !u.startsWith('{')) sessione.utenteId = u;
     const t = localStorage.getItem('psy:tema'); if (t) sessione.tema = t;
   } catch (e) { /* niente */ }
   dati.pronto = true;

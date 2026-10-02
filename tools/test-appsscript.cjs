@@ -64,13 +64,14 @@ const ctx = {
     return { getResponseCode: () => (info ? 200 : 400), getContentText: () => JSON.stringify(info || {}) };
   } },
   Utilities: { DigestAlgorithm: { SHA_256: 'x' }, computeDigest: (a, s) => conSegno(crypto.createHash('sha256').update(String(s)).digest()) },
-  Session: { getEffectiveUser: () => ({ getEmail: () => 'stefano@aula.it' }) },
+  Session: { getEffectiveUser: () => ({ getEmail: () => emailSessione }) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ _t: t, setMimeType() { return this; } }) },
   Logger: { log: () => {} },
 };
 execFileSync(process.execPath, [path.join(__dirname, 'componi-custode.cjs')], { env: { ...process.env, GOOGLE_CLIENT_ID: CLIENT_ID }, stdio: 'ignore' });
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../custode-pronto/custode-completo.gs'), 'utf8'), ctx);
+let emailSessione = 'Stefano@Aula.it';
 const post = (o) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(o) } })._t);
 const PAD = '#' + 'x'.repeat(40);
 const chiama = (email, azione, dati) => post({ v: 1, token: 'tok-' + email + PAD, azione, dati });
@@ -100,6 +101,14 @@ ok(dati && dati._file.some((x) => x._nome === 'aula.json') && dati._cartelle.fin
 r = chiama('stefano@aula.it', 'sync', { cursori: {} });
 ok(r.dati.voci.length === 2, 'si rileggono');
 ok(chiama('stefano@aula.it', 'immagine.carica', { id: 'i12345', ambito: 'aula', busta: b }).ok && chiama('stefano@aula.it', 'immagine.leggi', { id: 'i12345', ambito: 'aula' }).dati.id === 'i12345', 'immagini su Drive');
+
+// Google a volte non dice l'email del proprietario: resta operatore lo stesso
+ok(prop.PROPRIETARIO === 'stefano@aula.it', 'il proprietario si ricorda nelle proprietà dello script (minuscolo)');
+emailSessione = '';
+vm.runInContext('_custode = null;', ctx);
+const io1 = chiama('stefano@aula.it', 'io');
+ok(io1.ok && io1.dati.ruolo === 'admin', 'anche quando Google non dice chi è il proprietario, resta operatore');
+emailSessione = 'stefano@aula.it';
 
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);

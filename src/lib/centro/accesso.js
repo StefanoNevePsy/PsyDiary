@@ -2,7 +2,8 @@
 // posta o contatti di chi entra. Il custode lo verifica a ogni richiesta.
 import { CONFIG } from './config.js';
 
-const K_TOKEN = 'psy:token', K_UTENTE = 'psy:utente';
+// 'psy:utente' è anche la persona scelta nella demo: l'account ha una chiave sua
+const K_TOKEN = 'psy:token', K_UTENTE = 'psy:account', K_VECCHIA = 'psy:utente';
 let token = null, scadenza = 0, utente = null, gis = null, attesa = null;
 const ascoltatori = [];
 export class ErroreAccesso extends Error { constructor(m) { super(m); this.accesso = true; } }
@@ -49,7 +50,11 @@ export function inizia() {
   try {
     const t = sessionStorage.getItem(K_TOKEN);
     if (t && !t.startsWith('dev:')) imposta(t);
-    if (!utente) { const u = JSON.parse(localStorage.getItem(K_UTENTE) || 'null'); if (u?.email) utente = u; }
+    if (!utente) {
+      const leggi = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+      const u = leggi(K_UTENTE) || leggi(K_VECCHIA);
+      if (u?.email) { utente = u; localStorage.setItem(K_UTENTE, JSON.stringify(u)); }
+    }
     if (CONFIG.dev) { token = sessionStorage.getItem(K_TOKEN + ':dev') || localStorage.getItem(K_TOKEN + ':dev'); scadenza = token ? Infinity : 0; }
   } catch (e) { /* ok */ }
   if (!CONFIG.dev && CONFIG.googleClientId) caricaGIS().catch(() => { /* offline */ });
@@ -90,7 +95,7 @@ export function invalida() {
 }
 export function esci() {
   invalida(); utente = null;
-  try { localStorage.removeItem(K_UTENTE); localStorage.removeItem(K_TOKEN + ':dev'); } catch (e) { /* ok */ }
+  try { localStorage.removeItem(K_UTENTE); localStorage.removeItem(K_TOKEN + ':dev'); if ((localStorage.getItem(K_VECCHIA) || '').startsWith('{')) localStorage.removeItem(K_VECCHIA); } catch (e) { /* ok */ }
   window.google?.accounts?.id?.disableAutoSelect();
   avvisa();
 }

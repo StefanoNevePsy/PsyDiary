@@ -54,12 +54,24 @@ function chiaveCache_(k) {
     .map(function (b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join('');
 }
 
+// Chi ospita il custode, sempre operatore. Lo si legge da Google una volta e lo
+// si ricorda nelle proprietà dello script: se Google per un attimo non lo dice,
+// il proprietario non viene scambiato per uno sconosciuto.
+function proprietario_() {
+  var p = impostazione_('PROPRIETARIO');
+  if (p) return String(p).trim().toLowerCase();
+  var e = '';
+  try { e = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase(); } catch (x) { e = ''; }
+  if (e) { try { PROP.setProperty('PROPRIETARIO', e); } catch (x) { /* si riprova la prossima volta */ } }
+  return e;
+}
+
 function custode_() {
   if (_custode) return _custode;
   _custode = PD.creaCustode({
     archivio: archivioDrive_(),
     verificaToken: verificaToken_,
-    proprietario: function () { return impostazione_('PROPRIETARIO') || Session.getEffectiveUser().getEmail(); },
+    proprietario: proprietario_,
     ora: function () { return new Date().toISOString(); },
     // Risposte alle scritture gia' fatte, per i reinvii dell'app (10 minuti)
     ricordo: {
@@ -184,7 +196,7 @@ function configura() {
   });
   var clientId = impostazione_('GOOGLE_CLIENT_ID');
   Logger.log('Cartella dei dati: ' + radice.getName() + ' (' + radice.getUrl() + ')');
-  Logger.log('Proprietario, sempre operatore: ' + (impostazione_('PROPRIETARIO') || Session.getEffectiveUser().getEmail()));
+  Logger.log('Proprietario, sempre operatore: ' + proprietario_());
   Logger.log('Client ID di Google: ' + (clientId || 'MANCA: imposta la proprietà GOOGLE_CLIENT_ID o la variabile di GitHub'));
   // Una chiamata esterna, così l'autorizzazione copre anche la verifica degli accessi
   UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo', { muteHttpExceptions: true });

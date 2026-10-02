@@ -293,13 +293,33 @@ export function sincronizza() {
   })();
   return incorso;
 }
+const NEGATI = ['non-autorizzato', 'disattivato', 'scaduto'];
 function gestisciErrore(e) {
   console.warn('sincronizzazione', e);
   if (e?.accesso) { sync.fase = 'fuori'; sync.errore = e.message; }
-  else if (e?.custode && ['non-autorizzato', 'disattivato', 'scaduto'].includes(e.codice)) {
+  else if (e?.custode && NEGATI.includes(e.codice)) {
     sync.negato = e.message; sync.fase = 'fuori';
-    cancellaDatiAula().catch(console.error);
+    confermaNegato(e.codice);
   } else sync.errore = e?.message || String(e);
+}
+
+// Una risposta "non abilitato" non basta per cancellare i dati dell'aula da
+// questo dispositivo: si richiede al custode chi sei e si cancella solo se lo
+// conferma. Se invece risponde normalmente (era un intoppo) si riparte.
+let verifica = null, pulizia = null;
+function confermaNegato(codice) {
+  if (verifica) return verifica;
+  verifica = (async () => {
+    await attendi(2500);
+    let ancora = false;
+    try { await chiama('io'); } catch (e) { ancora = e?.custode && NEGATI.includes(e.codice); if (!ancora) throw e; }
+    if (ancora) {
+      pulizia = cancellaDatiAula().finally(() => { pulizia = null; });
+      await pulizia;
+      sync.fase = 'fuori';
+    } else await prepara();
+  })().catch((e) => console.warn('verifica dell\'accesso', codice, e)).finally(() => { verifica = null; });
+  return verifica;
 }
 
 /** Accesso tolto: niente dati dell'aula su questo dispositivo. */
@@ -333,6 +353,8 @@ async function ottieniChiave() {
   return true;
 }
 function aggiornaFase() {
+  // senza sapere chi sei non si entra (mai un "ospite" con l'app aperta)
+  if (!sync.io || !centro.io) { sync.fase = 'fuori'; return; }
   sync.fase = chiave() ? 'pronto' : eOperatore() ? 'chiave' : 'attesa';
 }
 /** Gli operatori consegnano la chiave ai dispositivi delle persone abilitate che la aspettano. */
@@ -353,6 +375,9 @@ async function consegnaChiavi() {
 }
 
 async function prepara() {
+  // se è in corso la cancellazione dei dati (accesso tolto) si aspetta che
+  // finisca, così non svuota il profilo appena ricaricato
+  if (pulizia) await pulizia.catch(() => {});
   sync.io = await chiama('io');
   centro.io = sync.io;
   await scriviMeta('io', sync.io);
