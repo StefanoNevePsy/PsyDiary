@@ -25,6 +25,7 @@
   import Nota from './views/Nota.svelte';
   import Impostazioni from './views/Impostazioni.svelte';
   import Ricorrenze from './views/Ricorrenze.svelte';
+  import RiceviGenogramma from './components/RiceviGenogramma.svelte';
 
   let errore = $state('');
 
@@ -53,6 +54,7 @@
   }
 </script>
 
+<RiceviGenogramma />
 {#if REALE && dati.pronto && sync.fase !== 'pronto'}
   <Ingresso />
 {:else}

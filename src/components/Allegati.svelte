@@ -4,6 +4,8 @@
   // sincronizzati come le foto; li vede solo chi vede l'anagrafica.
   import { salvaAllegato, urlAllegato, urlImmagine, togliImmagine, testoAllegato } from '../lib/immagini.js';
   import { leggiGenogrammi } from '../lib/genogramma.js';
+  import { conGenogramma } from '../lib/allega-geno.svelte.js';
+  import { chiediAGenoGram, apriInGenoGram } from '../lib/ponte-geno.js';
   import Genogramma from './geno/Genogramma.svelte';
   import { breveAnno } from '../lib/date.js';
   import Icona from './Icona.svelte';
@@ -32,13 +34,34 @@
   async function allegaGenogrammi(lista) {
     let nuovo = [...(elenco || [])];
     for (const g of lista) {
-      const file = new File([JSON.stringify({ id: g.id, title: g.titolo, lastModified: g.modificato, data: g.data })], g.titolo + '.genogramma.json', { type: 'application/json' });
-      const a = { ...(await salvaAllegato(file)), nome: g.titolo, genogramma: { id: g.id, titolo: g.titolo, modificato: g.modificato } };
-      // lo stesso genogramma già allegato: si aggiorna al posto suo
-      const k = nuovo.findIndex((x) => x.genogramma?.id === g.id);
-      if (k >= 0) { togliImmagine(nuovo[k].id); dati.delete(nuovo[k].id); nuovo[k] = { ...a, nome: nuovo[k].nome }; } else nuovo.push(a);
+      // lo stesso genogramma già allegato si aggiorna al posto suo
+      const vecchio = nuovo.find((x) => x.genogramma?.id === g.id);
+      if (vecchio) dati.delete(vecchio.id);
+      nuovo = await conGenogramma(nuovo, g);
     }
     alCambio(nuovo);
+  }
+
+  // --- collegamento con GenoGram Creator (finestra accanto, stesso dispositivo) ---
+  let ponte = $state('');            // messaggio mentre si aspetta GenoGram Creator
+  async function daGenoGram(a = null) {
+    errore = ''; ponte = a ? `Aggiorno «${a.nome}» da GenoGram Creator…` : 'Scegli il genogramma in GenoGram Creator…';
+    try {
+      const g = await chiediAGenoGram(a ? { modo: 'aggiorna', id: a.genogramma.id } : { modo: 'scegli' });
+      if (g) { lavoro = true; await allegaGenogrammi([g]); }
+    } catch (x) { errore = x.message; }
+    ponte = ''; lavoro = false;
+  }
+  async function inGenoGram(a) {
+    errore = '';
+    const g = await datiGeno(a);
+    if (!g) { errore = `«${a.nome}» non si riesce a leggere.`; return; }
+    try {
+      ponte = 'Apro il genogramma in GenoGram Creator…';
+      const ok = await apriInGenoGram({ ...g, id: a.genogramma.id });
+      if (!ok) errore = 'GenoGram Creator non ha risposto: riprova.';
+    } catch (x) { errore = x.message; }
+    ponte = '';
   }
   const peso = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
   const estensione = (a) => (String(a.nome).split('.').pop() || '').slice(0, 4).toUpperCase();
@@ -123,6 +146,10 @@
             <span class="sotto piccolo">{eGeno(a) ? 'genogramma' : a.peso ? peso(a.peso) : ''}{a.aggiunto ? ' · ' + breveAnno(a.aggiunto) : ''}</span>
           </div>
           <div class="azioni no-stampa">
+            {#if eGeno(a)}
+              <button type="button" class="btn nudo piccolo" onclick={() => inGenoGram(a)} aria-label={'Modifica ' + a.nome + ' in GenoGram Creator'} title="Modifica in GenoGram Creator"><Icona nome="apri" /></button>
+              {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => daGenoGram(a)} aria-label={'Aggiorna ' + a.nome + ' da GenoGram Creator'} title="Aggiorna da GenoGram Creator" disabled={!!ponte}><Icona nome="aggiorna" /></button>{/if}
+            {/if}
             <button type="button" class="btn nudo piccolo" onclick={() => scarica(a)} aria-label={'Scarica ' + a.nome} title="Scarica"><Icona nome="esporta" /></button>
             {#if gestisce}
               <button type="button" class="btn nudo piccolo" onclick={() => rinomina(a)} aria-label={'Rinomina ' + a.nome} title="Rinomina"><Icona nome="matita" /></button>
@@ -135,12 +162,16 @@
   {:else}
     <p class="sotto piccolo">Genogrammi, relazioni, certificazioni: immagini (anche SVG), PDF e documenti fino a 5 MB. Un genogramma esportato da GenoGram Creator (file .json, anche il backup) viene ridisegnato qui, nel tema.</p>
   {/if}
+  {#if ponte}<p class="sotto piccolo ponte" aria-live="polite"><span class="mano">{ponte}</span></p>{/if}
   {#if errore}<p class="avviso">{errore}</p>{/if}
   {#if gestisce}
-    <label class="btn nudo piccolo aggiungi no-stampa" class:lavoro>
-      <Icona nome="piu" /> {lavoro ? 'Preparo…' : 'Allega un file'}
-      <input bind:this={scelta} type="file" multiple accept="image/*,.svg,application/pdf,.pdf,.doc,.docx,.odt,.txt,.json,application/json" onchange={aggiungi} disabled={lavoro} />
-    </label>
+    <div class="aggiunte no-stampa">
+      <label class="btn nudo piccolo aggiungi" class:lavoro>
+        <Icona nome="piu" /> {lavoro ? 'Preparo…' : 'Allega un file'}
+        <input bind:this={scelta} type="file" multiple accept="image/*,.svg,application/pdf,.pdf,.doc,.docx,.odt,.txt,.json,application/json" onchange={aggiungi} disabled={lavoro} />
+      </label>
+      <button type="button" class="btn nudo piccolo" onclick={() => daGenoGram()} disabled={lavoro || !!ponte}><Icona nome="apri" /> Prendi da GenoGram Creator</button>
+    </div>
   {/if}
 </section>
 
@@ -180,7 +211,9 @@
   .nome { all: unset; cursor: pointer; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nome:focus-visible { outline: 2px solid var(--spot); outline-offset: 2px; }
   .azioni { display: flex; justify-content: flex-end; padding: 0 var(--s-1) var(--s-1); }
+  .aggiunte { display: flex; flex-wrap: wrap; gap: var(--s-2); }
   .aggiungi { position: relative; width: max-content; cursor: pointer; }
+  .ponte .mano { font-size: 17px; }
   .aggiungi input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .aggiungi.lavoro { opacity: 0.6; }
   .avviso { color: var(--spot-testo); font-size: var(--t-sm); }
