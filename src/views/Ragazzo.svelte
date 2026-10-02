@@ -3,6 +3,8 @@
   import Scelta from '../components/Scelta.svelte';
   import Allegati from '../components/Allegati.svelte';
   import InBreve from '../components/InBreve.svelte';
+  import Suggerimenti from '../components/Suggerimenti.svelte';
+  import { RAPIDI, suggerimentiRuoli } from '../lib/famiglia.js';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
   // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
   import {
@@ -47,6 +49,12 @@
     timer = setTimeout(() => salva('ragazzi', $state.snapshot(r)), 400);
   }
   function familiare(i, k, v) { const g = [...(r.genitori || [])]; g[i] = { ...g[i], [k]: v }; campo('genitori', g); }
+  const RUOLI_SUGG = suggerimentiRuoli();
+  function nuovoFamiliare(relazione = '') {
+    campo('genitori', [...(r.genitori || []), { nome: '', relazione }]);
+    // il cursore va sul nome del nuovo familiare
+    queueMicrotask(() => [...document.querySelectorAll('.familiare input[data-nome]')].at(-1)?.focus());
+  }
   function togliFamiliare(i) { campo('genitori', (r.genitori || []).filter((_, j) => j !== i)); }
   const GIORNI = [['', 'nessuna'], [1, 'lunedì'], [2, 'martedì'], [3, 'mercoledì'], [4, 'giovedì'], [5, 'venerdì'], [6, 'sabato']];
   const SI_NO = [['', '—'], ['sì', 'sì'], ['no', 'no']];
@@ -170,15 +178,21 @@
               {#each r.genitori || [] as gen, i (i)}
                 <div class="familiare">
                   <div class="griglia quattro">
-                    <label class="campo"><span>Nome</span><input class="input" value={gen.nome || ''} oninput={(e) => familiare(i, 'nome', e.currentTarget.value)} /></label>
-                    <label class="campo"><span>Relazione</span><input class="input" value={gen.relazione || ''} oninput={(e) => familiare(i, 'relazione', e.currentTarget.value)} /></label>
+                    <label class="campo"><span>Nome</span><input class="input" data-nome value={gen.nome || ''} oninput={(e) => familiare(i, 'nome', e.currentTarget.value)} /></label>
+                    <label class="campo"><span>Relazione</span><Suggerimenti value={gen.relazione || ''} suggerimenti={RUOLI_SUGG} etichetta="Relazione" placeholder="madre, nonno paterno…" disabled={!gestisce} oninput={(v) => familiare(i, 'relazione', v)} /></label>
                     <label class="campo"><span>Telefono</span><input class="input" type="tel" value={gen.telefono || ''} oninput={(e) => familiare(i, 'telefono', e.currentTarget.value)} /></label>
                     <label class="campo"><span>Email</span><input class="input" type="email" value={gen.email || ''} oninput={(e) => familiare(i, 'email', e.currentTarget.value)} /></label>
                   </div>
                   {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => togliFamiliare(i)} aria-label={'Togli ' + (gen.nome || 'familiare')}><Icona nome="chiudi" /></button>{/if}
                 </div>
               {/each}
-              {#if gestisce}<button type="button" class="btn nudo piccolo aggiungi" onclick={() => campo('genitori', [...(r.genitori || []), { nome: '', relazione: '' }])}><Icona nome="piu" /> Aggiungi un familiare</button>{/if}
+              {#if gestisce}
+                <div class="rapidi" role="group" aria-label="Aggiungi un familiare">
+                  <span class="sotto piccolo">Aggiungi:</span>
+                  {#each RAPIDI as ruolo (ruolo)}<button type="button" class="chip" onclick={() => nuovoFamiliare(ruolo)}><Icona nome="piu" />{ruolo}</button>{/each}
+                  <button type="button" class="chip" onclick={() => nuovoFamiliare()}><Icona nome="piu" />altro…</button>
+                </div>
+              {/if}
               <label class="campo"><span>Situazione familiare</span>
                 <textarea class="input" rows="2" value={r.noteFamiglia || ''} placeholder="Con chi vive, fratelli, separazioni, affidi" oninput={(e) => campo('noteFamiglia', e.currentTarget.value)}></textarea></label>
             </fieldset>
@@ -294,6 +308,10 @@
   fieldset:disabled .input { border-bottom-style: dotted; }
   .familiare { display: flex; gap: var(--s-3); align-items: end; padding-bottom: var(--s-3); border-bottom: 1px dashed var(--matita); }
   .familiare .griglia { flex: 1; }
+  .rapidi { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: var(--s-2) 0 var(--s-3); }
+  .chip { display: inline-flex; align-items: center; gap: 3px; padding: 4px 10px 4px 7px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; color: var(--inchiostro); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+  .chip :global(.ico) { width: 13px; height: 13px; }
+  .chip:hover { background: var(--carta-3); border-color: var(--inchiostro-2); }
   .aggiungi { justify-self: start; }
   .avviso { display: flex; gap: var(--s-2); align-items: center; font-size: var(--t-sm); }
   .stabili { display: grid; gap: var(--s-2); }
