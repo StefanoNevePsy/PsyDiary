@@ -199,6 +199,21 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   ok(el2.gruppi.gcla3b && el2.gruppi.gcla3b.tutti && el2.gruppi.gcla3b.proprietario === 'stefano@aula.it', 'Elena sa che è di Stefano, aperta a tutti');
 }
 
+// esportazione completa: solo chi ospita il custode, tutto, e resta nel registro
+{
+  ok(chiama('elena@aula.it', 'esporta.inizia').errore === 'vietato', 'un\'operatrice non fa l\'esportazione completa');
+  const ini = chiama('stefano@aula.it', 'esporta.inizia');
+  ok(ini.ok && ini.dati.ambiti.includes('aula') && ini.dati.ambiti.some((a) => a.startsWith('g:')) && ini.dati.ambiti.some((a) => a.startsWith('r:')), 'Stefano riceve l\'elenco di tutti gli ambiti');
+  const priv = ini.dati.ambiti.filter((a) => a !== 'aula');
+  const v = chiama('stefano@aula.it', 'esporta.ambiti', { ambiti: ini.dati.ambiti.slice(0, 40) });
+  ok(v.ok && v.dati.voci.length > 0 && v.dati.voci.every((x) => x.busta && !x.eliminato), 'le voci arrivano cifrate, senza le lapidi');
+  ok(chiama('elena@aula.it', 'esporta.ambiti', { ambiti: priv.slice(0, 1) }).errore === 'vietato', 'le voci degli altri ambiti non le chiede nessun altro');
+  ok(chiama('stefano@aula.it', 'esporta.ambiti', { ambiti: Array(41).fill('aula') }).errore === 'richiesta-non-valida', 'al massimo 40 ambiti per volta');
+  const reg = chiama('elena@aula.it', 'esportazioni.leggi');
+  ok(reg.ok && reg.dati[0].email === 'stefano@aula.it' && reg.dati[0].il, 'l\'esportazione resta nel registro, che Elena vede');
+  ok(chiama('marco@aula.it', 'esportazioni.leggi').errore === 'vietato', 'i tirocinanti no');
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${n - falliti}/${n} superati`);
 process.exit(falliti ? 1 : 0);

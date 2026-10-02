@@ -3,6 +3,7 @@
   import { dati, sessione, io, eAdmin, cambiaUtente, impostaTema, ricominciaDemo } from '../lib/dati.svelte.js';
   import Icona from '../components/Icona.svelte';
   import Accessi from '../components/Accessi.svelte';
+  import EsportaTutto from '../components/EsportaTutto.svelte';
   import AccessiCentro from '../components/centro/AccessiCentro.svelte';
   import { REALE } from '../lib/centro/config.js';
   import { sync, esci, mostraFrase } from '../lib/centro/sync.svelte.js';
@@ -93,6 +94,8 @@
     <button class="btn" onclick={reset}><Icona nome="torna" /> Ricomincia dai dati di prova</button>
   </section>
   {/if}
+
+  {#if eAdmin()}<section class="blocco"><EsportaTutto /></section>{/if}
 
   <section class="blocco">
     <h2 class="eti">Scorciatoie dell'editor</h2>

@@ -507,6 +507,62 @@ export const preparaChiave = C.nuovaConfigurazione;
 export async function elencoDispositivi() { sync.dispositivi = await chiama('dispositivi.elenco'); return sync.dispositivi; }
 export async function togliDispositivo(id) { await chiama('dispositivo.togli', { id }); return elencoDispositivi(); }
 export const leggiAccessi = () => chiama('accessi.leggi');
+
+// ---------------------------------------------------------------------------
+// Esportazione completa (solo chi ospita il custode)
+export const puoEsportareTutto = () => !!sync.io?.proprietario && (sync.io?.funzioni || []).includes('esportazione');
+export const leggiEsportazioni = () => chiama('esportazioni.leggi');
+/** La frase come la mostra PsyDiary (maiuscolo, a gruppi di cinque): è la password dello zip. */
+export const fraseCanonica = (f) => C.normalizzaFrase(f);
+/** La frase è quella della chiave dell'aula? (si controlla qui, il custode non la conosce) */
+export async function verificaFrase(frase) {
+  if (!sync.cfg) return false;
+  try { await C.apriConFrase(frase, sync.cfg); return true; } catch (e) { return false; }
+}
+/**
+ * Tutti i dati dell'aula, di tutti, decifrati sul dispositivo:
+ * { dati: { ragazzi, gruppi, sedute, note, sospesi, serie }, file: Map(id → Blob), mancanti: [id] }.
+ * avanza(fatti, totale, cosa) per la barra di avanzamento.
+ */
+export async function raccogliTutto(avanza = () => {}) {
+  const ini = await chiama('esporta.inizia');
+  const tabelle = { ragazzi: {}, gruppi: {}, sedute: {}, note: {}, sospesi: {}, serie: {} };
+  const ambitoImm = {};
+  const ambiti = ini.ambiti;
+  for (let i = 0; i < ambiti.length; i += 25) {
+    avanza(i, ambiti.length, 'dati');
+    const r = await chiama('esporta.ambiti', { ambiti: ambiti.slice(i, i + 25) });
+    // prima i nomi (ragazzo) poi le schede, così l'unione è completa
+    const voci = [...r.voci].sort((a, b) => (a.tipo === 'scheda') - (b.tipo === 'scheda'));
+    for (const v of voci) {
+      let d;
+      try { d = await apriVoce(v); } catch (e) { console.warn('voce illeggibile', v.id, e); continue; }
+      if (!d) continue;
+      const { tabella, id } = destinazione(v);
+      if (!tabelle[tabella]) continue;
+      tabelle[tabella][id] = applica(v, tabelle[tabella][id] || null, d);
+      for (const im of immaginiDi(d)) ambitoImm[im] = v.ambito;
+    }
+  }
+  const file = new Map(), mancanti = [];
+  const ids = Object.keys(ambitoImm);
+  for (let i = 0; i < ids.length; i++) {
+    avanza(i, ids.length, 'allegati');
+    const id = ids[i], ambito = ambitoImm[id];
+    try {
+      const r = await chiama('esporta.immagine', { id, ambito });
+      const k = chiavi[r.busta.kid];
+      const u8 = await C.decifraByte(k, r.busta, aad(ambito, 'img:' + id));
+      file.set(id, new Blob([u8], { type: tipoDaiByte(u8) }));
+    } catch (e) {
+      // non ancora sul custode (mai partita da un dispositivo): magari c'è qui
+      const f = await fileImmagine(id).catch(() => null);
+      if (f?.blob) file.set(id, f.blob); else mancanti.push(id);
+    }
+  }
+  const dati = Object.fromEntries(Object.entries(tabelle).map(([t, m]) => [t, Object.values(m).filter(Boolean)]));
+  return { dati, file, mancanti, registro: ini.registro };
+}
 export const gestisceCondivisioni = gestisceRiservati;
 export const gestisceCondivisioniGruppi = gestisceGruppi;
 /**

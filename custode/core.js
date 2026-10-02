@@ -47,6 +47,7 @@ var PD = (function () {
     dispositivi: '_config/dispositivi.json',
     stato: '_config/stato.json',
     pazienti: '_config/pazienti.json',
+    esportazioni: '_config/esportazioni.json',
     ambito: function (a) { return a === 'aula' ? 'Dati/aula.json' : (a[0] === 'g' ? 'Dati/gruppi/' : 'Dati/ragazzi/') + a.slice(2) + '.json'; },
     storia: function (a) { return a === 'aula' ? 'Storia/aula.json' : (a[0] === 'g' ? 'Storia/gruppi/' : 'Storia/ragazzi/') + a.slice(2) + '.json'; },
     immagine: function (a, id) { return 'Immagini/' + (a === 'aula' ? 'aula' : a[0] === 'g' ? 'gruppi/' + a.slice(2) : a.slice(2)) + '/' + id + '.json'; },
@@ -202,7 +203,7 @@ var PD = (function () {
     var azioni = {};
     azioni['io'] = function (u) {
       var c = A.leggiJSON(P.cifratura);
-      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, funzioni: ['riservati', 'gruppi-riservati'] };
+      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione'] };
     };
     azioni['cifratura.leggi'] = function () { return A.leggiJSON(P.cifratura); };
     azioni['cifratura.imposta'] = function (u, d) {
@@ -493,6 +494,46 @@ var PD = (function () {
       richiedi(vedeAmbito(u, a));
       var s = A.leggiJSON(P.storia(a));
       return (s && s.voci[id]) || [];
+    };
+
+    // ---- esportazione completa (per passare a un altro sistema) ----
+    // Solo chi ospita il custode: è l'unico che riceve tutto, anche i pazienti
+    // e i gruppi riservati degli altri. Il custode manda le buste così come
+    // sono (cifrate); le apre l'app sul dispositivo. Ogni esportazione resta
+    // nel registro, che vedono tutti gli operatori.
+    function leggiEsportazioni() { return A.leggiJSON(P.esportazioni) || { schema: SCHEMA, esportazioni: [] }; }
+    azioni['esporta.inizia'] = function (u) {
+      richiedi(!!u.proprietario, 'L\'esportazione completa la fa solo chi ospita il custode.');
+      return conLock(function () {
+        var reg = leggiEsportazioni(), stato = leggiStato();
+        var voce = { email: u.email, nome: u.nome, il: amb.ora(), ambiti: Object.keys(stato.ambiti).length };
+        reg.esportazioni.unshift(voce);
+        reg.esportazioni = reg.esportazioni.slice(0, 50);
+        A.scriviJSON(P.esportazioni, reg);
+        return { ambiti: Object.keys(stato.ambiti), registro: voce };
+      });
+    };
+    /** Le voci (cifrate, non eliminate) di alcuni ambiti. dati = { ambiti: [...] } (al massimo 40 per volta) */
+    azioni['esporta.ambiti'] = function (u, d) {
+      richiedi(!!u.proprietario, 'L\'esportazione completa la fa solo chi ospita il custode.');
+      var ambiti = listaV(d.ambiti, 40, 'ambiti').map(function (a) { return idV(a, RE.ambito, 'ambito'); });
+      var voci = [];
+      ambiti.forEach(function (a) {
+        var f = leggiAmbito(a);
+        Object.keys(f.voci).forEach(function (id) { var r = f.voci[id]; if (!r.eliminato && r.busta) voci.push(Object.assign({ ambito: a }, r)); });
+      });
+      return { voci: voci };
+    };
+    azioni['esporta.immagine'] = function (u, d) {
+      richiedi(!!u.proprietario, 'L\'esportazione completa la fa solo chi ospita il custode.');
+      var id = idV(d.id, RE.id, 'id'), a = idV(d.ambito, RE.ambito, 'ambito');
+      var r = A.leggiJSON(P.immagine(a, id));
+      if (!r) throw err('non-trovato', 'Immagine non trovata.');
+      return r;
+    };
+    azioni['esportazioni.leggi'] = function (u) {
+      richiedi(eAdmin(u));
+      return leggiEsportazioni().esportazioni;
     };
 
     // ---- immagini: buste cifrate a parte, lette solo quando servono ----

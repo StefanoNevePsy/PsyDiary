@@ -7,6 +7,7 @@
   import Etichette from '../components/Etichette.svelte';
   import Condivisione from '../components/Condivisione.svelte';
   import { RAPIDI, suggerimentiRuoli } from '../lib/famiglia.js';
+  import { SEZIONI } from '../lib/anagrafica.js';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
   // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
   import {
@@ -59,29 +60,7 @@
   }
   function togliFamiliare(i) { campo('genitori', (r.genitori || []).filter((_, j) => j !== i)); }
   const GIORNI = [['', 'nessuna'], [1, 'lunedì'], [2, 'martedì'], [3, 'mercoledì'], [4, 'giovedì'], [5, 'venerdì'], [6, 'sabato']];
-  const SI_NO = [['', '—'], ['sì', 'sì'], ['no', 'no']];
-  // [chiave, etichetta, tipo, opzioni, larga]
-  const SEZIONI = [
-    { titolo: 'Dati personali', campi: [
-      ['nome', 'Nome'], ['cognome', 'Cognome'], ['nascita', 'Data di nascita', 'date'], ['luogoNascita', 'Luogo di nascita'],
-      ['genere', 'Genere', 'select', [['', '—'], ['F', 'femmina'], ['M', 'maschio'], ['altro', 'altro']]], ['cf', 'Codice fiscale'],
-      ['cittadinanza', 'Cittadinanza'], ['lingue', 'Lingue parlate a casa'],
-      ['indirizzo', 'Indirizzo'], ['comune', 'Comune'], ['telefono', 'Telefono', 'tel'], ['email', 'Email', 'email'],
-    ] },
-    { titolo: 'Scuola', campi: [
-      ['scuola', 'Scuola'], ['classe', 'Classe'], ['insegnante', 'Insegnante di riferimento'],
-      ['certificazioni', 'Certificazioni', 'select', [['', '—'], ['nessuna', 'nessuna'], ['104', 'L. 104 · PEI'], ['dsa', 'DSA · PDP'], ['bes', 'BES']]],
-    ] },
-    { titolo: 'Invio e servizi', campi: [
-      ['invio', 'Inviato da'], ['diagnosi', 'Diagnosi o ipotesi'], ['servizi', 'Altri servizi coinvolti'], ['pediatra', 'Pediatra o medico'],
-      ['motivoInvio', "Motivo dell'invio", 'area', null, true],
-      ['inizio', 'In carico dal', 'date'], ['stato', 'Percorso', 'select', [['attivo', 'in corso'], ['concluso', 'concluso']]],
-    ] },
-    { titolo: 'Consensi', campi: [
-      ['consensoPrivacy', 'Informativa firmata il', 'date'], ['consensoFoto', 'Consenso alle immagini', 'select', SI_NO],
-      ['consensoScuola', 'Consenso a sentire la scuola', 'select', SI_NO],
-    ] },
-  ];
+  // i campi dell'anagrafica: src/lib/anagrafica.js (li usa anche l'esportazione)
   const fotoNo = $derived(r?.consensoFoto === 'no');
   async function cambiaFoto() {
     try {

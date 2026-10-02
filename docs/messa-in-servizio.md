@@ -278,6 +278,27 @@ aggiornato il custode»). Dieci minuti, i dati non si toccano:
 Per non doverlo più fare a mano: imposta `SCRIPT_ID`, `CUSTODE_DEPLOYMENT_ID`
 e `CLASPRC_JSON` (vedi l'inizio del workflow `pubblica.yml`).
 
+## Esportazione completa (per passare a un altro sistema)
+
+In **Impostazioni → Esportazione completa → Esporta tutto…** chi ospita il
+custode scarica uno zip con i dati di tutti: pazienti (anche quelli riservati
+dei colleghi), gruppi, classi, sedute, note e allegati.
+
+- **Dentro**: `indice.html` da aprire nel browser; per ogni paziente e gruppo
+  la scheda e il diario in HTML (si stampano o si aprono in Word) e in
+  Markdown, con gli allegati originali; `tabelle/*.csv` (Excel, LibreOffice,
+  database); `psydiary.json` con tutto, campo per campo; `LEGGIMI.txt` che
+  spiega i campi. I genogrammi sono file di GenoGram Creator.
+- **Sicurezza**: lo zip si compone sul dispositivo, niente passa da server.
+  Per esportare serve la frase della chiave dell'aula. Lo zip è cifrato
+  AES-256: di serie la password è la stessa frase (in maiuscolo, con i
+  trattini), oppure un'altra a scelta. Si apre con 7-Zip, Keka, WinRAR o
+  The Unarchiver (non con "Estrai tutto" di Windows).
+- **Trasparenza**: ogni esportazione completa resta nel registro del custode;
+  gli operatori la vedono in Impostazioni.
+- Se dai la password dello zip a qualcun altro ed è la frase dell'aula, dopo
+  cambia la chiave dell'aula.
+
 ## Sicurezza, in chiaro
 
 - Sul Drive: solo buste cifrate (AES-256-GCM) più pochi dati tecnici (numero di
