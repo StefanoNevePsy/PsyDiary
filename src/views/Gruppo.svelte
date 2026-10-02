@@ -21,6 +21,8 @@
   import Immagine from '../components/Immagine.svelte';
   import { scegliImmagine, togliImmagine } from '../lib/immagini.js';
   import Scelta from '../components/Scelta.svelte';
+  import Condivisione from '../components/Condivisione.svelte';
+  import { tipoGruppo, TIPI_GRUPPO, accessoGruppo } from '../lib/dati.svelte.js';
 
   let { id } = $props();
   const g = $derived(gruppo(id));
@@ -33,6 +35,8 @@
   const usciti = $derived(g ? (g.membri || []).filter((m) => m.al && m.al < O) : []);
   const GIORNI = [[1, 'lun'], [2, 'mar'], [3, 'mer'], [4, 'gio'], [5, 'ven'], [6, 'sab']];
   const gestisce = $derived(puoGestire());
+  const classe = $derived(tipoGruppo(g) === 'classe');
+  const TIPI_OPZ = Object.entries(TIPI_GRUPPO).map(([valore, t]) => ({ valore, etichetta: t.nome }));
 
   let timer = null;
   function campo(k, v) {
@@ -60,7 +64,8 @@
     daAggiungere = '';
     // un paziente riservato in un gruppo: gli altri del gruppo non ne vedrebbero il nome
     const a = accessoDi(rid);
-    if (a && a.mio && !a.tutti && (!REALE || gestisceCondivisioni())
+    const ag = accessoGruppo(g.id);
+    if (a && a.mio && !a.tutti && (ag.tutti || ag.daPrima) && (!REALE || gestisceCondivisioni())
       && confirm(`${nomeCompleto(ragazzo(rid))} è riservato: chi lavora nel gruppo non ne vede nemmeno il nome. Aprirlo a tutti gli operatori dell'aula?`)) {
       try {
         if (REALE) await condividiPaziente(rid, { condivisi: a.condivisi || [], tutti: true });
@@ -105,7 +110,7 @@
   <div class="gruppo">
     <header class="testa">
       <a class="torna no-stampa" href="#/gruppi"><Icona nome="sinistra" /> Gruppi</a>
-      <p class="eti">{serieInCorso({ gruppoId: id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}{g.archiviato ? ' · archiviato' : ''}</p>
+      <p class="eti">{classe ? 'classe · ' : ''}{serieInCorso({ gruppoId: id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}{g.archiviato ? ' · archiviato' : ''}</p>
       {#if g.copertina || gestisce}
         <div class="copertina" class:vuota={!g.copertina}>
           {#if g.copertina}<Immagine id={g.copertina} forma="foglio" seme={g.id} alt={'Immagine del ' + g.nome} onclick={() => (ui.visore = g.copertina)} />{/if}
@@ -118,13 +123,14 @@
         </div>
       {/if}
       <h1 class="display">{g.nome}</h1>
+      <Condivisione {g} />
       {#if g.tema}<p class="tema mano">{g.tema}</p>{/if}
       <p class="membri">
         {#each membri as rid (rid)}<a href={'#/ragazzo/' + rid}>{nomeBreve(ragazzo(rid))}</a>{/each}
       </p>
       <div class="schede no-stampa" role="tablist">
         <button role="tab" aria-selected={!impostazioni} onclick={() => (impostazioni = false)}>Storico <small>{voci.length}</small></button>
-        <button role="tab" aria-selected={impostazioni} onclick={() => (impostazioni = true)}>Membri e impostazioni</button>
+        <button role="tab" aria-selected={impostazioni} onclick={() => (impostazioni = true)}>{classe ? 'Alunni' : 'Membri'} e impostazioni</button>
       </div>
     </header>
 
@@ -151,8 +157,9 @@
           <div class="impostazioni">
             {#if !gestisce}<p class="avviso sotto"><Icona nome="lucchetto" /> Membri e impostazioni li modificano gli operatori.</p>{/if}
             <fieldset disabled={!gestisce}>
-              <legend class="eti">Il gruppo</legend>
+              <legend class="eti">{classe ? 'La classe' : 'Il gruppo'}</legend>
               <div class="griglia">
+                <label class="campo"><span>Tipo</span><Scelta value={tipoGruppo(g)} etichetta="Tipo" opzioni={TIPI_OPZ} disabled={!gestisce} onchange={(v) => campo('tipo', v)} /></label>
                 <label class="campo"><span>Nome</span><input class="input" value={g.nome} oninput={(e) => campo('nome', e.currentTarget.value)} /></label>
                 <label class="campo"><span>Tema</span><input class="input" value={g.tema || ''} oninput={(e) => campo('tema', e.currentTarget.value)} /></label>
               </div>
@@ -162,7 +169,7 @@
               <ElencoSerie gruppoId={id} />
             </section>
             <fieldset disabled={!gestisce}>
-              <legend class="eti">Membri</legend>
+              <legend class="eti">{classe ? 'Alunni' : 'Membri'}</legend>
               <ul class="elenco-membri">
                 {#each (g.membri || []).filter((m) => !m.al || m.al >= O) as m (m.ragazzoId)}
                   <li><a class="display" href={'#/ragazzo/' + m.ragazzoId}>{nomeCompleto(ragazzo(m.ragazzoId))}</a>
@@ -190,14 +197,14 @@
               {/if}
               {#if usciti.length}<p class="sotto piccolo">Usciti: {usciti.map((m) => `${nomeBreve(ragazzo(m.ragazzoId))} (${breveAnno(m.al)})`).join(', ')}</p>{/if}
             </fieldset>
-            {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={archivia}>{g.archiviato ? 'Riattiva il gruppo' : 'Archivia il gruppo'}</button>{/if}
+            {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={archivia}>{g.archiviato ? (classe ? 'Riattiva la classe' : 'Riattiva il gruppo') : (classe ? 'Archivia la classe' : 'Archivia il gruppo')}</button>{/if}
           </div>
         {/if}
       </div>
 
       <aside class="lato no-stampa">
         <div class="azioni">
-          <button class="btn pieno" onclick={() => apriCrea({ tipo: 'nota', gruppoId: id })}><Icona nome="matita" /> Nota sul gruppo</button>
+          <button class="btn pieno" onclick={() => apriCrea({ tipo: 'nota', gruppoId: id })}><Icona nome="matita" /> {classe ? 'Nota sulla classe' : 'Nota sul gruppo'}</button>
         </div>
         <div class="box retino">
           <h3 class="eti">Obiettivi</h3>

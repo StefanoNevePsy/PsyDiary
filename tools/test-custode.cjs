@@ -163,6 +163,42 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   ok(chiama('stefano@aula.it', 'paziente.condivisione', { id: 'rpriv1', condivisi: [], proprietario: 'stefano@aula.it' }).dati.mio, 'e può prenderli in carico');
 }
 
+// gruppi e classi riservati: le stesse regole, nell'ambito "g:<id>"
+{
+  const vede = (email, a) => chiama(email, 'sync', {}).dati.ambiti.includes(a);
+  ok((chiama('stefano@aula.it', 'io').dati.funzioni || []).includes('gruppi-riservati'), 'il custode dichiara i gruppi riservati');
+  // Elena torna operatrice per le prove
+  const a0 = chiama('stefano@aula.it', 'accessi.leggi').dati;
+  const conElena = { utenti: JSON.parse(JSON.stringify(a0.utenti)) }; conElena.utenti['elena@aula.it'] = { nome: 'Elena', ruolo: 'admin' };
+  ok(chiama('stefano@aula.it', 'accessi.salva', { accessi: conElena, versioneBase: a0.version }).ok, 'Elena di nuovo abilitata');
+  let r = chiama('stefano@aula.it', 'sync', { invii: [voce('gcla3b', 'gruppo', 'g:gcla3b'), voce('scla1', 'seduta', 'g:gcla3b'), voce('ncla1', 'nota', 'g:gcla3b')] });
+  ok(r.dati.esiti.every((e) => e.ok) && r.dati.gruppi.gcla3b.mio && !r.dati.gruppi.gcla3b.tutti, 'Stefano crea una classe riservata, con seduta e nota');
+  const el = chiama('elena@aula.it', 'sync', {}).dati;
+  ok(!el.ambiti.includes('g:gcla3b') && !el.voci.some((v) => ['gcla3b', 'scla1', 'ncla1'].includes(v.id)) && !el.gruppi.gcla3b, 'Elena non riceve niente della classe');
+  ok(chiama('elena@aula.it', 'sync', { invii: [voce('ncla2', 'nota', 'g:gcla3b')] }).dati.esiti[0].errore === 'vietato', 'e non ci scrive');
+  ok(chiama('elena@aula.it', 'gruppo.condivisione', { id: 'gcla3b', condivisi: ['elena@aula.it'] }).errore === 'vietato', 'né se la condivide');
+  ok(chiama('stefano@aula.it', 'gruppo.condivisione', { id: 'gcla3b', condivisi: ['elena@aula.it', 'marco@aula.it'] }).ok, 'Stefano la condivide con Elena e con il tirocinante Marco');
+  ok(vede('elena@aula.it', 'g:gcla3b') && vede('marco@aula.it', 'g:gcla3b'), 'ora la vedono tutti e due');
+  ok(chiama('marco@aula.it', 'sync', { invii: [voce('ncla3', 'nota', 'g:gcla3b')] }).dati.esiti[0].ok, 'il tirocinante scrive le note della classe');
+  ok(chiama('marco@aula.it', 'sync', { invii: [voce('gcla3b', 'gruppo', 'g:gcla3b', 1)] }).dati.esiti[0].errore === 'vietato', 'ma non modifica la classe');
+  ok(chiama('stefano@aula.it', 'gruppo.condivisione', { id: 'gcla3b', condivisi: [] }).ok && !vede('elena@aula.it', 'g:gcla3b') && !vede('marco@aula.it', 'g:gcla3b'), 'tolta la condivisione: non la vedono più');
+  // un gruppo di prima, nell'aula: lo rende riservato solo chi l'ha creato
+  ok(chiama('elena@aula.it', 'gruppo.condivisione', { id: 'gmart', condivisi: [] }).errore === 'vietato', 'gruppo di prima: Elena non lo rende riservato');
+  const gp = chiama('stefano@aula.it', 'gruppo.condivisione', { id: 'gmart', condivisi: [] });
+  ok(gp.ok && gp.dati.mio, 'Stefano sì (registrato prima di spostarne i dati)');
+  const st = chiama('stefano@aula.it', 'sync', {}).dati;
+  const vg = st.voci.find((v) => v.id === 'gmart') || chiama('stefano@aula.it', 'sync', { cursori: {} }).dati.voci.find((v) => v.id === 'gmart');
+  r = chiama('stefano@aula.it', 'sync', { invii: [voce('gmart', 'gruppo', 'g:gmart', vg.version)] });
+  ok(r.dati.esiti[0].ok && !vede('elena@aula.it', 'g:gmart'), 'i dati del gruppo passano in g:gmart, che Elena non vede');
+  const lap = chiama('elena@aula.it', 'sync', { cursori: {} }).dati.voci.find((v) => v.id === 'gmart');
+  ok(lap && lap.eliminato && lap.spostato === 'g:gmart', 'a Elena arriva solo la lapide nell\'aula');
+  ok(chiama('stefano@aula.it', 'gruppo.condivisione', { id: 'gnessuno', condivisi: [] }).errore === 'non-trovato', 'gruppo inesistente');
+  // aperto a tutti: chiunque lo vede nell'aula, e sa di chi è
+  ok(chiama('stefano@aula.it', 'gruppo.condivisione', { id: 'gcla3b', condivisi: [], tutti: true }).ok, 'classe aperta a tutti');
+  const el2 = chiama('elena@aula.it', 'sync', {}).dati;
+  ok(el2.gruppi.gcla3b && el2.gruppi.gcla3b.tutti && el2.gruppi.gcla3b.proprietario === 'stefano@aula.it', 'Elena sa che è di Stefano, aperta a tutti');
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${n - falliti}/${n} superati`);
 process.exit(falliti ? 1 : 0);

@@ -2,7 +2,7 @@
   import { T, M } from '../lib/parole.svelte.js';
   // Ricerca unica: ragazzi, gruppi, tag, testo delle note e date scritte a mano.
   import { onMount } from 'svelte';
-  import { dati, nomeCompleto, diarioAula, tuttiTag, gruppiDi } from '../lib/dati.svelte.js';
+  import { gruppiVisibili, dati, nomeCompleto, diarioAula, tuttiTag, gruppiDi } from '../lib/dati.svelte.js';
   import { vai } from '../lib/rotta.svelte.js';
   import { leggiData, lunga, nomeMese, anno, relativa } from '../lib/date.js';
   import Icona from './Icona.svelte';
@@ -54,7 +54,7 @@
     if (!t.startsWith('#')) {
       const r = dati.ragazzi.filter((x) => nomeCompleto(x).toLowerCase().includes(t) || (x.cognome + ' ' + x.nome).toLowerCase().includes(t)).slice(0, 5);
       if (r.length) out.push({ nome: M('tanti'), voci: r.map((x) => ({ ico: 'persone', testo: nomeCompleto(x), dett: gruppiDi(x.id).map((g) => g.nome).join(', '), a: 'ragazzo/' + x.id })) });
-      const g = dati.gruppi.filter((x) => (x.nome + ' ' + (x.tema || '')).toLowerCase().includes(t)).slice(0, 3);
+      const g = gruppiVisibili().filter((x) => (x.nome + ' ' + (x.tema || '')).toLowerCase().includes(t)).slice(0, 3);
       if (g.length) out.push({ nome: 'Gruppi', voci: g.map((x) => ({ ico: 'gruppo', testo: x.nome, dett: x.tema, a: 'gruppo/' + x.id })) });
       if (t.length >= 3) {
         const n = diarioAula().filter((v) => (v.titolo + ' ' + v.testo).toLowerCase().includes(t)).slice(0, 6);

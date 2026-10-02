@@ -3,7 +3,7 @@
   import Scelta from './Scelta.svelte';
   // "Scrivi": il punto unico da cui si comincia una nota o una seduta.
   import { onMount, untrack } from 'svelte';
-  import {
+  import { gruppiVisibili,
     dati, gruppo, ragazzo, nomeCompleto, ragazziCondivisi, ragazziAttivi, condiviso, salva, nuovoId, io, sedutePeriodo, soggetto, titoloSeduta, statoSeduta, TIPI, CATEGORIE_NOTA,
     serieInCorso, creaSerie, puoGestire,
   } from '../lib/dati.svelte.js';
@@ -29,7 +29,7 @@
 
   onMount(() => dialogo.showModal());
 
-  const gruppiAttivi = $derived(dati.gruppi.filter((g) => !g.archiviato));
+  const gruppiAttivi = $derived(gruppiVisibili().filter((g) => !g.archiviato));
   const ragazzi = $derived(ragazziCondivisi());
   const tuttiRagazzi = $derived(ragazziAttivi());
   let categoria = $state('osservazione');
@@ -147,15 +147,16 @@
     {:else}
       <div class="campi">
         {#if tipo === 'gruppo'}
-          <label class="campo"><span>Gruppo</span>
-            <Scelta bind:value={gruppoId} required opzioni={gruppiAttivi.map((g) => ({ valore: g.id, etichetta: g.nome }))} /></label>
+          <label class="campo"><span>Gruppo o classe</span>
+            <Scelta bind:value={gruppoId} required opzioni={gruppiAttivi.map((g) => ({ valore: g.id, etichetta: g.nome, gruppo: g.tipo === 'classe' ? 'Classi' : 'Gruppi' })).sort((a, b) => a.gruppo.localeCompare(b.gruppo))} /></label>
         {:else if ['individuale', 'genitori', 'conoscenza'].includes(tipo)}
           <label class="campo"><span>{M('uno')}</span>
             <Scelta bind:value={ragazzoId} required opzioni={ragazzi.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></label>
         {:else}
           <label class="campo"><span>Su</span>
             <Scelta bind:value={su} opzioni={[{ valore: 'aula', etichetta: "L'aula in generale" },
-              ...gruppiAttivi.map((g) => ({ valore: 'g:' + g.id, etichetta: g.nome, gruppo: 'Gruppi' })),
+              ...gruppiAttivi.filter((g) => g.tipo !== 'classe').map((g) => ({ valore: 'g:' + g.id, etichetta: g.nome, gruppo: 'Gruppi' })),
+              ...gruppiAttivi.filter((g) => g.tipo === 'classe').map((g) => ({ valore: 'g:' + g.id, etichetta: g.nome, gruppo: 'Classi' })),
               ...tuttiRagazzi.map((r) => ({ valore: 'r:' + r.id, etichetta: nomeCompleto(r), gruppo: M('tanti') }))]} /></label>
           <div class="campo"><span>Che nota è</span>
             <div class="categorie">{#each Object.entries(CATEGORIE_NOTA) as [k, n] (k)}<button type="button" class="cat" aria-pressed={categoria === k} disabled={soloGruppo && k !== 'gruppo'} onclick={() => (categoria = k)}>{n}</button>{/each}</div>

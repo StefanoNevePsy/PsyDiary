@@ -109,10 +109,20 @@ const scriviMeta = (k, v) => op('meta', 'readwrite', (s) => s.put($state.snapsho
 const gestisceRiservati = () => (sync.io?.funzioni || []).includes('riservati');
 function riservato(rid) {
   if (!gestisceRiservati()) return false;
+  // riservato solo se lo dice il custode, o se l'ho appena creato io (voce
+  // "locale"): un paziente che vedo nell'aula senza scheda è di tutta l'aula
   const a = centro.pazienti?.[rid];
-  return a ? !a.tutti : true;     // un paziente non ancora noto al custode è nuovo: riservato
+  return !!a && !a.tutti;
 }
-const opzVoci = { riservato };
+// Gruppi e classi riservati: solo quelli che il custode conosce come tali (o
+// appena creati qui); i gruppi di prima restano nell'aula
+const gestisceGruppi = () => (sync.io?.funzioni || []).includes('gruppi-riservati');
+function gruppoRiservato(gid) {
+  if (!gestisceGruppi()) return false;
+  const a = centro.gruppi?.[gid];
+  return !!a && !a.tutti;
+}
+const opzVoci = { riservato, gruppoRiservato };
 
 // coda: "tabella|id" degli oggetti cambiati qui e non ancora inviati
 let coda = new Set();
@@ -195,7 +205,7 @@ async function invia() {
     const o = oggettoLocale(tabella, id);
     const voci = o ? vociDi(tabella, $state.snapshot(o), opzVoci) : idVociDi(tabella, id).map((vid) => ({ id: vid, eliminato: true }));
     for (const v of voci) {
-      if (!v.eliminato && !/^(aula|r:[a-z0-9]{2,40})$/.test(v.ambito)) { console.warn('voce senza ambito valido', v); continue; }
+      if (!v.eliminato && !/^(aula|[rg]:[a-z0-9]{2,40})$/.test(v.ambito)) { console.warn('voce senza ambito valido', v); continue; }
       const l = await voceLocale(v.id);
       if (v.eliminato) {
         if (!l || !l.version) continue;   // mai arrivata al custode: niente da togliere
@@ -300,8 +310,14 @@ async function ricevi(invii = []) {
     // i pazienti creati qui e non ancora arrivati al custode restano miei
     const p = { ...r.pazienti };
     for (const [rid, a] of Object.entries(centro.pazienti || {})) if (a.locale && !p[rid] && coda.has('ragazzi|' + rid)) p[rid] = a;
-    centro.pazienti = p;
+    centro.pazienti = p; centro.pazientiNoti = true;
     await scriviMeta('pazienti', p);
+  }
+  if (r.gruppi) {
+    const g = { ...r.gruppi };
+    for (const [gid, a] of Object.entries(centro.gruppi || {})) if (a.locale && !g[gid] && coda.has('gruppi|' + gid)) g[gid] = a;
+    centro.gruppi = g;
+    await scriviMeta('gruppi', g);
   }
   await scriviMeta('ambitiImmagini', ambitiImmagini);
   return r;
@@ -360,7 +376,7 @@ async function cancellaDatiAula() {
   await op('voci', 'readwrite', (s) => s.clear());
   await op('meta', 'readwrite', (s) => s.clear());
   await C.dimenticaTutto();
-  coda.clear(); chiavi = {}; sync.io = null; centro.io = null; centro.pazienti = null; sync.cfg = null; sync.inCoda = 0;
+  coda.clear(); chiavi = {}; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +465,8 @@ export async function avvia() {
   sync.io = await meta('io');
   sync.cfg = await meta('cfg');
   centro.pazienti = (await meta('pazienti')) || null;
+  centro.pazientiNoti = !!centro.pazienti;
+  centro.gruppi = (await meta('gruppi')) || null;
   chiavi = await C.portachiavi();
   if (sync.io && sync.io.email === u.email) { centro.io = sync.io; aggiornaFase(); } else sync.fase = 'fuori';
   try { await prepara(); } catch (e) { gestisciErrore(e); }
@@ -487,6 +505,23 @@ export async function elencoDispositivi() { sync.dispositivi = await chiama('dis
 export async function togliDispositivo(id) { await chiama('dispositivo.togli', { id }); return elencoDispositivi(); }
 export const leggiAccessi = () => chiama('accessi.leggi');
 export const gestisceCondivisioni = gestisceRiservati;
+export const gestisceCondivisioniGruppi = gestisceGruppi;
+/**
+ * Con chi è condiviso un gruppo o una classe. Poi il gruppo e tutto ciò che
+ * gli appartiene (sedute, note, ricorrenze, idee) ripartono nell'ambito giusto.
+ */
+export async function condividiGruppo(gid, scelta) {
+  if (coda.has('gruppi|' + gid)) await sincronizza();
+  if (coda.has('gruppi|' + gid)) throw new Error('Il gruppo non è ancora arrivato al custode: riprova quando c\'è rete.');
+  const a = await chiama('gruppo.condivisione', { id: gid, ...scelta });
+  centro.gruppi = { ...(centro.gruppi || {}), [gid]: a };
+  await scriviMeta('gruppi', centro.gruppi);
+  coda.add('gruppi|' + gid);
+  for (const t of ['sedute', 'note', 'serie', 'sospesi']) for (const o of dati[t]) if (o.gruppoId === gid) coda.add(t + '|' + o.id);
+  await salvaCoda();
+  await sincronizza();
+  return a;
+}
 /**
  * Con chi è condiviso un paziente: { condivisi: [email], tutti, proprietario? }.
  * Poi nome e foto si spostano nell'ambito giusto (aula se aperto a tutti).
@@ -499,6 +534,8 @@ export async function condividiPaziente(rid, scelta) {
   centro.pazienti = { ...(centro.pazienti || {}), [rid]: a };
   await scriviMeta('pazienti', centro.pazienti);
   coda.add('ragazzi|' + rid);
+  // le note "nel gruppo" su di lui seguono il paziente
+  for (const n of dati.note) if (n.ragazzoId === rid && n.categoria === 'gruppo') coda.add('note|' + n.id);
   await salvaCoda();
   await sincronizza();
   return a;

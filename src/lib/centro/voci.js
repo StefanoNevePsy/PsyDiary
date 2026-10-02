@@ -9,12 +9,24 @@ export const idScheda = (rid) => rid + 'sc';
 const TIPO_DI = { gruppi: 'gruppo', sedute: 'seduta', note: 'nota', sospesi: 'sospeso', serie: 'serie' };
 export const TABELLA_DI = { gruppo: 'gruppi', seduta: 'sedute', nota: 'note', sospeso: 'sospesi', serie: 'serie', ragazzo: 'ragazzi', scheda: 'ragazzi' };
 
-export function ambitoDi(tabella, o) {
-  if (tabella === 'sedute') return o.tipo === 'gruppo' ? 'aula' : 'r:' + o.ragazzoId;
-  if (tabella === 'note') return o.ragazzoId && o.categoria !== 'gruppo' ? 'r:' + o.ragazzoId : 'aula';
-  if (tabella === 'sospesi') return o.ragazzoId ? 'r:' + o.ragazzoId : 'aula';
+/**
+ * opz.riservato(rid): paziente riservato · opz.gruppoRiservato(gid): gruppo o
+ * classe riservati. Un gruppo riservato porta con sé sedute, note, ricorrenze e
+ * idee in sospeso nel suo ambito "g:<id>"; quelli di tutta l'aula stanno in "aula".
+ */
+export function ambitoDi(tabella, o, { riservato = () => false, gruppoRiservato = () => false } = {}) {
+  const diGruppo = (gid) => (gid && gruppoRiservato(gid) ? 'g:' + gid : 'aula');
+  if (tabella === 'gruppi') return diGruppo(o.id);
+  if (tabella === 'sedute') return o.tipo === 'gruppo' ? diGruppo(o.gruppoId) : 'r:' + o.ragazzoId;
+  if (tabella === 'note') {
+    if (o.ragazzoId && o.categoria !== 'gruppo') return 'r:' + o.ragazzoId;
+    // "nel gruppo" su un paziente riservato: resta con lui
+    if (o.ragazzoId) return riservato(o.ragazzoId) ? 'r:' + o.ragazzoId : 'aula';
+    return diGruppo(o.gruppoId);
+  }
+  if (tabella === 'sospesi') return o.ragazzoId ? 'r:' + o.ragazzoId : diGruppo(o.gruppoId);
   // appuntamenti ricorrenti: quelli di un ragazzo sono personali (individuali, genitori…)
-  if (tabella === 'serie') return o.tipo === 'gruppo' ? 'aula' : 'r:' + o.ragazzoId;
+  if (tabella === 'serie') return o.tipo === 'gruppo' ? diGruppo(o.gruppoId) : 'r:' + o.ragazzoId;
   return 'aula';
 }
 
@@ -23,7 +35,8 @@ export function ambitoDi(tabella, o) {
  * riservato, quindi anche nome e foto restano nel suo ambito invece che
  * nell'aula (li vede solo chi vede la scheda).
  */
-export function vociDi(tabella, o, { riservato = () => false } = {}) {
+export function vociDi(tabella, o, opz = {}) {
+  const { riservato = () => false } = opz;
   if (tabella === 'ragazzi') {
     const pub = {}, scheda = { id: o.id };
     for (const [k, v] of Object.entries(o)) if (k !== 'accesso') (CAMPI_PUBBLICI.includes(k) ? pub : scheda)[k] = v;
@@ -34,7 +47,8 @@ export function vociDi(tabella, o, { riservato = () => false } = {}) {
     ];
   }
   if (!TIPO_DI[tabella]) return [];
-  return [{ id: o.id, tipo: TIPO_DI[tabella], ambito: ambitoDi(tabella, o), dati: o }];
+  const dati = tabella === 'gruppi' && 'accesso' in o ? (({ accesso, ...x }) => x)(o) : o;
+  return [{ id: o.id, tipo: TIPO_DI[tabella], ambito: ambitoDi(tabella, o, opz), dati }];
 }
 /** Gli id delle voci di un oggetto (anche quando l'oggetto non c'è più). */
 export const idVociDi = (tabella, id) => (tabella === 'ragazzi' ? [id, idScheda(id)] : TIPO_DI[tabella] ? [id] : []);

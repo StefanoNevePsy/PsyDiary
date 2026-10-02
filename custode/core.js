@@ -24,6 +24,10 @@
  *     tutti): tutti gli operatori, più i tirocinanti a cui è assegnato.
  *   Se chi l'ha creato non è più abilitato, lo vede chi ospita il custode,
  *   che può passarlo a qualcun altro.
+ *   - "g:<id>": un gruppo o una classe riservati, con le loro sedute, note,
+ *     ricorrenze e idee in sospeso. Stesse regole: chi l'ha creato, le
+ *     persone scelte (anche tirocinanti), tutti gli operatori se aperto.
+ *     I gruppi "di tutta l'aula" (quelli di prima, o aperti) stanno in "aula".
  *
  * Tutto è sincrono di proposito: in Apps Script lo sono anche Drive e UrlFetch.
  */
@@ -43,14 +47,14 @@ var PD = (function () {
     dispositivi: '_config/dispositivi.json',
     stato: '_config/stato.json',
     pazienti: '_config/pazienti.json',
-    ambito: function (a) { return a === 'aula' ? 'Dati/aula.json' : 'Dati/ragazzi/' + a.slice(2) + '.json'; },
-    storia: function (a) { return a === 'aula' ? 'Storia/aula.json' : 'Storia/ragazzi/' + a.slice(2) + '.json'; },
-    immagine: function (a, id) { return 'Immagini/' + (a === 'aula' ? 'aula' : a.slice(2)) + '/' + id + '.json'; },
+    ambito: function (a) { return a === 'aula' ? 'Dati/aula.json' : (a[0] === 'g' ? 'Dati/gruppi/' : 'Dati/ragazzi/') + a.slice(2) + '.json'; },
+    storia: function (a) { return a === 'aula' ? 'Storia/aula.json' : (a[0] === 'g' ? 'Storia/gruppi/' : 'Storia/ragazzi/') + a.slice(2) + '.json'; },
+    immagine: function (a, id) { return 'Immagini/' + (a === 'aula' ? 'aula' : a[0] === 'g' ? 'gruppi/' + a.slice(2) : a.slice(2)) + '/' + id + '.json'; },
   };
 
   var RE = {
     id: /^[a-z0-9]{2,40}$/,
-    ambito: /^(aula|r:[a-z0-9]{2,40})$/,
+    ambito: /^(aula|[rg]:[a-z0-9]{2,40})$/,
     email: /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/,
     kid: /^[a-z0-9-]{1,40}$/,
     dispositivo: /^[a-z0-9]{8,40}$/,
@@ -165,21 +169,26 @@ var PD = (function () {
 
     // ---- pazienti riservati: il registro si legge una volta per richiesta ----
     var registro = null;
-    function leggiPazienti() { return registro || (registro = A.leggiJSON(P.pazienti) || { schema: SCHEMA, pazienti: {} }); }
+    function leggiPazienti() {
+      if (!registro) { registro = A.leggiJSON(P.pazienti) || { schema: SCHEMA, pazienti: {} }; registro.gruppi = registro.gruppi || {}; }
+      return registro;
+    }
+    // il registro di un ambito: pazienti per "r:", gruppi per "g:"
+    function recDi(a) { var reg = leggiPazienti(); return (a[0] === 'g' ? reg.gruppi : reg.pazienti)[a.slice(2)]; }
     function scriviPazienti(r) { registro = r; A.scriviJSON(P.pazienti, r); }
     function orfano(rec) { return !!rec && rec.proprietario !== proprietario() && !abilitato(rec.proprietario); }
     function vedeAmbito(u, a) {
       if (a === 'aula') return true;
-      var rid = a.slice(2), rec = leggiPazienti().pazienti[rid];
-      var assegnato = !eAdmin(u) && u.ragazzi.indexOf(rid) >= 0;
+      var rid = a.slice(2), rec = recDi(a);
+      var assegnato = a[0] === 'r' && !eAdmin(u) && u.ragazzi.indexOf(rid) >= 0;
       if (!rec) return eAdmin(u) || assegnato;              // di tutta l'aula (da prima)
       if (rec.proprietario === u.email || rec.condivisi.indexOf(u.email) >= 0 || assegnato) return true;
       if (rec.tutti && eAdmin(u)) return true;
       return !!u.proprietario && orfano(rec);
     }
-    /** Come appare il paziente a chi lo vede (per l'app). */
-    function accessoPer(u, rid) {
-      var rec = leggiPazienti().pazienti[rid];
+    /** Come appare il paziente (o il gruppo, con a = "g:<id>") a chi lo vede (per l'app). */
+    function accessoPer(u, rid, a) {
+      var rec = a ? recDi(a) : leggiPazienti().pazienti[rid];
       if (!rec) return { tutti: true, daPrima: true };
       return { proprietario: rec.proprietario, condivisi: rec.condivisi.slice(), tutti: !!rec.tutti, mio: rec.proprietario === u.email, orfano: orfano(rec) };
     }
@@ -193,7 +202,7 @@ var PD = (function () {
     var azioni = {};
     azioni['io'] = function (u) {
       var c = A.leggiJSON(P.cifratura);
-      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, funzioni: ['riservati'] };
+      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, funzioni: ['riservati', 'gruppi-riservati'] };
     };
     azioni['cifratura.leggi'] = function () { return A.leggiJSON(P.cifratura); };
     azioni['cifratura.imposta'] = function (u, d) {
@@ -352,9 +361,9 @@ var PD = (function () {
               if (v.busta && v.busta.kid !== c.kid) throw err('chiave-cambiata', 'La chiave dell\'aula è cambiata.');
               // il primo dato di un paziente nuovo lo rende di chi lo crea
               var rid = v.ambito.slice(2);
-              if (v.ambito !== 'aula' && eAdmin(u) && !v.eliminato && stato.ambiti[v.ambito] === undefined && !toccati[v.ambito] && !leggiPazienti().pazienti[rid]) {
+              if (v.ambito !== 'aula' && eAdmin(u) && !v.eliminato && stato.ambiti[v.ambito] === undefined && !toccati[v.ambito] && !recDi(v.ambito)) {
                 var reg = leggiPazienti();
-                reg.pazienti[rid] = { proprietario: u.email, condivisi: [], tutti: false, creato: amb.ora() };
+                (v.ambito[0] === 'g' ? reg.gruppi : reg.pazienti)[rid] = { proprietario: u.email, condivisi: [], tutti: false, creato: amb.ora() };
                 scriviPazienti(reg);
               }
               richiedi(vedeAmbito(u, v.ambito), 'Questo ragazzo non è condiviso con te.');
@@ -414,9 +423,15 @@ var PD = (function () {
           if (r.rev > noto) cambi.push(Object.assign({ ambito: a }, r));
         });
       });
-      var pazienti = {};
-      visibili.forEach(function (a) { if (a !== 'aula') pazienti[a.slice(2)] = accessoPer(u, a.slice(2)); });
-      return { esiti: esiti, voci: cambi, ambiti: visibili, cursori: stato.ambiti, rev: stato.rev, kid: c ? c.kid : null, pazienti: pazienti };
+      var pazienti = {}, gruppi = {};
+      visibili.forEach(function (a) {
+        if (a[0] === 'r') pazienti[a.slice(2)] = accessoPer(u, a.slice(2));
+        else if (a[0] === 'g') gruppi[a.slice(2)] = accessoPer(u, a.slice(2), a);
+      });
+      // i gruppi aperti a tutti stanno nell'aula: anche di loro si dice di chi sono
+      var regG = leggiPazienti().gruppi;
+      Object.keys(regG).forEach(function (gid) { if (!gruppi[gid] && regG[gid].tutti) gruppi[gid] = accessoPer(u, gid, 'g:' + gid); });
+      return { esiti: esiti, voci: cambi, ambiti: visibili, cursori: stato.ambiti, rev: stato.rev, kid: c ? c.kid : null, pazienti: pazienti, gruppi: gruppi };
     };
 
     /**
@@ -424,9 +439,15 @@ var PD = (function () {
      * più abilitato, chi ospita il custode). Dei pazienti di prima decide chi
      * ne ha creato la scheda. dati = { id, condivisi: [email], tutti, proprietario? }
      */
-    azioni['paziente.condivisione'] = function (u, d) {
+    azioni['paziente.condivisione'] = function (u, d) { return condivisione(u, d, 'r'); };
+    /**
+     * Lo stesso per un gruppo o una classe. Di un gruppo di prima (nell'aula)
+     * decide chi l'ha creato; reso riservato, l'app sposta i suoi dati in "g:<id>".
+     */
+    azioni['gruppo.condivisione'] = function (u, d) { return condivisione(u, d, 'g'); };
+    function condivisione(u, d, k) {
       richiedi(eAdmin(u), 'Le condivisioni le decidono gli operatori.');
-      var rid = idV(d.id, RE.id, 'id');
+      var rid = idV(d.id, RE.id, 'id'), a = k + ':' + rid;
       var condivisi = listaV(d.condivisi, 200, 'condivisi').map(function (e) {
         var x = String(e).trim().toLowerCase();
         if (!RE.email.test(x)) throw err('richiesta-non-valida', 'Email non valida: ' + e);
@@ -434,17 +455,23 @@ var PD = (function () {
       });
       return conLock(function () {
         registro = null;
-        var reg = leggiPazienti(), rec = reg.pazienti[rid];
+        var reg = leggiPazienti(), rec = recDi(a);
         var stato = leggiStato();
-        if (stato.ambiti['r:' + rid] === undefined && !rec) throw err('non-trovato', 'Paziente non trovato.');
         var titolare;
         if (rec) titolare = rec.proprietario;
-        else {
-          var f = leggiAmbito('r:' + rid), sc = f.voci[rid + 'sc'];
+        else if (k === 'r') {
+          if (stato.ambiti[a] === undefined) throw err('non-trovato', 'Paziente non trovato.');
+          var f = leggiAmbito(a), sc = f.voci[rid + 'sc'];
           titolare = (sc && sc.creatoDa) || proprietario();
+        } else {
+          // gruppo di prima: sta nell'aula
+          var dove = (stato.indice || {})[rid];
+          var gv = dove && leggiAmbito(dove).voci[rid];
+          if (!gv || gv.tipo !== 'gruppo' || gv.eliminato) throw err('non-trovato', 'Gruppo non trovato.');
+          titolare = gv.creatoDa || proprietario();
         }
         var puo = titolare === u.email || (u.proprietario && (!abilitato(titolare) || !rec && titolare === proprietario()));
-        richiedi(puo, 'Solo chi ha creato il paziente decide con chi condividerlo.');
+        richiedi(puo, k === 'g' ? 'Solo chi ha creato il gruppo decide con chi condividerlo.' : 'Solo chi ha creato il paziente decide con chi condividerlo.');
         var nuovoTitolare = titolare;
         if (d.proprietario !== undefined && d.proprietario !== null && d.proprietario !== titolare) {
           nuovoTitolare = String(d.proprietario).trim().toLowerCase();
@@ -452,14 +479,14 @@ var PD = (function () {
           if (nuovoTitolare !== proprietario() && (!v || v.ruolo !== 'admin' || v.attivo === false)) throw err('richiesta-non-valida', 'Il paziente si può affidare solo a un operatore abilitato.');
         }
         condivisi = condivisi.filter(function (e, i) { return e !== nuovoTitolare && condivisi.indexOf(e) === i; });
-        reg.pazienti[rid] = {
+        (k === 'g' ? reg.gruppi : reg.pazienti)[rid] = {
           proprietario: nuovoTitolare, condivisi: condivisi, tutti: d.tutti === true,
           creato: rec ? rec.creato : amb.ora(), aggiornato: amb.ora(), aggiornatoDa: u.email,
         };
         scriviPazienti(reg);
-        return accessoPer(u, rid);
+        return accessoPer(u, rid, a);
       });
-    };
+    }
 
     azioni['voce.storia'] = function (u, d) {
       var id = idV(d.id, RE.id, 'id'), a = idV(d.ambito, RE.ambito, 'ambito');

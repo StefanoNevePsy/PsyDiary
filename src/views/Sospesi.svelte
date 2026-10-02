@@ -1,10 +1,10 @@
 <script>
   import { T, M } from '../lib/parole.svelte.js';
   // Tutte le idee in sospeso, gruppo per gruppo e ragazzo per ragazzo.
-  import { dati, nomeCompleto } from '../lib/dati.svelte.js';
+  import { gruppiVisibili, dati, nomeCompleto } from '../lib/dati.svelte.js';
   import ElencoSospesi from '../components/ElencoSospesi.svelte';
 
-  const gruppi = $derived(dati.gruppi.filter((g) => !g.archiviato));
+  const gruppi = $derived(gruppiVisibili().filter((g) => !g.archiviato));
   const ragazzi = $derived(dati.ragazzi.filter((r) => r.stato !== 'concluso' && dati.sospesi.some((x) => x.ragazzoId === r.id && !x.usatoIn)));
   const totale = $derived(dati.sospesi.filter((x) => !x.usatoIn).length);
 </script>

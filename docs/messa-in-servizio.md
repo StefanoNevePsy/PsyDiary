@@ -32,6 +32,11 @@ telefoni. Ci vogliono circa 30–40 minuti, una volta sola. Tutto il resto
   usare anche per pazienti esterni all'aula. I pazienti inseriti prima di
   questa regola restano di tutta l'aula, finché chi li ha creati non li rende
   riservati.
+- **Gruppi e classi seguono la stessa regola.** Un gruppo terapeutico o una
+  classe nuovi, con sedute, note, ricorrenze e idee in sospeso, li vede solo
+  chi li crea, finché non li condivide o li apre a tutta l'aula (allora li
+  vedono tutti, tirocinanti compresi, come i gruppi di prima). Così gli
+  appunti delle classi in cui lavori non arrivano ai colleghi.
 - **I tirocinanti** ricevono sul loro dispositivo solo quello che possono
   vedere: dei pazienti non condivisi con loro non arriva nulla di personale,
   nemmeno cifrato.
@@ -220,7 +225,9 @@ In PsyDiary: **Impostazioni → Persone e accessi**.
    gruppo va aperto a tutti gli operatori, altrimenti chi lavora nel gruppo
    non ne vede il nome: PsyDiary te lo propone quando lo aggiungi. Se un
    operatore lascia l'aula, i suoi pazienti passano a te (proprietario), che
-   puoi prenderli in carico.
+   puoi prenderli in carico. Lo stesso vale per gruppi e classi (*Chi lo
+   vede* sotto il nome del gruppo): un gruppo terapeutico dell'aula va aperto
+   a tutta l'aula.
 5. Manda loro il link del sito. Entrano con Google; al primo accesso il loro
    dispositivo "aspetta la chiave": arriva **da sola** entro un minuto, purché
    PsyDiary sia aperto su un dispositivo di un operatore. La collega operatrice
@@ -254,8 +261,8 @@ dispositivi perdono la chiave.
 
 - Sul Drive: solo buste cifrate (AES-256-GCM) più pochi dati tecnici (numero di
   versione, chi e quando ha salvato, email e ruoli di chi ha accesso, gli
-  identificativi dei pazienti condivisi, chi ha creato ogni paziente e con chi
-  lo ha condiviso). **Nessun nome, nessun testo.**
+  identificativi dei pazienti condivisi, chi ha creato ogni paziente, gruppo
+  o classe e con chi lo ha condiviso). **Nessun nome, nessun testo.**
 - Non spostare, rinominare o modificare i file nella cartella *PsyDiary · dati
   cifrati*, e non condividerla: non serve a nessuno per usare l'app.
 - Il custode gira come *te*: se chiudi o cambi l'account Google proprietario,

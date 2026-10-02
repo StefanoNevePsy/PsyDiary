@@ -47,5 +47,17 @@ ok(immaginiDi({ allegati: [al('a1x', 'g')] }).includes('a1x'), 'gli allegati via
   ok(!('accesso' in pub.dati) && !('accesso' in sch.dati), 'la condivisione del prototipo non viaggia');
   ok(sch.dati.etichette?.[0] === 'esterno' && !('etichette' in pub.dati), 'le etichette stanno nella scheda');
 }
+// gruppi e classi riservati: il gruppo e tutto ciò che è suo in "g:<id>"
+{
+  const opz = { gruppoRiservato: (gid) => gid === 'gcla', riservato: (rid) => rid === 'rpriv' };
+  ok(ambitoDi('gruppi', { id: 'gcla' }, opz) === 'g:gcla' && ambitoDi('gruppi', { id: 'gaula' }, opz) === 'aula', 'il gruppo riservato nel suo ambito, gli altri nell\'aula');
+  ok(ambitoDi('sedute', { tipo: 'gruppo', gruppoId: 'gcla' }, opz) === 'g:gcla', 'le sue sedute');
+  ok(ambitoDi('note', { gruppoId: 'gcla', categoria: 'osservazione' }, opz) === 'g:gcla', 'le sue note');
+  ok(ambitoDi('serie', { tipo: 'gruppo', gruppoId: 'gcla' }, opz) === 'g:gcla' && ambitoDi('sospesi', { gruppoId: 'gcla' }, opz) === 'g:gcla', 'ricorrenze e idee in sospeso');
+  ok(ambitoDi('sedute', { tipo: 'gruppo', gruppoId: 'gaula' }, opz) === 'aula', 'un gruppo di tutta l\'aula resta com\'era');
+  ok(ambitoDi('note', { ragazzoId: 'rpriv', categoria: 'gruppo' }, opz) === 'r:rpriv', '"nel gruppo" su un paziente riservato: resta con lui');
+  ok(ambitoDi('note', { ragazzoId: 'raula', categoria: 'gruppo' }, opz) === 'aula', '"nel gruppo" su un paziente dell\'aula: nell\'aula');
+  ok(!('accesso' in vociDi('gruppi', { id: 'gcla', accesso: { proprietario: 'io' } }, opz)[0].dati), 'la condivisione del prototipo non viaggia');
+}
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);

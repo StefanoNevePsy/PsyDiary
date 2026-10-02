@@ -4,19 +4,24 @@
 </script>
 
 <script>
-  // Chi vede il paziente. Un paziente è di chi lo crea: lo vede tutto lui, e
-  // gli altri solo se li sceglie (o se lo apre a tutti gli operatori dell'aula).
-  // Lo decide chi l'ha creato; chi ospita il custode riprende i pazienti di chi
-  // non è più abilitato.
+  // Chi vede un paziente, o un gruppo/classe (g). È di chi lo crea: lo vede
+  // tutto lui, e gli altri solo se li sceglie (o se lo apre a tutta l'aula).
+  // Lo decide chi l'ha creato; chi ospita il custode riprende ciò che era di
+  // chi non è più abilitato.
   import { T } from '../lib/parole.svelte.js';
-  import { dati, io, eAdmin, accessoDi, salva, nomeCompleto } from '../lib/dati.svelte.js';
+  import { dati, io, eAdmin, accessoDi, accessoGruppo, salva, nomeCompleto, tipoGruppo } from '../lib/dati.svelte.js';
   import { REALE } from '../lib/centro/config.js';
-  import { leggiAccessi, condividiPaziente, gestisceCondivisioni, sync } from '../lib/centro/sync.svelte.js';
+  import { leggiAccessi, condividiPaziente, condividiGruppo, gestisceCondivisioni, gestisceCondivisioniGruppi, sync } from '../lib/centro/sync.svelte.js';
   import Icona from './Icona.svelte';
 
-  let { r } = $props();
-  const a = $derived(accessoDi(r.id));
-  const funziona = $derived(!REALE || gestisceCondivisioni());
+  let { r = null, g = null } = $props();
+  const o = $derived(g || r);
+  const diGruppo = $derived(!!g);
+  const classe = $derived(diGruppo && tipoGruppo(g) === 'classe');
+  // "questo paziente", "questo gruppo", "questa classe"
+  const questo = $derived(classe ? 'questa classe' : diGruppo ? 'questo gruppo' : 'questo ' + T('uno'));
+  const a = $derived(diGruppo ? accessoGruppo(g.id) : accessoDi(r.id));
+  const funziona = $derived(!REALE || (diGruppo ? gestisceCondivisioniGruppi() : gestisceCondivisioni()));
   const ioId = () => (REALE ? io().email : io().id);
   const proprietarioCustode = () => REALE && !!sync.io?.proprietario;
   const puoDecidere = $derived(!!a && eAdmin() && (a.mio || a.daPrima || (a.orfano && proprietarioCustode())));
@@ -41,10 +46,10 @@
 
   const riassunto = $derived.by(() => {
     if (!a) return '';
-    if (a.daPrima) return 'di tutta l\'aula · tutti gli operatori';
+    if (a.daPrima) return diGruppo ? 'di tutta l\'aula · lo vedono tutti' : 'di tutta l\'aula · tutti gli operatori';
     const altri = (a.condivisi || []).filter((x) => x !== ioId());
     const di = a.mio ? '' : 'di ' + nomeDi(a.proprietario) + ' · ';
-    if (a.tutti) return di + 'aperto a tutti gli operatori';
+    if (a.tutti) return di + (diGruppo ? 'aperto a tutta l\'aula' : 'aperto a tutti gli operatori');
     if (!altri.length) return di + (a.mio ? 'lo vedi solo tu' : 'condiviso con te');
     return di + 'condiviso con ' + altri.map(nomeDi).join(', ');
   });
@@ -60,8 +65,9 @@
   async function conferma() {
     lavoro = true; errore = '';
     try {
-      if (REALE) await condividiPaziente(r.id, { condivisi: scelti, tutti, ...(prendo ? { proprietario: io().email } : {}) });
-      else await salva('ragazzi', { ...$state.snapshot(r), accesso: { proprietario: a.daPrima || prendo ? io().id : a.proprietario, condivisi: scelti, tutti } });
+      const scelta = { condivisi: scelti, tutti, ...(prendo ? { proprietario: io().email } : {}) };
+      if (REALE) await (diGruppo ? condividiGruppo(g.id, scelta) : condividiPaziente(r.id, scelta));
+      else await salva(diGruppo ? 'gruppi' : 'ragazzi', { ...$state.snapshot(o), accesso: { proprietario: a.daPrima || prendo ? io().id : a.proprietario, condivisi: scelti, tutti } });
       dialogo?.close();
     } catch (e) { errore = e.message || String(e); }
     lavoro = false;
@@ -79,22 +85,26 @@
 
 <dialog bind:this={dialogo} class="dlg-cond" aria-labelledby="cond-titolo">
   {#if a}
-    <h2 id="cond-titolo" class="display">Chi vede {nomeCompleto(r)}</h2>
-    {#if a.daPrima}<p class="sotto piccolo">Questo {T('uno')} è di prima dei riservati: oggi lo vedono tutti gli operatori. Togliendo "tutti gli operatori" diventa tuo e lo vedono solo le persone che scegli.</p>{/if}
+    <h2 id="cond-titolo" class="display">Chi vede {diGruppo ? g.nome : nomeCompleto(r)}</h2>
+    {#if a.daPrima}<p class="sotto piccolo">{questo[0].toUpperCase() + questo.slice(1)} è di prima dei riservati: oggi {diGruppo ? 'lo vedono tutti' : 'lo vedono tutti gli operatori'}. Togliendo la spunta qui sotto diventa tuo e lo vedono solo le persone che scegli.</p>{/if}
     {#if a.orfano}<p class="avviso">Chi l'aveva creato non è più abilitato: puoi prenderlo in carico tu.</p>{/if}
-    <label class="opz"><input type="checkbox" bind:checked={tutti} /> <span><b>Tutti gli operatori dell'aula</b><small class="sotto">come i {T('tanti')} dei gruppi: anagrafica, individuali e note li vedono tutti gli operatori</small></span></label>
+    {#if diGruppo}
+      <label class="opz"><input type="checkbox" bind:checked={tutti} /> <span><b>Tutta l'aula</b><small class="sotto">come i gruppi di prima: sedute e note li vedono tutti, operatori e tirocinanti</small></span></label>
+    {:else}
+      <label class="opz"><input type="checkbox" bind:checked={tutti} /> <span><b>Tutti gli operatori dell'aula</b><small class="sotto">come i {T('tanti')} dei gruppi: anagrafica, individuali e note li vedono tutti gli operatori</small></span></label>
+    {/if}
     <p class="eti">{tutti ? 'Inoltre' : 'Solo'} queste persone</p>
     {#if errore && !persone}<p class="avviso">{errore}</p>{/if}
     <ul class="persone">
       {#each altrePersone as p (p.id)}
         <li><label class="opz"><input type="checkbox" checked={scelti.includes(p.id)} onchange={() => alterna(p.id)} />
-          <span>{p.nome}<small class="sotto">{p.ruolo === 'admin' ? 'operatore' : 'tirocinante: vede anche individuali e anagrafica'}{REALE ? ' · ' + p.id : ''}</small></span></label></li>
+          <span>{p.nome}<small class="sotto">{p.ruolo === 'admin' ? 'operatore' : diGruppo ? 'tirocinante: scrive sedute e note' : 'tirocinante: vede anche individuali e anagrafica'}{REALE ? ' · ' + p.id : ''}</small></span></label></li>
       {:else}
         <li class="sotto piccolo">{persone ? 'Nessun altro abilitato.' : 'Carico le persone…'}</li>
       {/each}
     </ul>
     {#if a.orfano && proprietarioCustode()}<label class="opz"><input type="checkbox" bind:checked={prendo} /> <span>Prendilo in carico io</span></label>{/if}
-    <p class="sotto piccolo">Chi non è scelto non riceve niente di questo {T('uno')}, nemmeno il nome. Puoi cambiare idea quando vuoi.</p>
+    <p class="sotto piccolo">Chi non è scelto non riceve niente di {questo}, nemmeno il nome{diGruppo ? ', le sedute e le note' : ''}. Puoi cambiare idea quando vuoi.</p>
     {#if errore && persone}<p class="avviso">{errore}</p>{/if}
     <div class="bottoni">
       <button type="button" class="btn nudo" onclick={() => dialogo?.close()} disabled={lavoro}>Annulla</button>

@@ -4,7 +4,7 @@
   // Un appuntamento ricorrente: si crea, si modifica "da una data in poi",
   // si termina o si elimina. Le sedute già scritte non si toccano mai.
   import { onMount, untrack } from 'svelte';
-  import { dati, gruppo, ragazzo, nomeCompleto, ragazziCondivisi, creaSerie, modificaSerieDa, terminaSerie, eliminaSerie, togliEccezione, TIPI } from '../lib/dati.svelte.js';
+  import { gruppiVisibili, dati, gruppo, ragazzo, nomeCompleto, ragazziCondivisi, creaSerie, modificaSerieDa, terminaSerie, eliminaSerie, togliEccezione, TIPI } from '../lib/dati.svelte.js';
   import { oggi, lunga, piu } from '../lib/date.js';
   import { occorrenze, descrivi, predefinita } from '../lib/serie.js';
   import Ripeti from './Ripeti.svelte';
@@ -31,7 +31,7 @@
   let errore = $state('');
 
   $effect(() => { if (su.startsWith('g:')) tipo = 'gruppo'; else if (tipo === 'gruppo') tipo = 'individuale'; });
-  const gruppi = $derived(dati.gruppi.filter((g) => !g.archiviato));
+  const gruppi = $derived(gruppiVisibili().filter((g) => !g.archiviato));
   const ragazzi = $derived(ragazziCondivisi());
   const prossime = $derived(ripeti ? occorrenze({ dal: S0 ? daQuando : dal, ripeti, ora, ...(fine.tipo === 'data' && fine.al ? { al: fine.al } : {}), ...(fine.tipo === 'volte' ? { volte: fine.volte } : {}) }, S0 ? daQuando : dal, piu(S0 ? daQuando : dal, 120)).slice(0, 4) : []);
   const eccezioni = $derived(S0 ? Object.entries(se?.eccezioni || {}).filter(([d]) => d >= piu(O, -60)).sort() : []);

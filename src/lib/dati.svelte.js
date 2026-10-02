@@ -19,7 +19,9 @@ export const sessione = $state({ utenteId: 'stefano', tema: 'auto' });
 // Con il custode, chi sei lo dice lui (sync.svelte.js scrive qui)
 // pazienti: rid → { proprietario, condivisi, tutti, mio, daPrima?, locale? } dei
 // pazienti di cui questo account vede la scheda (null: custode che non li gestisce)
-export const centro = $state({ io: null, pazienti: null });
+// gruppi: lo stesso per gruppi e classi (senza voce: di tutta l'aula, come prima)
+// pazientiNoti: il custode ha già detto quali pazienti vede questo account
+export const centro = $state({ io: null, pazienti: null, gruppi: null, pazientiNoti: false });
 /** La persona che sta usando l'app (sempre aggiornata con i permessi). */
 export function io() {
   if (REALE) {
@@ -52,8 +54,8 @@ export function puoModificare(autore, testo) {
  */
 export function condiviso(rid) {
   if (REALE) {
-    if (!centro.pazienti) return eAdmin() || (io().ragazzi || []).includes(rid);
-    return !!centro.pazienti[rid];
+    if (centro.pazienti?.[rid]) return true;
+    return !centro.pazientiNoti && (eAdmin() || (io().ragazzi || []).includes(rid));
   }
   // prototipo: la condivisione sta nel ragazzo stesso
   const a = ragazzo(rid)?.accesso;
@@ -71,20 +73,44 @@ export function accessoDi(rid) {
   if (!a) return { tutti: true, daPrima: true, condivisi: [] };
   return { ...a, condivisi: a.condivisi || [], mio: a.proprietario === io().id };
 }
+/** Gruppi e classi: chi li vede. Senza registro sono di tutta l'aula. */
+export function accessoGruppo(gid) {
+  const a = REALE ? centro.gruppi?.[gid] : gruppo(gid)?.accesso;
+  if (!a) return { tutti: true, daPrima: true, condivisi: [] };
+  if (REALE) return a;
+  return { ...a, condivisi: a.condivisi || [], mio: a.proprietario === io().id };
+}
+/** Prototipo: un gruppo riservato di altri non c'è (col custode non arriva proprio). */
+export function nascostoGruppo(g) {
+  if (REALE || !g?.accesso) return false;
+  const a = g.accesso;
+  return !(a.tutti || a.proprietario === io().id || (a.condivisi || []).includes(io().id));
+}
+export const gruppiVisibili = () => dati.gruppi.filter((g) => !nascostoGruppo(g));
+export const TIPI_GRUPPO = { terapeutico: { nome: 'Gruppo terapeutico', breve: 'gruppo', nuovo: 'Nuovo gruppo' }, classe: { nome: 'Classe', breve: 'classe', nuovo: 'Nuova classe' } };
+export const tipoGruppo = (g) => (g?.tipo === 'classe' ? 'classe' : 'terapeutico');
+/** Un gruppo o una classe nuovi sono di chi li crea, come i pazienti. */
+export async function creaGruppo(campi) {
+  const id = nuovoId('g');
+  const g = { id, ...campi };
+  if (REALE) { if (centro.gruppi) centro.gruppi[id] = { proprietario: io().email, condivisi: [], tutti: false, mio: true, locale: true }; else centro.gruppi = { [id]: { proprietario: io().email, condivisi: [], tutti: false, mio: true, locale: true } }; }
+  else g.accesso = { proprietario: io().id, condivisi: [], tutti: false };
+  return salva('gruppi', g);
+}
 /** Un paziente nuovo è di chi lo crea: lo vede solo lui finché non lo condivide. */
 export async function creaPaziente(campi) {
   const id = nuovoId('r');
   const r = { id, ...campi };
-  if (REALE) { if (centro.pazienti) centro.pazienti[id] = { proprietario: io().email, condivisi: [], tutti: false, mio: true, locale: true }; }
+  if (REALE) centro.pazienti = { ...(centro.pazienti || {}), [id]: { proprietario: io().email, condivisi: [], tutti: false, mio: true, locale: true } };
   else r.accesso = { proprietario: io().id, condivisi: [], tutti: false };
   return salva('ragazzi', r);
 }
 /** Prototipo: un paziente riservato di altri non compare (col custode non arriva proprio). */
 export const nascosto = (r) => !REALE && !!r?.accesso && !condiviso(r.id);
 export const TIPI_PERSONALI = ['individuale', 'genitori', 'conoscenza'];
-export const visibileSeduta = (s) => !s || s.tipo === 'gruppo' || condiviso(s.ragazzoId);
+export const visibileSeduta = (s) => !s || (s.tipo === 'gruppo' ? !nascostoGruppo(gruppo(s.gruppoId)) : condiviso(s.ragazzoId));
 // le note "nel gruppo" su un ragazzo si vedono (e si scrivono) anche senza condivisione
-export const visibileNota = (n) => !n.ragazzoId || n.categoria === 'gruppo' || condiviso(n.ragazzoId);
+export const visibileNota = (n) => (n.gruppoId ? !nascostoGruppo(gruppo(n.gruppoId)) : !n.ragazzoId || n.categoria === 'gruppo' || condiviso(n.ragazzoId));
 
 // ---------------------------------------------------------------------------
 export function nuovoId(p) {
@@ -167,7 +193,7 @@ export function mappaNomi() {
 export function membriAl(g, data) {
   return (g.membri || []).filter((m) => (!m.dal || m.dal <= data) && (!m.al || m.al >= data)).map((m) => m.ragazzoId);
 }
-export const gruppiDi = (rid) => dati.gruppi.filter((g) => (g.membri || []).some((m) => m.ragazzoId === rid && !m.al));
+export const gruppiDi = (rid) => gruppiVisibili().filter((g) => (g.membri || []).some((m) => m.ragazzoId === rid && !m.al));
 export const ragazziCondivisi = () => ragazziAttivi().filter((r) => condiviso(r.id));
 export const ragazziVisibili = () => ragazziAttivi();
 export const ragazziAttivi = () => dati.ragazzi.filter((r) => r.stato !== 'concluso' && !nascosto(r)).sort((a, b) => nomeCompleto(a).localeCompare(nomeCompleto(b), 'it'));
