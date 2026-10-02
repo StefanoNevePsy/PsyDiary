@@ -54,6 +54,7 @@ export const LEGAMI = {
   distance: ['Distanza', '#808080', 'dashed', 'standard'],
   distant: ['Distante', '#808080', 'dotted', 'standard'],
   poor: ['Povera', '#808080', 'dotted', 'standard'],
+  dislike: ['Antipatia / disprezzo', '#E8573F', 'zigzag-soft', 'standard'],
   hostile: ['Ostile', '#FF0000', 'zigzag', 'standard'],
   conflict: ['Conflitto', '#FF0000', 'zigzag', 'standard'],
   'close-hostile': ['Vicini e ostili', '#FF0000', 'solid', 'triple-zigzag-center'],
@@ -257,23 +258,25 @@ function legame(e, s, t, cfg, persona, versoNucleo) {
   if (strutt) d = `M ${s.x} ${s.y + RAGGIO} L ${s.x} ${barra} L ${t.x} ${barra} L ${t.x} ${t.y + RAGGIO}`;
   else if (e.type.startsWith('twin')) d = `M ${s.x} ${s.y} L ${ex} ${ey}`;
   else if (e.type.startsWith('child')) d = `M ${s.x} ${s.y} L ${ex} ${s.y} L ${ex} ${ey}`;
-  else if (tratto.startsWith('zigzag')) d = tratto === 'zigzag-thick' ? zigzag(s.x, s.y, ex, ey, 6, 10) : zigzag(s.x, s.y, ex, ey);
+  else if (tratto.startsWith('zigzag')) d = tratto === 'zigzag-thick' ? zigzag(s.x, s.y, ex, ey, 6, 10) : tratto === 'zigzag-soft' ? zigzag(s.x, s.y, ex, ey, 2.5, 9) : zigzag(s.x, s.y, ex, ey);
   else d = `M ${s.x} ${s.y} Q ${mx} ${my} ${ex} ${ey}`;
-  const tr = tratto === 'dashed' ? '8,4' : tratto === 'dotted' ? '2,3' : null;
+  const tr = tratto === 'dashed' ? '8,4' : tratto === 'dotted' ? '2,3' : tratto === 'zigzag-soft' ? '7,4' : null;
 
-  const out = [el('path', { d, stroke, 'stroke-width': tratto === 'zigzag-thick' ? 3 : 1.75, 'stroke-dasharray': tr, fill: 'none', 'stroke-linecap': tratto === 'dotted' ? 'round' : null })];
+  const out = [el('path', { d, stroke, 'stroke-width': tratto === 'zigzag-thick' ? 3 : tratto === 'zigzag-soft' ? 1.5 : 1.75, 'stroke-dasharray': tr, fill: 'none', 'stroke-linecap': tratto === 'dotted' ? 'round' : null })];
   const lin = (spost, extra = {}) => el('path', { d, stroke, 'stroke-width': 1, transform: `translate(${spost},${spost})`, fill: 'none', ...extra });
   const zz = () => el('path', { d: zigzag(s.x, s.y, ex, ey), stroke: rosso, 'stroke-width': 1.5, fill: 'none' });
   const tacca = (x1, y1, x2, y2, w = 2) => el('line', { x1, y1, x2, y2, stroke, 'stroke-width': w, 'stroke-linecap': 'round' });
   const triangolo = (tr2, pts = '-6,-6 6,0 -6,6', f = stroke) => el('polygon', { points: pts, fill: f, transform: tr2 });
 
   const zz6 = () => el('path', { d: zigzag(s.x, s.y, ex, ey, 4, 12), stroke: rosso, 'stroke-width': 1.5, fill: 'none' });
-  const obliqua = (dx, w = 2) => tacca(mx + 5 + dx, my - 10, mx - 5 + dx, my + 10, w);
+  // barre di taglio, separazione, divorzio: attorno al centro, ruotate con la linea
+  const ruota = (...figli) => el('g', { transform: centroT }, figli);
+  const obliqua = (dx, w = 2) => tacca(5 + dx, -10, -5 + dx, 10, w);
   if (e.type === 'best-friend') out.push(lin(3), lin(-3));
-  else if (tipo === 'oblique') out.push(obliqua(0));
-  else if (tipo === 'oblique-double') out.push(obliqua(-3), obliqua(3));
-  else if (tipo === 'x-cross') out.push(obliqua(0), tacca(mx - 5, my - 10, mx + 5, my + 10));
-  else if (tipo === 'oblique-double-crossed') out.push(obliqua(-3), obliqua(3), tacca(mx - 8, my - 10, mx + 8, my + 10));
+  else if (tipo === 'oblique') out.push(ruota(obliqua(0)));
+  else if (tipo === 'oblique-double') out.push(ruota(obliqua(-3), obliqua(3)));
+  else if (tipo === 'x-cross') out.push(ruota(obliqua(0), tacca(-5, -10, 5, 10)));
+  else if (tipo === 'oblique-double-crossed') out.push(ruota(obliqua(-3), obliqua(3), tacca(-8, -10, 8, 10)));
   else if (tipo === 'dashed-inner') out.push(el('path', { d, stroke, 'stroke-width': 1.5, 'stroke-dasharray': '4,4', fill: 'none', transform: 'translate(0,6)' }));
   else if (tipo === 'triangle-up-center') out.push(el('polygon', { points: '-6,0 6,0 0,-10', fill: stroke, transform: `translate(${mx},${my})` }));
   else if (tipo === 'triple-zigzag-center') out.push(lin(6), lin(-6), zz6());
@@ -284,11 +287,11 @@ function legame(e, s, t, cfg, persona, versoNucleo) {
   else if (tipo === 'fusion-hostile' || tipo === 'triple-zigzag') out.push(lin(3), lin(-3), zz());
   else if (tipo === 'double' || tipo === 'double-zigzag') { out.push(lin(3, { 'stroke-dasharray': tr })); if (tipo === 'double-zigzag') out.push(zz()); }
   else if (tipo === 'zigzag-overlay') out.push(zz());
-  else if (tipo === 'cutoff-double') out.push(tacca(mx - 3, my - 10, mx - 3, my + 10), tacca(mx + 3, my - 10, mx + 3, my + 10));
-  else if (tipo === 'cutoff') out.push(tacca(mx, my - 10, mx, my + 10, 3));
-  else if (tipo === 'cutoff-circle' || tipo === 'cutoff-repaired-circle') out.push(tacca(mx - 4, my - 10, mx - 14, my + 10), el('circle', { cx: mx, cy: my, r: 5, fill: CARTA, stroke, 'stroke-width': 1.5 }), tacca(mx + 14, my - 10, mx + 4, my + 10));
+  else if (tipo === 'cutoff-double') out.push(ruota(tacca(-3, -10, -3, 10), tacca(3, -10, 3, 10)));
+  else if (tipo === 'cutoff') out.push(ruota(tacca(0, -10, 0, 10, 3)));
+  else if (tipo === 'cutoff-circle' || tipo === 'cutoff-repaired-circle') out.push(ruota(tacca(-4, -10, -14, 10), el('circle', { cx: 0, cy: 0, r: 5, fill: CARTA, stroke, 'stroke-width': 1.5 }), tacca(14, -10, 4, 10)));
   else if (tipo === 'two-circles-center') out.push(el('g', { transform: centroT }, [el('circle', { cx: -5, cy: 0, r: 5, fill: CARTA, stroke, 'stroke-width': 1.5 }), el('circle', { cx: 5, cy: 0, r: 5, fill: CARTA, stroke, 'stroke-width': 1.5 })]));
-  else if (tipo === 'twin-link-bar') out.push(tacca(mx - 8, my, mx + 8, my, 1.75));
+  else if (tipo === 'twin-link-bar') out.push(ruota(tacca(0, -7, 0, 7, 1.75)));
   else if (tipo === 'double-arrow-inward') {
     const dx = ex - s.x, dy = ey - s.y, a = (Math.atan2(dy, dx) * 180) / Math.PI;
     out.push(triangolo(`translate(${s.x + dx * 0.33},${s.y + dy * 0.33}) rotate(${a})`, '6,-6 -6,0 6,6'), triangolo(`translate(${s.x + dx * 0.67},${s.y + dy * 0.67}) rotate(${a})`));

@@ -29,7 +29,7 @@ ok(!/#[0-9a-f]{6}/i.test(testi.replace(/"(stroke|fill)":"#/g, '')) && testi.incl
 const figlio = d.livelli.legami[1].testo[0].a.d;
 ok(figlio.startsWith(`M ${(4000 + 4160 + 40) / 2} ${4000 + 60}`), 'la linea del figlio parte dalla barra della coppia');
 // divorzio: due tacche oblique sulla barra
-ok(d.livelli.legami[0].testo.filter((p) => p.el === 'line').length === 2, 'divorzio con le due barre oblique');
+ok(d.livelli.legami[0].testo.filter((p) => p.el === 'g').flatMap((g) => g.testo).filter((p) => p.el === 'line').length === 2, 'divorzio con le due barre oblique');
 // violenza sessuale: tre linee, zig-zag e freccia
 ok(d.livelli.legami[2].testo.some((p) => p.el === 'polygon') && d.livelli.legami[2].testo.filter((p) => p.el === 'path').length === 4, 'violenza sessuale: linee, zig-zag e freccia');
 ok(d.usati.some((u) => u.cfg[0] === 'Mio legame'), 'i legami personalizzati con il loro nome');
@@ -39,5 +39,12 @@ ok(luca.includes('"testo":"12"') && (luca.match(/"rect"/g) || []).length >= 2, '
 ok(JSON.stringify(d.livelli.persone[0]).includes('var(--g-arancio)') && JSON.stringify(d.livelli.persone[1]).includes('var(--g-viola)'), 'uso di sostanze e salute mentale con i loro colori');
 ok(Object.values(LEGAMI).every(([, , , tipo]) => campione('x', ['', '#000', 'solid', tipo]).length >= 1), 'ogni tipo di legame si disegna in legenda');
 ok(scheda(data.nodes[0], new Date('2026-10-02')).segni.includes('uso di sostanze'), 'la scheda di una persona');
+// i simboli sul centro ruotano con la linea
+const obl = disegna({ nodes: [N('a', 0, 0, 'M', 'A'), N('b', 200, 200, 'F', 'B')], edges: [E('x', 'a', 'b', 'cutoff'), E('y', 'a', 'b', 'twin-monozygotic')] });
+const rot = (l) => l.testo.find((p) => p.el === 'g' && /rotate\((4[0-9][.\d]*)\)/.test(p.a.transform));
+ok(rot(obl.livelli.legami[0]) && rot(obl.livelli.legami[1]), 'taglio e barra dei gemelli ruotano con la linea (45°)');
+const ant = disegna({ nodes: [N('a', 0, 0, 'M', 'A'), N('b', 200, 0, 'F', 'B')], edges: [E('x', 'a', 'b', 'dislike'), E('y', 'a', 'b', 'hostile')] });
+const [pa, po] = ant.livelli.legami.map((l) => l.testo[0].a);
+ok(pa['stroke-dasharray'] && !po['stroke-dasharray'] && pa.d.includes(' L ') && LEGAMI.dislike[0].startsWith('Antipatia'), 'antipatia: zig-zag più basso e tratteggiato, distinto da ostile');
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);
