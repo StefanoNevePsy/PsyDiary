@@ -31,6 +31,8 @@ ok(p.moduli[0].unita[0].attivita.includes('- [ ] scenette') && !p.moduli[0].unit
 ok(p.libere.map((l) => l.titolo).join('|') === 'Gioco del gomitolo|Silent ball', 'menù di attività libere');
 const p2 = daTesto(aTesto(p), 'Life skills');
 ok(JSON.stringify(p2.moduli.map((m) => [m.nome, m.unita.map((u) => [u.titolo, u.obiettivi, u.durata])])) === JSON.stringify(p.moduli.map((m) => [m.nome, m.unita.map((u) => [u.titolo, u.obiettivi, u.durata])])), 'aTesto e daTesto si rileggono');
+ok(daTesto('# M\n## Extra (facoltativa)\n## Base').moduli[0].unita.map((u) => u.titolo + ':' + u.facoltativa).join() === 'Extra:true,Base:false', '"(facoltativa)" nel titolo');
+const pf = daTesto('# M\n## Extra (facoltativa)'); ok(daTesto(aTesto(pf)).moduli[0].unita[0].facoltativa === true, 'e si rilegge da aTesto');
 ok(daTesto('## A\n## B').moduli.length === 1 && daTesto('## A\n## B').moduli[0].unita.length === 2, 'senza moduli: uno solo');
 ok(adatto({ destinatari: ['classe'] }, 'classe') && !adatto({ destinatari: ['classe'] }, 'individuale'), 'destinatari');
 

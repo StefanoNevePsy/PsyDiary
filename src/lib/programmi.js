@@ -175,7 +175,8 @@ export function daTesto(testo, nome = '') {
       if (libere) { unita = nuovaLibera(m[1].trim()); p.libere.push(unita); }
       else {
         if (!modulo) { modulo = nuovoModulo(''); p.moduli.push(modulo); }
-        unita = nuovaUnita(m[1].trim()); modulo.unita.push(unita);
+        const fac = /\s*\(facoltativa\)\s*$/i;
+        unita = nuovaUnita(m[1].replace(fac, '').trim()); unita.facoltativa = fac.test(m[1]); modulo.unita.push(unita);
       }
     } else if (unita && !libere && (m = /^\s*obiettiv[oi]\s*:\s*(.+)$/i.exec(riga)) && !unita.obiettivi) {
       unita.obiettivi = m[1].trim();
