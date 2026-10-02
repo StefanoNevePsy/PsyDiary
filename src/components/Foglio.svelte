@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   // Il foglio di una seduta: piano, com'è andata, i ragazzi, la prossima volta.
   import {
     dati, gruppo, ragazzo, nomeBreve, nomeCompleto, TIPI, titoloSeduta, statoSeduta, partecipantiSeduta, presente,
@@ -93,14 +94,15 @@
   let spostando = $state(false);
   let nuovaData = $state('');
   let nuovaOra = $state('');
+  let nuovaDurata = $state(60);
   let gestisci = $state(false);
-  function iniziaSposta() { nuovaData = s.data; nuovaOra = s.ora; spostando = true; }
+  function iniziaSposta() { nuovaData = s.data; nuovaOra = s.ora; nuovaDurata = s.durata || 60; spostando = true; }
   async function sposta(e) {
     e.preventDefault();
     await scarica();
     const base = dati.sedute.find((x) => x.id === s.id) || s;
-    const vera = await spostaSeduta(base, nuovaData, nuovaOra);
-    Object.assign(s, { id: vera.id, data: vera.data, ora: vera.ora, virtuale: false });
+    const vera = await spostaSeduta(base, nuovaData, nuovaOra, nuovaDurata);
+    Object.assign(s, { id: vera.id, data: vera.data, ora: vera.ora, durata: vera.durata, virtuale: false });
     spostando = false;
     alCambioId(vera.id);
   }
@@ -136,18 +138,21 @@
           <button type="button" class="link" onclick={() => (gestisci = true)}>tutta la serie…</button>
         {/if}
       </div>
-      {#if spostando}
-        <form class="sposta" onsubmit={sposta}>
-          <span class="eti">Solo questa volta</span>
-          <input class="input" type="date" bind:value={nuovaData} required aria-label="Nuova data" />
-          <input class="input" type="time" bind:value={nuovaOra} required aria-label="Nuova ora" />
-          <button class="btn pieno piccolo">Sposta</button>
-          <button type="button" class="btn nudo piccolo" onclick={() => (spostando = false)}>Annulla</button>
-        </form>
-      {/if}
+    {/if}
+    {#if spostando}
+      <form class="sposta no-stampa" onsubmit={sposta}>
+        {#if laSerie}<span class="eti">Solo questa volta</span>{/if}
+        <input class="input" type="date" bind:value={nuovaData} required aria-label="Data" />
+        <input class="input" type="time" bind:value={nuovaOra} required aria-label="Ora di inizio" />
+        <label class="durata"><input class="input" type="number" min="5" max="600" step="1" inputmode="numeric" bind:value={nuovaDurata} required aria-label="Durata in minuti" /><span class="sotto piccolo">min</span></label>
+        <button class="btn pieno piccolo">Salva</button>
+        <button type="button" class="btn nudo piccolo" onclick={() => (spostando = false)}>Annulla</button>
+      </form>
     {/if}
     <p class="eti">
-      {dataTitolo} · {s.ora}–{fineOra(s.ora, s.durata)} · {TIPI[s.tipo].breve}
+      {dataTitolo} ·
+      {#if puoGestire() || !laSerie}<button type="button" class="orario link" title="Cambia data, ora e durata" onclick={iniziaSposta}>{s.ora}–{fineOra(s.ora, s.durata)}</button>{:else}{s.ora}–{fineOra(s.ora, s.durata)}{/if}
+      · {TIPI[s.tipo].breve}
       {#if statoS === 'da-scrivere'}<span class="mano segno">da scrivere</span>{/if}
       {#if statoS === 'oggi'}<span class="mano segno">oggi</span>{/if}
     </p>
@@ -211,7 +216,7 @@
 
     {#if s.tipo === 'gruppo'}
       <section class="sez">
-        <h3><span class="margine mano">i ragazzi</span><span class="eti">Su ciascuno</span></h3>
+        <h3><span class="margine mano">{T('i')}</span><span class="eti">Su ciascuno</span></h3>
         {#each membri.filter((x) => presente(s, x)) as rid (rid)}
           {@const ra = ragazzo(rid)}
           <div class="part">
@@ -295,4 +300,7 @@
     h2 { font-size: var(--t-lg); }
     .part { grid-template-columns: 1fr; gap: 0; }
   }
+  .orario { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+  .durata { display: inline-flex; align-items: center; gap: 4px; }
+  .durata .input { width: 5.5em; }
 </style>

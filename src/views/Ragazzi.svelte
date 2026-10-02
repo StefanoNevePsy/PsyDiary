@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   // Elenco dei ragazzi: chi sono, in che gruppo, quando li si rivede.
   import { dati, nomeCompleto, gruppiDi, puoGestire, salva, nuovoId, sedutePeriodo, soggetto, condiviso, visibileNota } from '../lib/dati.svelte.js';
   import Immagine from '../components/Immagine.svelte';
@@ -39,13 +40,13 @@
 <section class="ragazzi">
   <header class="testa">
     <div>
-      <p class="eti">{elenco.length} {conclusi ? 'percorsi conclusi' : 'ragazzi in carico'}</p>
-      <h1 class="display">Ragazzi</h1>
+      <p class="eti">{elenco.length} {conclusi ? 'percorsi conclusi' : T('tanti') + ' in carico'}</p>
+      <h1 class="display">{M('tanti')}</h1>
     </div>
     <div class="comandi">
       <label class="filtro"><Icona nome="cerca" /><span class="vis-nascosto">Filtra</span><input class="input" type="search" placeholder="Nome, scuola, classe" bind:value={q} /></label>
       <button class="btn nudo piccolo" aria-pressed={conclusi} onclick={() => (conclusi = !conclusi)}>{conclusi ? 'In carico' : 'Conclusi'}</button>
-      {#if puoGestire()}<button class="btn pieno" onclick={nuovo}><Icona nome="piu" /> Nuovo ragazzo</button>{/if}
+      {#if puoGestire()}<button class="btn pieno" onclick={nuovo}><Icona nome="piu" /> Nuovo {T('uno')}</button>{/if}
     </div>
   </header>
 
@@ -69,7 +70,7 @@
         <span class="num">{prossima(r)}</span>
       </li>
     {:else}
-      <li class="vuoto sotto">{q ? 'Nessun ragazzo con questo nome.' : 'Nessuno qui.'}</li>
+      <li class="vuoto sotto">{q ? M('nessuno') + ' con questo nome.' : 'Nessuno qui.'}</li>
     {/each}
   </ol>
 </section>

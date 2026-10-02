@@ -1,3 +1,4 @@
+import { T, M } from '../parole.svelte.js';
 // Editor "come un normale programma di scrittura" (TipTap/ProseMirror):
 // si vede la formattazione, mai i simboli. Sotto il cofano il testo resta
 // markdown puro, portabile ed esportabile.
@@ -205,7 +206,7 @@ export function creaEditor(parent, opz) {
       command: ({ editor, range, props }) => editor.chain().focus().insertContentAt(range, [
         { type: 'mention', attrs: { id: props.id, label: props.label } }, { type: 'text', text: ' ' },
       ]).run(),
-      render: () => tendina('Ragazzi'),
+      render: () => tendina(M('tanti')),
     },
   });
 

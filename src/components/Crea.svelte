@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   import Scelta from './Scelta.svelte';
   // "Scrivi": il punto unico da cui si comincia una nota o una seduta.
   import { onMount, untrack } from 'svelte';
@@ -20,7 +21,8 @@
   let data = $state(inizio.data || O);
   let gruppoId = $state(inizio.gruppoId || '');
   let ragazzoId = $state(inizio.ragazzoId || '');
-  let ora = $state('');
+  let ora = $state(inizio.ora || '');
+  let durata = $state(0);
   let chi = $state('');
   let titolo = $state('');
   let su = $state(inizio.gruppoId ? 'g:' + inizio.gruppoId : inizio.ragazzoId ? 'r:' + inizio.ragazzoId : 'aula');
@@ -42,17 +44,26 @@
   const giaInSerie = $derived(tipo === 'gruppo' && gruppoId ? serieInCorso({ gruppoId }) : ragazzoId && tipo !== 'nota' ? serieInCorso({ ragazzoId }).filter((x) => x.tipo === tipo) : []);
   $effect(() => {
     const se = giaInSerie[0];
-    if (se) ora = se.ora;
+    if (se && !inizio.ora) ora = se.ora;
     else if (!ora) ora = tipo === 'gruppo' ? '15:00' : '16:00';
   });
+  // durata proposta: quella degli appuntamenti ricorrenti, o quella tipica del tipo
+  let tipoDurata = '';
+  $effect(() => {
+    const se = giaInSerie[0];
+    if (se) durata = se.durata || durata;
+    else if (!durata || tipo !== tipoDurata) durata = tipo === 'gruppo' ? 90 : 60;
+    tipoDurata = tipo;
+  });
+  const minuti = () => Math.max(5, Math.min(600, +durata || (tipo === 'gruppo' ? 90 : 60)));
   // si ripete?
   let ripeti = $state(null);
   let fineR = $state({ tipo: 'mai', al: '', volte: 10 });
 
   const KIND = [
-    { id: 'gruppo', nome: 'Seduta di gruppo', ico: 'gruppo', dett: 'piano, resoconto, una riga per ragazzo' },
-    { id: 'individuale', nome: 'Seduta individuale', ico: 'persone', dett: 'con un ragazzo' },
-    { id: 'genitori', nome: 'Incontro con i genitori', ico: 'persone', dett: 'finisce nel diario del ragazzo' },
+    { id: 'gruppo', nome: 'Seduta di gruppo', ico: 'gruppo', get dett() { return 'piano, resoconto, una riga per ' + T('uno'); } },
+    { id: 'individuale', nome: 'Seduta individuale', ico: 'persone', get dett() { return 'con ' + T('un'); } },
+    { id: 'genitori', nome: 'Incontro con i genitori', ico: 'persone', get dett() { return 'finisce nel diario ' + T('del'); } },
     { id: 'conoscenza', nome: 'Colloquio di conoscenza', ico: 'orologio', dett: 'i primi incontri, prima di iniziare' },
     { id: 'nota', nome: 'Nota libera', ico: 'matita', dett: 'telefonate, osservazioni, idee' },
   ];
@@ -73,7 +84,7 @@
     }
     if (ripeti) {
       const se = await creaSerie({
-        tipo, ora: ora || '15:00', durata: tipo === 'gruppo' ? 90 : 60, ripeti, dal: data,
+        tipo, ora: ora || '15:00', durata: minuti(), ripeti, dal: data,
         ...(tipo === 'gruppo' ? { gruppoId } : { ragazzoId }), ...(tipo === 'genitori' || tipo === 'conoscenza' ? { chi } : {}),
         ...(fineR.tipo === 'data' && fineR.al ? { al: fineR.al } : {}), ...(fineR.tipo === 'volte' ? { volte: fineR.volte } : {}),
       });
@@ -85,7 +96,7 @@
     const esiste = sedutePeriodo(data, data).find((s) => soggetto(s) === k);
     if (esiste) { fine('seduta/' + encodeURIComponent(esiste.id)); return; }
     const s = {
-      id: nuovoId('s'), tipo, data, ora: ora || '15:00', durata: giaInSerie[0]?.durata || (tipo === 'gruppo' ? 90 : 60),
+      id: nuovoId('s'), tipo, data, ora: ora || '15:00', durata: minuti(),
       argomento: '', resoconto: '', prossima: '', autori: {},
       ...(tipo === 'gruppo' ? { gruppoId, presenze: {}, partecipanti: {} } : { ragazzoId }),
       ...(tipo === 'genitori' || tipo === 'conoscenza' ? { chi } : {}),
@@ -139,22 +150,23 @@
           <label class="campo"><span>Gruppo</span>
             <Scelta bind:value={gruppoId} required opzioni={gruppiAttivi.map((g) => ({ valore: g.id, etichetta: g.nome }))} /></label>
         {:else if ['individuale', 'genitori', 'conoscenza'].includes(tipo)}
-          <label class="campo"><span>Ragazzo</span>
+          <label class="campo"><span>{M('uno')}</span>
             <Scelta bind:value={ragazzoId} required opzioni={ragazzi.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></label>
         {:else}
           <label class="campo"><span>Su</span>
             <Scelta bind:value={su} opzioni={[{ valore: 'aula', etichetta: "L'aula in generale" },
               ...gruppiAttivi.map((g) => ({ valore: 'g:' + g.id, etichetta: g.nome, gruppo: 'Gruppi' })),
-              ...tuttiRagazzi.map((r) => ({ valore: 'r:' + r.id, etichetta: nomeCompleto(r), gruppo: 'Ragazzi' }))]} /></label>
+              ...tuttiRagazzi.map((r) => ({ valore: 'r:' + r.id, etichetta: nomeCompleto(r), gruppo: M('tanti') }))]} /></label>
           <div class="campo"><span>Che nota è</span>
             <div class="categorie">{#each Object.entries(CATEGORIE_NOTA) as [k, n] (k)}<button type="button" class="cat" aria-pressed={categoria === k} disabled={soloGruppo && k !== 'gruppo'} onclick={() => (categoria = k)}>{n}</button>{/each}</div>
-            {#if soloGruppo}<p class="sotto piccolo">Non hai accesso completo a questo ragazzo: puoi scrivere solo note su come sta nel gruppo.</p>{/if}
+            {#if soloGruppo}<p class="sotto piccolo">Non hai accesso completo a {T('questo')}: puoi scrivere solo note su come sta nel gruppo.</p>{/if}
           </div>
           <label class="campo"><span>Titolo (facoltativo)</span><input class="input" bind:value={titolo} placeholder="es. Telefonata con la scuola" /></label>
         {/if}
         <div class="riga">
           <label class="campo"><span>Data</span><input class="input" type="date" bind:value={data} required /></label>
-          {#if tipo !== 'nota'}<label class="campo"><span>Ora</span><input class="input" type="time" bind:value={ora} /></label>{/if}
+          {#if tipo !== 'nota'}<label class="campo"><span>Ora</span><input class="input" type="time" bind:value={ora} /></label>
+            <label class="campo"><span>Durata (min)</span><input class="input" type="number" min="5" max="600" step="1" inputmode="numeric" bind:value={durata} /></label>{/if}
         </div>
         {#if tipo === 'genitori' || tipo === 'conoscenza'}<label class="campo"><span>Chi c'è</span><input class="input" bind:value={chi} placeholder="es. madre e padre" /></label>{/if}
         {#if tipo !== 'nota' && puoGestire()}

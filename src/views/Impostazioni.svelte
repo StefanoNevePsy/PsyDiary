@@ -1,4 +1,5 @@
 <script>
+  import { T, M, parole, scegliParole, SCELTE } from '../lib/parole.svelte.js';
   import { dati, sessione, io, eAdmin, cambiaUtente, impostaTema, ricominciaDemo } from '../lib/dati.svelte.js';
   import Icona from '../components/Icona.svelte';
   import Accessi from '../components/Accessi.svelte';
@@ -35,6 +36,16 @@
     </div>
   </section>
 
+  <section class="blocco">
+    <h2 class="eti">Le persone seguite</h2>
+    <p class="sotto">Come le chiama l'app in elenchi, pulsanti e messaggi, su questo dispositivo.</p>
+    <div class="scelte" role="radiogroup" aria-label="Come chiamare le persone seguite">
+      {#each SCELTE as o (o.valore)}
+        <button role="radio" aria-checked={parole.tipo === o.valore} onclick={() => scegliParole(o.valore)}>{o.etichetta}</button>
+      {/each}
+    </div>
+  </section>
+
   {#if REALE}
     <section class="blocco">
       <h2 class="eti">Il tuo accesso</h2>
@@ -59,7 +70,7 @@
   {:else}
   <section class="blocco">
     <h2 class="eti">Chi sta scrivendo</h2>
-    <p class="sotto">Nella demo puoi cambiare persona per provare i permessi. I tirocinanti scrivono ma non gestiscono: modificano solo le proprie note, e vedono per intero solo i ragazzi condivisi con loro.</p>
+    <p class="sotto">Nella demo puoi cambiare persona per provare i permessi. I tirocinanti scrivono ma non gestiscono: modificano solo le proprie note, e vedono per intero solo {T('i')} condivisi con loro.</p>
     <div class="scelte" role="radiogroup" aria-label="Persona">
       {#each dati.persone as u (u.id)}
         <button role="radio" aria-checked={io().id === u.id} onclick={() => cambiaUtente(u.id)}>
@@ -92,7 +103,7 @@
       <dt><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>1</kbd>–<kbd>3</kbd></dt><dd>titoli</dd>
       <dt><kbd>Ctrl</kbd> <kbd>K</kbd> · <kbd>/</kbd></dt><dd>cerca</dd>
       <dt><kbd>Ctrl</kbd> <kbd>Maiusc</kbd> <kbd>S</kbd></dt><dd>barrato</dd>
-      <dt><kbd>#</kbd> · <kbd>@</kbd></dt><dd>tag · cita un ragazzo</dd>
+      <dt><kbd>#</kbd> · <kbd>@</kbd></dt><dd>tag · cita {T('un')}</dd>
       <dt><kbd>Tab</kbd></dt><dd>rientra l'elenco</dd>
     </dl>
   </section>

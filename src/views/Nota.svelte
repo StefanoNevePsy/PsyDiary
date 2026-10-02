@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   import { untrack } from 'svelte';
   // Una nota libera: su un ragazzo, su un gruppo o sull'aula.
   import { dati, salva, elimina, ragazzo, gruppo, nomeCompleto, puoModificare, io, CATEGORIE_NOTA, visibileNota, condiviso } from '../lib/dati.svelte.js';
@@ -64,7 +65,7 @@
         <p class="sotto">{lunga(n.data)}</p>
       {/if}
       <Editor testo={n.testo} etichetta="Testo della nota" soloLettura={!modificabile} autofocus={modificabile && !n.testo}
-        segnaposto="Scrivi. **grassetto**, - elenchi, - [ ] cose da fare, #tag, @ per citare un ragazzo"
+        segnaposto={'Scrivi. **grassetto**, - elenchi, - [ ] cose da fare, #tag, @ per citare ' + T('un')}
         alCambio={(t) => modifica({ testo: t })} />
       <footer>
         <span class="sotto piccolo">{n.autore && n.autore !== io().nome ? 'di ' + n.autore + ' · ' : ''}<span aria-live="polite">{stato}</span></span>

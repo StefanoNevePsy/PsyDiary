@@ -257,11 +257,12 @@ export async function togliEccezione(se, data) {
   return salva('serie', { ...s, eccezioni: e });
 }
 /** Sposta una sola seduta (di una serie o no) a un altro giorno o orario. */
-export async function spostaSeduta(s, data, oraNuova) {
+export async function spostaSeduta(s, data, oraNuova, durataNuova) {
   const se = serieDiSeduta(s);
   if (se && data !== s.data) await eccezioneSerie(se, s.data, 'spostata');
   const vera = await materializza(s);
-  return salva('sedute', { ...$state.snapshot(vera), data, ora: oraNuova || vera.ora, ...(se ? { serieId: se.id } : {}) });
+  const durata = Math.max(5, Math.min(600, +durataNuova || vera.durata || 60));
+  return salva('sedute', { ...$state.snapshot(vera), data, ora: oraNuova || vera.ora, durata, ...(se ? { serieId: se.id } : {}) });
 }
 
 // Prima delle serie la ricorrenza stava dentro il gruppo o il ragazzo: si trasforma una volta

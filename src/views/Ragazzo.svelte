@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   import Scelta from '../components/Scelta.svelte';
   import Allegati from '../components/Allegati.svelte';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
@@ -54,7 +55,7 @@
       ['nome', 'Nome'], ['cognome', 'Cognome'], ['nascita', 'Data di nascita', 'date'], ['luogoNascita', 'Luogo di nascita'],
       ['genere', 'Genere', 'select', [['', '—'], ['F', 'femmina'], ['M', 'maschio'], ['altro', 'altro']]], ['cf', 'Codice fiscale'],
       ['cittadinanza', 'Cittadinanza'], ['lingue', 'Lingue parlate a casa'],
-      ['indirizzo', 'Indirizzo'], ['comune', 'Comune'], ['telefono', 'Telefono del ragazzo', 'tel'], ['email', 'Email', 'email'],
+      ['indirizzo', 'Indirizzo'], ['comune', 'Comune'], ['telefono', 'Telefono', 'tel'], ['email', 'Email', 'email'],
     ] },
     { titolo: 'Scuola', campi: [
       ['scuola', 'Scuola'], ['classe', 'Classe'], ['insegnante', 'Insegnante di riferimento'],
@@ -95,7 +96,7 @@
 {#if r}
   <div class="ragazzo">
     <header class="testa">
-      <a class="torna no-stampa" href="#/ragazzi"><Icona nome="sinistra" /> Ragazzi</a>
+      <a class="torna no-stampa" href="#/ragazzi"><Icona nome="sinistra" /> {M('tanti')}</a>
       <div class="intesta">
         <div class="foto">
           <Immagine id={r.foto} forma="tondo" seme={r.id} iniziale={(r.nome || '?')[0]} alt={'Foto di ' + nomeCompleto(r)} />
@@ -191,11 +192,11 @@
                 segnaposto="Informazioni che valgono sempre: attenzioni, accordi, cose da non dimenticare"
                 alCambio={(t) => campo('noteStabili', t)} />
             </div>
-            {#if gestisce}<button type="button" class="btn nudo piccolo elimina" onclick={togli}><Icona nome="cestino" /> Elimina il ragazzo</button>{/if}
+            {#if gestisce}<button type="button" class="btn nudo piccolo elimina" onclick={togli}><Icona nome="cestino" /> Elimina {T('il')}</button>{/if}
           </form>
         {:else}
           <section class="conoscenza">
-            <p class="sotto intro">I primi colloqui, prima di iniziare il percorso: con il ragazzo, con i genitori, insieme.</p>
+            <p class="sotto intro">I primi colloqui, prima di iniziare il percorso: con {T('il')}, con i genitori, insieme.</p>
             {#each colloqui as s, i (s.id)}
               <a class="colloquio" href={'#/seduta/' + encodeURIComponent(s.id)}>
                 <span class="n display">{i + 1}</span>
@@ -242,7 +243,7 @@
     </div>
   </div>
 {:else}
-  <p class="vuoto">Ragazzo non trovato. <a href="#/ragazzi">Torna all'elenco</a></p>
+  <p class="vuoto">{M('uno')} non trovato. <a href="#/ragazzi">Torna all'elenco</a></p>
 {/if}
 
 <style>

@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   // Il gruppo: storico delle sedute, prossimi piani, membri e impostazioni.
   import {
     dati, gruppo, ragazzo, nomeBreve, nomeCompleto, membriAl, storicoGruppo, puoGestire, salva, elimina, sedutePeriodo, statoSeduta, ragazziAttivi,
@@ -169,7 +170,7 @@
               </ul>
               {#if gestisce && candidati.length}
                 <div class="entra">
-                  <span class="chi"><Scelta bind:value={daAggiungere} vuota="Aggiungi un ragazzo…" etichetta="Ragazzo da aggiungere" opzioni={candidati.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></span>
+                  <span class="chi"><Scelta bind:value={daAggiungere} vuota={'Aggiungi ' + T('un') + '…'} etichetta={M('uno') + ' da aggiungere'} opzioni={candidati.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></span>
                   <Scelta breve value={quandoScelto} onchange={(v) => (quando = v)} etichetta="Da quando è nel gruppo" opzioni={QUANDO} />
                   {#if quandoScelto === 'data'}<input class="input data" type="date" bind:value={quandoData} aria-label="Nel gruppo dal" />{/if}
                   <button type="button" class="btn piccolo" onclick={entra} disabled={!daAggiungere}>Aggiungi</button>

@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   // Editor di testo: si scrive come in un normale programma di videoscrittura.
   import { onMount, onDestroy } from 'svelte';
   import { creaEditor } from '../lib/editor/tiptap.js';
@@ -66,7 +67,7 @@
     { c: 'citazione', ico: 'M5 17c2.5-1 3.5-3 3.5-6H5V7h4.5v4M13 17c2.5-1 3.5-3 3.5-6H13V7h4.5v4', t: 'Citazione (Ctrl Maiusc .)' },
     { sep: 1 },
     { c: 'tag', l: '#', t: 'Tag' },
-    { c: 'menzione', l: '@', t: 'Cita un ragazzo' },
+    { c: 'menzione', l: '@', get t() { return 'Cita ' + T('un'); } },
     { c: 'collegamento', ico: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1', t: 'Collegamento' },
     { c: 'immagine', ico: 'M4 5h16v14H4zM4 16l5-5 4 4 2.5-2.5L20 17M15 9.5h.01', t: 'Immagine' },
   ];

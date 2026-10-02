@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   import Scelta from './Scelta.svelte';
   // Un appuntamento ricorrente: si crea, si modifica "da una data in poi",
   // si termina o si elimina. Le sedute già scritte non si toccano mai.
@@ -42,7 +43,7 @@
   }
   async function salvaSerie(e) {
     e.preventDefault();
-    if (!su) { errore = 'Scegli un gruppo o un ragazzo.'; return; }
+    if (!su) { errore = 'Scegli un gruppo o ' + T('un') + '.'; return; }
     if (!ripeti) return;
     if (S0) await modificaSerieDa(se, daQuando, campi());
     else await creaSerie({ ...campi(), dal });

@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   // Per ogni tirocinante: quali ragazzi vede per intero. Degli altri vede solo
   // quello che succede nei gruppi (resoconti e note di gruppo).
   import { dati, salva, elimina, nuovoId, nomeCompleto, ragazziAttivi, membriAl, io } from '../lib/dati.svelte.js';
@@ -37,7 +38,7 @@
 </script>
 
 <div class="accessi">
-  <p class="sotto">Gli operatori vedono tutto. Ogni tirocinante vede per intero solo i ragazzi condivisi con lui (sedute individuali, genitori, conoscenza, note, anagrafica); degli altri vede soltanto quello che succede nei gruppi.</p>
+  <p class="sotto">Gli operatori vedono tutto. Ogni tirocinante vede per intero solo {T('i')} condivisi con lui (sedute individuali, genitori, conoscenza, note, anagrafica); degli altri vede soltanto quello che succede nei gruppi.</p>
   <ul class="persone">
     {#each operatori as p (p.id)}
       <li class="persona"><div class="riga"><span class="display nome">{p.nome}</span><span class="eti">operatore · vede tutto</span></div></li>
@@ -47,9 +48,9 @@
       <li class="persona" class:aperta={aperto === p.id}>
         <div class="riga">
           <span class="display nome">{p.nome}</span>
-          <span class="eti">tirocinante · {n ? `${n} ragazz${n === 1 ? 'o' : 'i'} condivis${n === 1 ? 'o' : 'i'}` : 'solo i gruppi'}</span>
+          <span class="eti">tirocinante · {n ? `${n} ${n === 1 ? T('uno') : T('tanti')} condivis${n === 1 ? 'o' : 'i'}` : 'solo i gruppi'}</span>
           <span class="spazio"></span>
-          <button class="btn piccolo" aria-expanded={aperto === p.id} onclick={() => (aperto = aperto === p.id ? null : p.id)}>{aperto === p.id ? 'Chiudi' : 'Scegli i ragazzi'}</button>
+          <button class="btn piccolo" aria-expanded={aperto === p.id} onclick={() => (aperto = aperto === p.id ? null : p.id)}>{aperto === p.id ? 'Chiudi' : 'Scegli ' + T('i')}</button>
           {#if p.id !== io().id}<button class="btn nudo piccolo" onclick={() => togli(p)} aria-label={'Togli ' + p.nome}><Icona nome="cestino" /></button>{/if}
         </div>
         {#if aperto === p.id}

@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   // Tutte le idee in sospeso, gruppo per gruppo e ragazzo per ragazzo.
   import { dati, nomeCompleto } from '../lib/dati.svelte.js';
   import ElencoSospesi from '../components/ElencoSospesi.svelte';
@@ -28,7 +29,7 @@
       </section>
     {/each}
   </div>
-  <p class="sotto piccolo">Per appuntare un'idea su un ragazzo, aprilo dall'elenco Ragazzi.</p>
+  <p class="sotto piccolo">Per appuntare un'idea su {T('un')}, aprilo dall'elenco {M('tanti')}.</p>
 </section>
 
 <style>

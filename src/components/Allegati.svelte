@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../lib/parole.svelte.js';
   // Allegati dell'anagrafica: genogrammi, relazioni, documenti. Cifrati e
   // sincronizzati come le foto; li vede solo chi vede l'anagrafica.
   import { salvaAllegato, urlAllegato, urlImmagine, togliImmagine, testoAllegato } from '../lib/immagini.js';
@@ -154,7 +155,7 @@
 {#if scegliGeno}
   <dialog bind:this={dialogoScelta} class="scelta-geno" onclose={() => (scegliGeno = null)} aria-label="Quali genogrammi allegare">
     <h2 class="display">Quali genogrammi?</h2>
-    <p class="sotto piccolo">Il file contiene {scegliGeno.elenco.length} genogrammi: alleghi a questa anagrafica solo quelli di questo ragazzo. Gli altri non vengono salvati.</p>
+    <p class="sotto piccolo">Il file contiene {scegliGeno.elenco.length} genogrammi: alleghi a questa anagrafica solo quelli di {T('questo')}. Gli altri non vengono salvati.</p>
     <ul>
       {#each scegliGeno.elenco as g (g.id)}
         <li><label><input type="checkbox" checked={scegliGeno.scelti.has(g.id)} onchange={(e) => { const s = new Set(scegliGeno.scelti); if (e.currentTarget.checked) s.add(g.id); else s.delete(g.id); scegliGeno = { ...scegliGeno, scelti: s }; }} />

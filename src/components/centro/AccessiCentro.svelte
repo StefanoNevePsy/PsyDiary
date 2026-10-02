@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from '../../lib/parole.svelte.js';
   import Scelta from '../Scelta.svelte';
   // Persone e accessi, sul custode: chi entra (per email), con che ruolo, e per
   // ogni tirocinante quali ragazzi vede per intero.
@@ -73,7 +74,7 @@
   <p class="sotto">{errore || 'Carico gli accessi dal custode…'}</p>
 {:else}
   <div class="accessi">
-    <p class="sotto">Entra solo chi è in questo elenco, con il suo account Google. Gli operatori vedono tutto; ogni tirocinante vede per intero solo i ragazzi condivisi con lui, degli altri le sedute di gruppo e le note "nel gruppo". I dati non condivisi non arrivano proprio sul suo dispositivo.</p>
+    <p class="sotto">Entra solo chi è in questo elenco, con il suo account Google. Gli operatori vedono tutto; ogni tirocinante vede per intero solo {T('i')} condivisi con lui, degli altri le sedute di gruppo e le note "nel gruppo". I dati non condivisi non arrivano proprio sul suo dispositivo.</p>
     <ul class="persone">
       <li class="persona"><div class="riga"><span class="display nome">{acc.proprietario}</span><span class="eti">proprietario · operatore sempre</span></div></li>
       {#each persone.filter((p) => p.email !== acc.proprietario) as p (p.email)}

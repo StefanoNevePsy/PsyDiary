@@ -14,6 +14,8 @@
   import Icona from '../components/Icona.svelte';
   import Immagine from '../components/Immagine.svelte';
   import { gruppo as gruppoDi, ragazzo as ragazzoDi, serieDiSeduta } from '../lib/dati.svelte.js';
+  import Agenda from '../components/Agenda.svelte';
+  import { spazi, durata as durataLeggibile } from '../lib/agenda.js';
 
   const vista = $derived(rotta.parti[1] === 'mese' ? 'mese' : 'settimana');
   const base = $derived(/^\d{4}-\d{2}-\d{2}$/.test(rotta.parti[2] || '') ? rotta.parti[2] : oggi());
@@ -43,6 +45,19 @@
     return daIso(lun).getMonth() === daIso(fine).getMonth() ? `${numeroGiorno(lun)}–${numeroGiorno(fine)} ${nomeMese(fine)}` : `${breve(lun)} – ${breve(fine)}`;
   });
   function sposta(n) { vai(`calendario/${vista}/${vista === 'mese' ? meseDopo(primo, n) : piu(lun, 7 * n)}`); }
+
+  // settimana come agenda (ore in verticale) o come elenco di biglietti;
+  // sul telefono sempre elenco, con gli spazi liberi tra una seduta e l'altra
+  let ampio = $state(true);
+  let forma = $state((() => { try { return localStorage.getItem('psy:cal-forma') || 'agenda'; } catch (e) { return 'agenda'; } })());
+  function scegliForma(f) { forma = f; try { localStorage.setItem('psy:cal-forma', f); } catch (e) { /* niente */ } }
+  const agenda = $derived(forma === 'agenda' && ampio);
+  onMount(() => {
+    const mq = matchMedia('(min-width: 760px)');
+    const f = () => (ampio = mq.matches);
+    f(); mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  });
 
   // foglio accanto su schermi larghi
   let largo = $state(false);
@@ -95,6 +110,12 @@
         <a class="btn" href={`#/calendario/${vista}/${O}`}>Oggi</a>
         <button class="btn nudo" onclick={() => sposta(1)} aria-label={vista === 'mese' ? 'Mese successivo' : 'Settimana successiva'}><Icona nome="destra" /></button>
       </div>
+      {#if vista === 'settimana' && ampio}
+        <div class="vista" role="group" aria-label="Forma della settimana">
+          <button type="button" aria-pressed={forma === 'agenda'} onclick={() => scegliForma('agenda')} title="Le ore in verticale: ordine, durate e spazi liberi">Agenda</button>
+          <button type="button" aria-pressed={forma === 'elenco'} onclick={() => scegliForma('elenco')} title="Una riga per giorno, con il piano di ogni seduta">Elenco</button>
+        </div>
+      {/if}
       <div class="vista" role="group" aria-label="Vista">
         <a href={`#/calendario/settimana/${base}`} aria-current={vista === 'settimana' ? 'true' : undefined}>Settimana</a>
         <a href={`#/calendario/mese/${base}`} aria-current={vista === 'mese' ? 'true' : undefined}>Mese</a>
@@ -104,6 +125,9 @@
 
   {#if vista === 'settimana'}
     <div class="corpo">
+      {#if agenda}
+        <Agenda giorni={visibili} {perGiorno} oggi={O} scelta={largo ? sel : null} {apri} {segno} {piano} />
+      {:else}
       <ol class="giorni">
         {#each visibili as d (d)}
           <li class="giorno" class:oggi={d === O} class:passato={d < O}>
@@ -112,8 +136,10 @@
               <span class="eti">{nomeGiorno(d)}</span>
             </div>
             <div class="biglietti">
-              {#each perGiorno[d] as s (s.id)}
+              {#each perGiorno[d] as s, i (s.id)}
                 {@const st = statoSeduta(s)}
+                {@const sp = i ? spazi(perGiorno[d])[i - 1] : null}
+                {#if sp && sp.minuti !== 0}<span class="spazio" class:sovrapposte={sp.minuti < 0}>{sp.minuti > 0 ? durataLeggibile(sp.minuti) + ' liberi' : 'si sovrappone di ' + durataLeggibile(sp.minuti)}</span>{/if}
                 <a class="biglietto tipo-{s.tipo} stato-{st}" class:scelto={largo && sel === s.id}
                   href={'#/seduta/' + encodeURIComponent(s.id)} onclick={(e) => apri(e, s)} aria-current={largo && sel === s.id ? 'true' : undefined}>
                   <span class="ora">{s.ora}<span class="fine">–{fineOra(s.ora, s.durata)}</span></span>
@@ -133,6 +159,7 @@
           </li>
         {/each}
       </ol>
+      {/if}
       {#if largo && selezionata}
         <aside class="lato" aria-label="Seduta selezionata">
           {#key chiave}
@@ -166,7 +193,10 @@
   .gruppo-btn { display: flex; align-items: center; gap: 2px; }
   .vista { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--matita-forte); border-radius: 999px; }
   .vista a { border-radius: 999px; padding: 5px 14px; text-decoration: none; font-weight: 600; font-size: var(--t-sm); color: var(--inchiostro-2); }
-  .vista a[aria-current] { background: var(--inchiostro); color: var(--su-inchiostro); }
+  .vista a[aria-current], .vista button[aria-pressed='true'] { background: var(--inchiostro); color: var(--su-inchiostro); }
+  .vista button { border: 0; background: none; cursor: pointer; font: inherit; border-radius: 999px; padding: 5px 14px; font-weight: 600; font-size: var(--t-sm); color: var(--inchiostro-2); }
+  .spazio { align-self: center; font-size: 11.5px; font-style: italic; color: var(--inchiostro-3); white-space: nowrap; }
+  .spazio.sovrapposte { color: var(--spot-testo); font-style: normal; font-weight: 600; }
 
   .corpo { display: grid; grid-template-columns: 1fr; gap: var(--s-6); align-items: start; }
   .con-foglio .corpo { grid-template-columns: minmax(0, 1fr) minmax(460px, 600px); }

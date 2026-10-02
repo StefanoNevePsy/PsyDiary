@@ -1,4 +1,5 @@
 <script>
+  import { T, M } from './lib/parole.svelte.js';
   import { onMount } from 'svelte';
   import { dati, carica, sessione, impostaTema } from './lib/dati.svelte.js';
   import { rotta } from './lib/rotta.svelte.js';
@@ -40,7 +41,7 @@
   const sezione = $derived(rotta.parti[0] || 'calendario');
   const VOCI = [
     { id: 'calendario', nome: 'Calendario', ico: 'calendario' },
-    { id: 'ragazzi', nome: 'Ragazzi', ico: 'persone' },
+    { id: 'ragazzi', get nome() { return M('tanti'); }, ico: 'persone' },
     { id: 'gruppi', nome: 'Gruppi', ico: 'gruppo' },
     { id: 'diario', nome: 'Diario', ico: 'diario' },
     { id: 'sospesi', nome: 'In sospeso', ico: 'sospesi' },
@@ -70,7 +71,7 @@
   <div class="azioni">
     {#if REALE}<StatoSync />{/if}
     <button class="cerca" onclick={() => (ui.cerca = true)}>
-      <Icona nome="cerca" /><span>Cerca ragazzi, note, date</span><kbd>Ctrl K</kbd>
+      <Icona nome="cerca" /><span>Cerca {T('tanti')}, note, date</span><kbd>Ctrl K</kbd>
     </button>
     <button class="btn nudo" onclick={tema} aria-label="Cambia tema chiaro o scuro" title="Carta o inchiostro"><Icona nome="tema" /></button>
     <a class="btn nudo" href="#/impostazioni" aria-label="Impostazioni" title="Impostazioni"><Icona nome="ingranaggio" /></a>
