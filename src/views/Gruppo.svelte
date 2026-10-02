@@ -63,16 +63,25 @@
     campo('membri', (g.membri || []).map((m) => (m.ragazzoId === x.rid && !(m.al && m.al < O) ? { ...m, dal: dalScelto(x.quando, x.data) } : m)));
     inModifica = null;
   }
-  const testoDal = (dal) => (dal ? 'dal ' + breveAnno(dal) : "dall'inizio");
+  const testoDal = (dal) => (!dal ? "dall'inizio" : dal > O ? 'entra il ' + breveAnno(dal) : 'dal ' + breveAnno(dal));
   function esce(rid) {
+    const futuro = (g.membri || []).find((m) => m.ragazzoId === rid && !m.al && m.dal && m.dal > O);
+    if (futuro) {
+      // non è ancora entrato: si toglie e basta
+      if (!confirm(`Togliere ${nomeCompleto(ragazzo(rid))}, che doveva entrare il ${breveAnno(futuro.dal)}?`)) return;
+      campo('membri', (g.membri || []).filter((m) => m !== futuro));
+      return;
+    }
     if (!confirm(`${nomeCompleto(ragazzo(rid))} esce dal gruppo da oggi? Le sedute passate restano nel suo diario.`)) return;
     campo('membri', (g.membri || []).map((m) => (m.ragazzoId === rid && !m.al ? { ...m, al: piu(O, -1) } : m)));
   }
+
   async function copertina() {
     try { const n = await scegliImmagine(); if (!n) return; const v = g.copertina; campo('copertina', n); if (v) togliImmagine(v); } catch (e) { alert(e.message); }
   }
   function togliCopertina() { const v = g.copertina; campo('copertina', null); if (v) togliImmagine(v); }
-  const candidati = $derived(ragazziAttivi().filter((r) => !membri.includes(r.id)));
+  // chi è nel gruppo o ci entrerà (anche più avanti) non si aggiunge una seconda volta
+  const candidati = $derived(ragazziAttivi().filter((r) => !(g?.membri || []).some((m) => m.ragazzoId === r.id && !(m.al && m.al < O))));
   async function archivia() {
     if (!confirm(g.archiviato ? 'Riattivare il gruppo?' : 'Archiviare il gruppo? Lo storico resta; le sedute future spariscono dal calendario.')) return;
     campo('archiviato', !g.archiviato);
@@ -154,7 +163,7 @@
                     {:else}
                       {#if gestisce}<button type="button" class="link sotto piccolo" title="Cambia da quando è nel gruppo" onclick={() => modificaIngresso(m)}>{testoDal(m.dal)}</button>
                       {:else}<span class="sotto piccolo">{testoDal(m.dal)}</span>{/if}
-                      {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => esce(m.ragazzoId)}>Esce dal gruppo</button>{/if}
+                      {#if gestisce}<button type="button" class="btn nudo piccolo" onclick={() => esce(m.ragazzoId)}>{m.dal && m.dal > O ? 'Togli' : 'Esce dal gruppo'}</button>{/if}
                     {/if}</li>
                 {/each}
               </ul>
@@ -162,7 +171,7 @@
                 <div class="entra">
                   <span class="chi"><Scelta bind:value={daAggiungere} vuota="Aggiungi un ragazzo…" etichetta="Ragazzo da aggiungere" opzioni={candidati.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></span>
                   <Scelta breve value={quandoScelto} onchange={(v) => (quando = v)} etichetta="Da quando è nel gruppo" opzioni={QUANDO} />
-                  {#if quandoScelto === 'data'}<input class="input data" type="date" bind:value={quandoData} max={O} aria-label="Nel gruppo dal" />{/if}
+                  {#if quandoScelto === 'data'}<input class="input data" type="date" bind:value={quandoData} aria-label="Nel gruppo dal" />{/if}
                   <button type="button" class="btn piccolo" onclick={entra} disabled={!daAggiungere}>Aggiungi</button>
                 </div>
               {/if}
