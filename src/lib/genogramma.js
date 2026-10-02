@@ -15,71 +15,111 @@
 const LATO = 40, RAGGIO = 20, CALO = 40, BARRA = RAGGIO + CALO;
 
 // ---------------------------------------------------------------------------
-// Tipi di legame: [etichetta, colore, tratto, simbolo], come la tabella che
-// GenoGram Creator usa davvero per disegnare (BASE_REL_CONFIG in App.tsx)
+// Tipi di legame: [etichetta, colore, tratto, simbolo], generati dalla tabella
+// di GenoGram Creator (src/config/relationships.ts, BASE_REL_CONFIG)
 export const LEGAMI = {
-  // struttura e coppia
-  marriage: ['Matrimonio', '#000000', 'solid', 'standard'],
-  secret: ['Relazione segreta', '#000000', 'solid', 'triangle-up-center'],
-  cohabitation: ['Convivenza', '#000000', 'dashed', 'standard'],
-  couple: ['Relazione di coppia', '#000000', 'dashed', 'standard'],
-  'divorce-commit': ['Divorzio, impegno emotivo', '#000000', 'solid', 'dashed-inner'],
-  separation: ['Separazione', '#000000', 'solid', 'oblique'],
-  'separation-repaired': ['Separazione riparata', '#000000', 'solid', 'x-cross'],
-  'separation-cohab': ['Separazione (convivenza)', '#000000', 'dashed', 'oblique'],
-  divorce: ['Divorzio', '#000000', 'solid', 'oblique-double'],
-  'divorce-repaired': ['Divorzio riparato', '#000000', 'solid', 'oblique-double-crossed'],
+  // 1. strutturali (coppia e relazioni)
+  'marriage': ['Matrimonio', '#000000', 'solid', 'standard'],
+  'secret': ['Relazione Segreta', '#000000', 'solid', 'triangle-up-center'],
+  'cohabitation': ['Convivenza', '#000000', 'dashed', 'standard'],
+  'couple': ['Relazione di Coppia', '#000000', 'dashed', 'standard'],
+  'divorce-commit': ['Divorzio Impegno Emot.', '#000000', 'solid', 'dashed-inner'],
+  'separation': ['Separazione', '#000000', 'solid', 'oblique'],
+  'separation-repaired': ['Separazione Riparata', '#000000', 'solid', 'x-cross'],
+  'separation-cohab': ['Separazione (Conv.)', '#000000', 'dashed', 'oblique'],
+  'divorce': ['Divorzio (2 Tagli)', '#000000', 'solid', 'oblique-double'],
+  'divorce-repaired': ['Divorzio Riparato', '#000000', 'solid', 'oblique-double-crossed'],
   're-marriage': ['Risposati', '#000000', 'solid', 'standard'],
-  affair: ['Relazione extra', '#FFD700', 'dotted', 'standard'],
+  'affair': ['Relazione Extra/Amante', '#FFD700', 'dotted', 'standard'],
   'one-night': ['Avventura', '#FFD700', 'dotted', 'standard'],
-  engagement: ['Fidanzamento', '#0000FF', 'dashed', 'standard'],
-  // figli
-  'child-bio': ['Figlio biologico', '#000000', 'solid', 'standard'],
+  'engagement': ['Fidanzamento', '#0000FF', 'dashed', 'standard'],
+  'engagement-cohab': ['Fidanzati Conviventi', '#0000FF', 'dashed', 'dashed-inner'],
+  // 2. figli
+  'child-bio': ['Figlio Biologico', '#000000', 'solid', 'standard'],
   'child-adopted': ['Adozione', '#0000FF', 'dotted', 'standard'],
   'child-foster': ['Affido', '#000000', 'dashed', 'standard'],
-  'twin-dizygotic': ['Gemelli dizigoti', '#000000', 'solid', 'twin-link'],
-  'twin-monozygotic': ['Gemelli monozigoti', '#000000', 'solid', 'twin-link-bar'],
-  pregnancy: ['Gravidanza', '#000000', 'solid', 'standard'],
-  // affetti e interazioni
-  correlated: ['Correlato', '#000000', 'solid', 'standard'],
-  harmony: ['Armonia', '#008000', 'solid', 'standard'],
-  friendship: ['Amicizia', '#008000', 'dashed', 'standard'],
-  'best-friend': ['Migliore amico', '#008000', 'dotted', 'double'],
-  close: ['Molto uniti', '#008000', 'solid', 'double'],
-  fusion: ['Fusione', '#008000', 'solid', 'triple'],
+  'twin-dizygotic': ['Gemelli Dizigoti', '#000000', 'solid', 'twin-link'],
+  'twin-monozygotic': ['Gemelli Monozigoti', '#000000', 'solid', 'twin-link-bar'],
+  'pregnancy': ['Gravidanza', '#000000', 'solid', 'standard'],
+  // 3. affetti e interazioni
+  'correlated': ['Correlato/Collegamento', '#000000', 'solid', 'standard'],
+  'harmony': ['Armonia', '#008000', 'solid', 'standard'],
+  'friendship': ['Amicizia', '#008000', 'dashed', 'standard'],
+  'best-friend': ['Migliore Amico', '#008000', 'dotted', 'double'],
+  'close': ['Invischiamento/Molto Uniti', '#008000', 'solid', 'double'],
+  'fusion': ['Fusione', '#008000', 'solid', 'triple'],
   'in-love': ['Innamorati', '#008000', 'solid', 'two-circles-center'],
-  fan: ['Ammiratore', '#008000', 'dashed', 'arrow'],
-  spiritual: ['Connessione spirituale', '#800080', 'dashed', 'standard'],
+  'fan': ['Ammiratore', '#008000', 'dashed', 'arrow'],
+  'spiritual': ['Conn. Spirituale', '#800080', 'dashed', 'standard'],
+  // 4. conflitto e distanza
+  'distance': ['Distanza', '#808080', 'dashed', 'standard'],
+  'poor': ['Povera', '#808080', 'dotted', 'standard'],
+  // antipatia/disprezzo: negativa ma meno intensa di "ostile" (zig-zag basso e tratteggiato)
+  'dislike': ['Antipatia/Disprezzo', '#E8573F', 'zigzag-soft', 'standard'],
+  'hostile': ['Ostile', '#FF0000', 'zigzag', 'standard'],
+  'close-hostile': ['Vicini-Ostile', '#FF0000', 'solid', 'triple-zigzag-center'],
+  'fusion-hostile': ['Fusione & Conflitto', '#000000', 'solid', 'fusion-hostile'],
+  'hate': ['Odio', '#FF0000', 'solid', 'triple-zigzag'],
+  'cutoff': ['Rottura/Taglio (//)', '#FF0000', 'solid', 'cutoff'],
+  'restored': ['Relazione Ristabilita', '#008000', 'solid', 'cutoff-repaired-circle'],
+  // 5. violenza, abuso e potere
+  'violence-psychological': ['Violenza Psicologica', '#FF0000', 'zigzag', 'arrow-open-end'],
+  'violence-physical': ['Violenza Fisica', '#FF0000', 'zigzag-thick', 'arrow-open-end'],
+  'violence-sexual': ['Violenza Sessuale', '#FF0080', 'solid', 'triple-zigzag-center-arrow'],
+  'abuse-physical': ['Abuso Fisico', '#800000', 'solid', 'arrow-thick'],
+  'abuse-emotional': ['Abuso Emotivo', '#800000', 'dashed', 'arrow'],
+  'abuse-sexual': ['Abuso Sessuale', '#FF0080', 'solid', 'arrow-double-bar-center'],
+  'focused': ['Focalizzato sul', '#0000FF', 'solid', 'arrow-end'],
+  'focused-negative': ['Focalizzato Negativamente', '#FF0000', 'zigzag', 'arrow-end'],
+  'companions': ['Accompagnatori', '#000000', 'solid', 'arrow-open-end'],
+  'manipulative': ['Manipolativo', '#FF0000', 'solid', 'arrow-x-center'],
+  'controlling': ['Controllante', '#800080', 'solid', 'arrow-box-center'],
+  'keeper': ['Custode/Caregiver', '#008080', 'solid', 'arrow-diamond-center'],
+  'neglect': ['Trascuratezza', '#808080', 'dashed', 'double-arrow-inward'],
+  'violence-mutual': ['Violenza Reciproca', '#FF0000', 'zigzag', 'arrow-open-both'],
+  // --- espansione simboli ---
+  // struttura / coppia
+  'civil-union': ['Unione Civile', '#000000', 'solid', 'bars-center'],
+  'annulment': ['Annullamento', '#000000', 'solid', 'cutoff-double'],
+  'dating': ['Frequentazione', '#000000', 'dotted', 'standard'],
+  // figli
+  'child-step': ['Figlio Acquisito', '#7c3aed', 'dashed', 'standard'],
+  'child-donor': ['Concepito con Donazione', '#4f46e5', 'solid', 'dot-center'],
+  'child-surrogacy': ['Gestazione per Altri', '#4f46e5', 'dashed', 'dot-center'],
+  'child-ward': ['Tutela Legale', '#64748b', 'dotted', 'standard'],
+  'twin-unknown': ['Gemelli (zigosità ignota)', '#000000', 'solid', 'twin-link'],
+  // interazione / affettive
+  'ambivalent': ['Ambivalente (amore-odio)', '#000000', 'solid', 'zigzag-overlay'],
+  'parentified': ['Genitorializzazione', '#b45309', 'solid', 'triangle-center'],
+  'confidant': ['Confidente', '#008000', 'solid', 'dot-center'],
+  'mentor': ['Mentore / Guida', '#008000', 'solid', 'arrow-end'],
+  'dependency': ['Dipendenza Affettiva', '#0891b2', 'solid', 'arrow-open-center'],
+  'idealization': ['Idealizzazione', '#0891b2', 'dashed', 'arrow-end'],
+  'rivalry': ['Rivalità', '#f59e0b', 'solid', 'double-arrow-inward'],
   // conflitto e distanza
-  distance: ['Distanza', '#808080', 'dashed', 'standard'],
-  distant: ['Distante', '#808080', 'dotted', 'standard'],
-  poor: ['Povera', '#808080', 'dotted', 'standard'],
-  dislike: ['Antipatia / disprezzo', '#E8573F', 'zigzag-soft', 'standard'],
-  hostile: ['Ostile', '#FF0000', 'zigzag', 'standard'],
-  conflict: ['Conflitto', '#FF0000', 'zigzag', 'standard'],
-  'close-hostile': ['Vicini e ostili', '#FF0000', 'solid', 'triple-zigzag-center'],
-  'fusion-hostile': ['Fusione e conflitto', '#000000', 'solid', 'fusion-hostile'],
-  'distant-hostile': ['Distante e ostile', '#FF0000', 'dotted', 'zigzag-overlay'],
-  hate: ['Odio', '#FF0000', 'solid', 'triple-zigzag'],
-  cutoff: ['Taglio', '#FF0000', 'solid', 'cutoff'],
-  'cutoff-repaired': ['Taglio riparato', '#000000', 'solid', 'cutoff-repaired-circle'],
-  restored: ['Relazione ristabilita', '#008000', 'solid', 'cutoff-repaired-circle'],
+  'indifferent': ['Indifferenza', '#9ca3af', 'dotted', 'dot-center'],
+  'mistrust': ['Sfiducia / Sospetto', '#78716c', 'dashed', 'dot-center'],
+  'contempt': ['Disprezzo', '#dc2626', 'dashed', 'arrow-end'],
+  'betrayal': ['Tradimento', '#dc2626', 'solid', 'cutoff-double'],
   // violenza, abuso e potere
-  'violence-psychological': ['Violenza psicologica', '#FF0000', 'zigzag', 'arrow-open-end'],
-  'violence-physical': ['Violenza fisica', '#FF0000', 'zigzag-thick', 'arrow-open-end'],
-  'violence-sexual': ['Violenza sessuale', '#FF0080', 'solid', 'triple-zigzag-center-arrow'],
-  violence: ['Violenza', '#FF0000', 'solid', 'arrow-thick'],
-  'abuse-physical': ['Abuso fisico', '#800000', 'solid', 'arrow-thick'],
-  'abuse-emotional': ['Abuso emotivo', '#800000', 'dashed', 'arrow'],
-  'abuse-sexual': ['Abuso sessuale', '#FF0080', 'solid', 'arrow-double-bar-center'],
-  focused: ['Focalizzato su', '#0000FF', 'solid', 'arrow-end'],
-  'focused-negative': ['Focalizzato negativamente', '#FF0000', 'zigzag', 'arrow-end'],
-  companions: ['Accompagnatori', '#000000', 'solid', 'arrow-open-end'],
-  manipulative: ['Manipolativo', '#FF0000', 'solid', 'arrow-x-center'],
-  controlling: ['Controllante', '#800080', 'solid', 'arrow-box-center'],
-  keeper: ['Custode / caregiver', '#008080', 'solid', 'arrow-diamond-center'],
-  neglect: ['Trascuratezza', '#808080', 'dashed', 'double-arrow-inward'],
-  custom: ['Personalizzata', '#000000', 'solid', 'standard'],
+  'stalking': ['Stalking / Persecuzione', '#FF0000', 'dashed', 'arrow-thick'],
+  'economic-abuse': ['Violenza Economica', '#800000', 'solid', 'arrow-box-center'],
+  'bullying': ['Bullismo', '#FF0000', 'zigzag', 'arrow-end'],
+  'overprotection': ['Iperprotezione', '#7c3aed', 'solid', 'double-arrow-inward'],
+  'emotional-blackmail': ['Ricatto Affettivo', '#be123c', 'solid', 'arrow-diamond-center'],
+  'abandonment': ['Abbandono', '#78716c', 'dotted', 'arrow-end'],
+  // sociale / contesto
+  'colleague': ['Collega', '#0369a1', 'solid', 'standard'],
+  'neighbor': ['Vicino di Casa', '#0369a1', 'dotted', 'standard'],
+  'teacher-student': ['Insegnante–Allievo', '#0369a1', 'dashed', 'arrow-end'],
+  'therapeutic': ['Rapporto Terapeutico', '#7c3aed', 'dashed', 'dot-center'],
+  'legal-guardian': ['Tutore Legale', '#0369a1', 'solid', 'arrow-end'],
+  'custom': ['Personalizzata', '#000000', 'solid', 'standard'],
+  // tipi di versioni precedenti dell'app (genogrammi già salvati)
+  'conflict': ['Conflitto', '#FF0000', 'zigzag', 'standard'],
+  'distant': ['Distante', '#808080', 'dotted', 'standard'],
+  'violence': ['Violenza', '#FF0000', 'solid', 'arrow-thick'],
+  'cutoff-repaired': ['Taglio riparato', '#000000', 'solid', 'cutoff-repaired-circle'],
 };
 const STRUTTURALI = ['marriage', 'secret', 'couple', 'divorce-commit', 'separation', 'separation-repaired', 'separation-cohab', 'divorce', 'divorce-repaired', 'cohabitation', 'affair', 're-marriage', 'engagement', 'one-night'];
 const COPPIE = ['marriage', 'cohabitation', 'separation', 'divorce', 'affair', 're-marriage'];
@@ -104,11 +144,11 @@ export function famiglia(hex) {
   let hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   hue = (hue * 60 + 360) % 360;
   if (hue < 15 || hue >= 345) return l < 0.33 ? 'bordeaux' : 'rosso';
-  if (hue < 45) return 'arancio';
+  if (hue < 45) return l < 0.35 ? 'marrone' : 'arancio';
   if (hue < 70) return 'oro';
   if (hue < 170) return 'verde';
   if (hue < 200) return 'ottanio';
-  if (hue < 270) return 'blu';
+  if (hue < 250) return 'blu';
   if (hue < 320) return 'viola';
   return 'rosa';
 }
@@ -292,6 +332,12 @@ function legame(e, s, t, cfg, persona, versoNucleo) {
   else if (tipo === 'cutoff-circle' || tipo === 'cutoff-repaired-circle') out.push(ruota(tacca(-4, -10, -14, 10), el('circle', { cx: 0, cy: 0, r: 5, fill: CARTA, stroke, 'stroke-width': 1.5 }), tacca(14, -10, 4, 10)));
   else if (tipo === 'two-circles-center') out.push(el('g', { transform: centroT }, [el('circle', { cx: -5, cy: 0, r: 5, fill: CARTA, stroke, 'stroke-width': 1.5 }), el('circle', { cx: 5, cy: 0, r: 5, fill: CARTA, stroke, 'stroke-width': 1.5 })]));
   else if (tipo === 'twin-link-bar') out.push(ruota(tacca(0, -7, 0, 7, 1.75)));
+  else if (tipo === 'bars-center') out.push(ruota(tacca(-4, -9, -4, 9, 2.5), tacca(4, -9, 4, 9, 2.5)));
+  else if (tipo === 'triangle-center') out.push(el('polygon', { points: '-7,-6 7,-6 0,7', fill: stroke, transform: centroT }));
+  else if (tipo === 'dot-center') out.push(el('circle', { cx: 0, cy: 0, r: 5, fill: stroke, transform: centroT }));
+  else if (tipo === 'arrow-open-both') out.push(
+    el('polyline', { points: '-6,-6 6,0 -6,6', stroke, 'stroke-width': 2, fill: 'none', transform: frecciaT, 'stroke-linejoin': 'round' }),
+    el('polyline', { points: '-6,-6 6,0 -6,6', stroke, 'stroke-width': 2, fill: 'none', transform: `translate(${s.x},${s.y}) rotate(${ang + 180}) translate(-${punta},0)`, 'stroke-linejoin': 'round' }));
   else if (tipo === 'double-arrow-inward') {
     const dx = ex - s.x, dy = ey - s.y, a = (Math.atan2(dy, dx) * 180) / Math.PI;
     out.push(triangolo(`translate(${s.x + dx * 0.33},${s.y + dy * 0.33}) rotate(${a})`, '6,-6 -6,0 6,6'), triangolo(`translate(${s.x + dx * 0.67},${s.y + dy * 0.67}) rotate(${a})`));
@@ -327,13 +373,32 @@ function persona(n, opz) {
   }
   // segni clinici: dipendenze (metà inferiore), salute mentale (lato sinistro), LGB (triangolo)
   const quadrato = n.gender === 'M';
-  if (n.substanceAbuse) parti.push(quadrato ? el('rect', { x: 0, y: h / 2, width: w, height: h / 2, fill: C('arancio'), class: 'g-segno' }) : el('path', { d: `M 0 ${h / 2} A ${r} ${r} 0 0 0 ${w} ${h / 2} Z`, fill: C('arancio'), class: 'g-segno' }));
+  // sostanze (arancio) e alcol (marrone): metà inferiore, in due bande se ci sono entrambi
+  if (n.substanceAbuse || n.alcoholAbuse) {
+    const id = 'gclip-' + String(n.id).replace(/[^\w-]/g, '');
+    const forma = quadrato ? el('rect', { x: 0, y: 0, width: w, height: h }) : n.gender === 'F' ? el('circle', { cx: r, cy: r, r }) : el('polygon', { points: `${r},0 ${w},${r} ${r},${h} 0,${r}` });
+    const entrambi = n.substanceAbuse && n.alcoholAbuse;
+    const bande = [];
+    if (n.substanceAbuse) bande.push(el('rect', { x: 0, y: h / 2, width: w, height: entrambi ? h / 4 : h / 2, fill: C('arancio'), class: 'g-segno' }));
+    if (n.alcoholAbuse) bande.push(el('rect', { x: 0, y: entrambi ? h * 0.75 : h / 2, width: w, height: entrambi ? h / 4 : h / 2, fill: C('marrone'), class: 'g-segno' }));
+    parti.push(el('clipPath', { id }, [forma]), el('g', { 'clip-path': `url(#${id})` }, bande));
+  }
   if (n.mentalIssue) parti.push(quadrato ? el('rect', { x: 0, y: 0, width: w / 3, height: h, fill: C('viola'), class: 'g-segno' }) : el('path', { d: `M ${r} 0 A ${r} ${r} 0 0 0 ${r} ${h} Z`, fill: C('viola'), class: 'g-segno' }));
+  if (n.physicalIssue) parti.push(quadrato ? el('rect', { x: (w * 2) / 3, y: 0, width: w / 3, height: h, fill: C('ottanio'), class: 'g-segno' }) : el('path', { d: `M ${r} 0 A ${r} ${r} 0 0 1 ${r} ${h} Z`, fill: C('ottanio'), class: 'g-segno' }));
+  if (n.behavioralAddiction) parti.push(el('g', { stroke: C('ottanio'), 'stroke-width': 2.5 }, [el('line', { x1: 6, y1: h * 0.62, x2: w - 6, y2: h * 0.62 }), el('line', { x1: 7, y1: h * 0.75, x2: w - 7, y2: h * 0.75 }), el('line', { x1: 9, y1: h * 0.88, x2: w - 9, y2: h * 0.88 })]));
+  if (n.eatingDisorder) parti.push(quadrato ? el('rect', { x: 4, y: 4, width: w - 8, height: h - 8, stroke: C('rosso'), 'stroke-width': 1.5, 'stroke-dasharray': '3 2', fill: 'none' }) : el('circle', { cx: r, cy: r, r: r - 4, stroke: C('rosso'), 'stroke-width': 1.5, 'stroke-dasharray': '3 2', fill: 'none' }));
+  if (n.recovery) parti.push(el('line', { x1: 2, y1: h - 2, x2: w - 2, y2: h / 2, stroke: C('verde'), 'stroke-width': 3, 'stroke-linecap': 'round' }));
+  if (n.disability) parti.push(el('g', { stroke: C('ottanio'), 'stroke-width': 2, fill: 'none' }, [el('path', { d: `M 3 ${h - 4} a 5 5 0 0 1 10 0` }), el('path', { d: `M 6 ${h - 4} a 2.2 2.2 0 0 1 4.4 0` })]));
   if (n.gayLesbian) parti.push(el('path', { d: `M ${r - 7} ${h - 12} L ${r + 7} ${h - 12} L ${r} ${h} Z`, fill: C('rosa'), stroke: CARTA, 'stroke-width': 1 }));
   // ridisegno del contorno sopra i riempimenti, perché resti netto
   if ((n.substanceAbuse || n.mentalIssue) && ['M', 'F'].includes(n.gender)) parti.push(n.gender === 'M' ? el('rect', { x: 0, y: 0, width: w, height: h, stroke: INK, 'stroke-width': sw, fill: 'none' }) : el('circle', { cx: r, cy: r, r, stroke: INK, 'stroke-width': sw, fill: 'none' }));
   if (n.indexPerson) parti.push(quadrato ? el('rect', { x: 6, y: 6, width: w - 12, height: h - 12, stroke: INK, 'stroke-width': 1.25, fill: 'none' }) : el('circle', { cx: r, cy: r, r: r - 6, stroke: INK, 'stroke-width': 1.25, fill: 'none' }));
   if (n.deceased) parti.push(el('path', { d: `M0 0 L${w} ${h} M${w} 0 L0 ${h}`, stroke: INK, 'stroke-width': 1.5 }));
+  // istituzionalizzazione (carcere, comunità, RSA): parentesi quadre attorno
+  if (n.institutionalized) parti.push(el('path', { d: `M -4 -4 L -8 -4 L -8 ${h + 4} L -4 ${h + 4} M ${w + 4} -4 L ${w + 8} -4 L ${w + 8} ${h + 4} L ${w + 4} ${h + 4}`, stroke: INK, 'stroke-width': 1.5, fill: 'none' }));
+  // immigrazione: freccetta con l'anno; PMA/donazione: triangolino con D
+  if (n.immigrationYear) parti.push(el('line', { x1: w + 3, y1: -6, x2: w + 11, y2: -14, stroke: INK, 'stroke-width': 1.5 }), el('polygon', { points: `${w + 11},-14 ${w + 5},-13 ${w + 10},-8`, fill: INK }), el('text', { x: w + 13, y: -8, class: 'g-sotto' }, String(n.immigrationYear)));
+  if (n.donorConceived) parti.push(el('polygon', { points: '-14,-4 -4,-4 -9,-14', stroke: INK, 'stroke-width': 1.2, fill: 'none' }), el('text', { x: -9, y: -6, 'text-anchor': 'middle', class: 'g-sotto', 'font-weight': 700 }, 'D'));
   const anni = n.showAge !== false && n.birthDate ? eta(n.birthDate, opz.oggi) : '';
   if (anni) parti.push(el('text', { x: r, y: r + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'central', class: 'g-eta' }, anni));
   if (n.name) parti.push(el('text', { x: r, y: -9, 'text-anchor': 'middle', class: 'g-nome' }, n.name));
@@ -420,10 +485,17 @@ export function scheda(n, oggi = new Date()) {
   if (n.indexPerson) segni.push('paziente designato');
   if (n.deceased) segni.push('deceduto');
   if (n.substanceAbuse) segni.push('uso di sostanze');
+  if (n.alcoholAbuse) segni.push('alcol');
+  if (n.behavioralAddiction) segni.push('dipendenza comportamentale');
+  if (n.eatingDisorder) segni.push('disturbo alimentare');
+  if (n.disability) segni.push('disabilità');
+  if (n.institutionalized) segni.push('istituzionalizzato');
+  if (n.donorConceived) segni.push('PMA / donazione');
   if (n.mentalIssue) segni.push('salute mentale');
   if (n.physicalIssue) segni.push('salute fisica');
   if (n.recovery) segni.push('in recupero');
   if (n.gayLesbian) segni.push('gay/lesbica');
   const a = n.birthDate ? eta(n.birthDate, oggi) : '';
-  return { nome: n.name || '—', sesso: SESSI[n.gender] || '', nascita: n.birthDate || '', eta: a, etichetta: n.label || '', segni, note: (n.notes || []).filter((x) => x && x.text) };
+  const dati = [n.profession, n.education, n.religion, n.ethnicity, n.immigrationYear ? 'immigrazione ' + n.immigrationYear : '', n.deathDate ? 'morte ' + n.deathDate + (n.causeOfDeath ? ' (' + n.causeOfDeath + ')' : '') : ''].filter(Boolean);
+  return { nome: n.name || '—', sesso: SESSI[n.gender] || '', nascita: n.birthDate || '', eta: a, etichetta: [n.label, ...dati].filter(Boolean).join(' · '), segni, note: (n.notes || []).filter((x) => x && x.text) };
 }

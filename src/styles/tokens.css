@@ -109,6 +109,7 @@
   --g-rosso: oklch(0.55 0.19 27);
   --g-bordeaux: oklch(0.42 0.12 20);
   --g-arancio: oklch(0.7 0.15 58);
+  --g-marrone: oklch(0.45 0.08 55);
   --g-oro: oklch(0.68 0.13 85);
   --g-ottanio: oklch(0.53 0.08 195);
   --g-blu: oklch(0.49 0.14 262);
@@ -120,6 +121,7 @@
   --g-rosso: oklch(0.71 0.17 27);
   --g-bordeaux: oklch(0.66 0.13 15);
   --g-arancio: oklch(0.78 0.14 60);
+  --g-marrone: oklch(0.68 0.08 60);
   --g-oro: oklch(0.83 0.13 88);
   --g-ottanio: oklch(0.76 0.09 195);
   --g-blu: oklch(0.74 0.12 262);
@@ -132,6 +134,8 @@
     --g-rosso: oklch(0.71 0.17 27);
     --g-bordeaux: oklch(0.66 0.13 15);
     --g-arancio: oklch(0.78 0.14 60);
+    --g-marrone: oklch(0.68 0.08 60);
+  --g-marrone: oklch(0.68 0.08 60);
     --g-oro: oklch(0.83 0.13 88);
     --g-ottanio: oklch(0.76 0.09 195);
     --g-blu: oklch(0.74 0.12 262);

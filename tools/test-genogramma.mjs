@@ -46,5 +46,13 @@ ok(rot(obl.livelli.legami[0]) && rot(obl.livelli.legami[1]), 'taglio e barra dei
 const ant = disegna({ nodes: [N('a', 0, 0, 'M', 'A'), N('b', 200, 0, 'F', 'B')], edges: [E('x', 'a', 'b', 'dislike'), E('y', 'a', 'b', 'hostile')] });
 const [pa, po] = ant.livelli.legami.map((l) => l.testo[0].a);
 ok(pa['stroke-dasharray'] && !po['stroke-dasharray'] && pa.d.includes(' L ') && LEGAMI.dislike[0].startsWith('Antipatia'), 'antipatia: zig-zag più basso e tratteggiato, distinto da ostile');
+// tabella completa di GenoGram Creator: nuovi simboli e segni clinici
+ok(famiglia('#8b5cf6') === 'viola' && famiglia('#92400e') === 'marrone' && famiglia('#0000FF') === 'blu', 'viola, marrone e blu restano distinti');
+ok(['civil-union', 'child-donor', 'parentified', 'violence-mutual', 'contempt', 'therapeutic'].every((t) => LEGAMI[t]), 'i 30 legami aggiunti in GenoGram Creator ci sono');
+const nuovi = disegna({ nodes: [N('a', 0, 0, 'M', 'A', { alcoholAbuse: true, substanceAbuse: true, institutionalized: true, immigrationYear: '1998' }), N('b', 200, 0, 'F', 'B')],
+  edges: ['civil-union', 'parentified', 'confidant', 'violence-mutual'].map((t, i) => E('e' + i, 'a', 'b', t)) });
+const piatto = JSON.stringify(nuovi);
+ok(piatto.includes('clipPath') && piatto.includes('var(--g-marrone)') && piatto.includes('"testo":"1998"'), 'alcol e sostanze in bande, istituzionalizzazione, immigrazione');
+ok(nuovi.livelli.legami.every((l) => l.testo.length >= 2), 'unione civile, genitorializzazione, confidente, violenza reciproca hanno il loro simbolo');
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);

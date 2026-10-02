@@ -5,8 +5,8 @@
   let { p } = $props();
 </script>
 
-{#if p.el === 'g'}
-  <g {...p.a}>{#each p.testo as c, i (i)}<Primitiva p={c} />{/each}</g>
+{#if Array.isArray(p.testo)}
+  <svelte:element this={p.el} {...p.a}>{#each p.testo as c, i (i)}<Primitiva p={c} />{/each}</svelte:element>
 {:else if p.el === 'text'}
   <text {...p.a}>{p.testo}</text>
 {:else if p.el === 'foreignObject'}
