@@ -25,8 +25,15 @@ telefoni. Ci vogliono circa 30–40 minuti, una volta sola. Tutto il resto
   solo file illeggibili, anche per Google e per chi aprisse la cartella. La
   chiave la conoscete solo tu e gli operatori; agli altri dispositivi arriva
   cifrata per loro, e la usano senza poterla vedere.
+- **Ogni paziente è di chi lo crea.** Un paziente nuovo lo vede solo
+  l'operatore che l'ha creato: agli altri non arriva niente, nemmeno il nome
+  cifrato. Lo condivide lui con le persone che sceglie, oppure lo apre a tutti
+  gli operatori dell'aula (come i pazienti dei gruppi). Così PsyDiary si può
+  usare anche per pazienti esterni all'aula. I pazienti inseriti prima di
+  questa regola restano di tutta l'aula, finché chi li ha creati non li rende
+  riservati.
 - **I tirocinanti** ricevono sul loro dispositivo solo quello che possono
-  vedere: dei ragazzi non condivisi con loro non arriva nulla di personale,
+  vedere: dei pazienti non condivisi con loro non arriva nulla di personale,
   nemmeno cifrato.
 - **Tu sei il proprietario**: l'account che installa il custode è sempre
   operatore e nessuno può chiuderlo fuori.
@@ -208,7 +215,13 @@ In PsyDiary: **Impostazioni → Persone e accessi**.
    gruppo intero in un tocco). Puoi mettere una data di fine accesso: dopo
    quella data non entra più e i dati spariscono dal suo dispositivo.
 3. Premi **Salva gli accessi**.
-4. Manda loro il link del sito. Entrano con Google; al primo accesso il loro
+4. Chi vede ogni paziente si sceglie dalla sua pagina, sotto il nome:
+   *Chi lo vede* (lo decide chi l'ha creato). Un paziente che metti in un
+   gruppo va aperto a tutti gli operatori, altrimenti chi lavora nel gruppo
+   non ne vede il nome: PsyDiary te lo propone quando lo aggiungi. Se un
+   operatore lascia l'aula, i suoi pazienti passano a te (proprietario), che
+   puoi prenderli in carico.
+5. Manda loro il link del sito. Entrano con Google; al primo accesso il loro
    dispositivo "aspetta la chiave": arriva **da sola** entro un minuto, purché
    PsyDiary sia aperto su un dispositivo di un operatore. La collega operatrice
    può anche inserire la chiave dell'aula a mano.
@@ -241,7 +254,8 @@ dispositivi perdono la chiave.
 
 - Sul Drive: solo buste cifrate (AES-256-GCM) più pochi dati tecnici (numero di
   versione, chi e quando ha salvato, email e ruoli di chi ha accesso, gli
-  identificativi dei ragazzi condivisi). **Nessun nome, nessun testo.**
+  identificativi dei pazienti condivisi, chi ha creato ogni paziente e con chi
+  lo ha condiviso). **Nessun nome, nessun testo.**
 - Non spostare, rinominare o modificare i file nella cartella *PsyDiary · dati
   cifrati*, e non condividerla: non serve a nessuno per usare l'app.
 - Il custode gira come *te*: se chiudi o cambi l'account Google proprietario,

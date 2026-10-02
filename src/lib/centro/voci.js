@@ -18,14 +18,18 @@ export function ambitoDi(tabella, o) {
   return 'aula';
 }
 
-/** Le voci che rappresentano un oggetto locale. */
-export function vociDi(tabella, o) {
+/**
+ * Le voci che rappresentano un oggetto locale. riservato(rid): il paziente è
+ * riservato, quindi anche nome e foto restano nel suo ambito invece che
+ * nell'aula (li vede solo chi vede la scheda).
+ */
+export function vociDi(tabella, o, { riservato = () => false } = {}) {
   if (tabella === 'ragazzi') {
     const pub = {}, scheda = { id: o.id };
-    for (const [k, v] of Object.entries(o)) (CAMPI_PUBBLICI.includes(k) ? pub : scheda)[k] = v;
+    for (const [k, v] of Object.entries(o)) if (k !== 'accesso') (CAMPI_PUBBLICI.includes(k) ? pub : scheda)[k] = v;
     scheda.id = o.id;
     return [
-      { id: o.id, tipo: 'ragazzo', ambito: 'aula', dati: pub },
+      { id: o.id, tipo: 'ragazzo', ambito: riservato(o.id) ? 'r:' + o.id : 'aula', dati: pub },
       { id: idScheda(o.id), tipo: 'scheda', ambito: 'r:' + o.id, dati: scheda },
     ];
   }

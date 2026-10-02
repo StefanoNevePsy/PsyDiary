@@ -38,5 +38,14 @@ const uu = unisci(ub, { allegati: [al('a1', 'uno'), al('a2', 'mio')] }, { allega
 ok(uu.allegati.map((x) => x.id).join() === 'a1,a2,a3', 'allegati aggiunti da due persone: ci sono tutti');
 ok(unisci(ub, { allegati: [al('a1', 'uno'), al('a2', 'mio')] }, { allegati: [] }).allegati.map((x) => x.id).join() === 'a2', 'tolto dall\'altra parte: sparisce, il mio resta');
 ok(immaginiDi({ allegati: [al('a1x', 'g')] }).includes('a1x'), 'gli allegati viaggiano come le immagini');
+// pazienti riservati: anche nome e foto nel loro ambito
+{
+  const p = { id: 'rpriv1', nome: 'Ada', cognome: 'B', diagnosi: 'x', etichette: ['esterno'], accesso: { proprietario: 'io' } };
+  const [pub, sch] = vociDi('ragazzi', p, { riservato: () => true });
+  ok(pub.ambito === 'r:rpriv1' && pub.dati.nome === 'Ada' && sch.ambito === 'r:rpriv1', 'riservato: nome e scheda nell\'ambito del paziente');
+  ok(vociDi('ragazzi', p)[0].ambito === 'aula', 'di tutta l\'aula: il nome resta nell\'aula');
+  ok(!('accesso' in pub.dati) && !('accesso' in sch.dati), 'la condivisione del prototipo non viaggia');
+  ok(sch.dati.etichette?.[0] === 'esterno' && !('etichette' in pub.dati), 'le etichette stanno nella scheda');
+}
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);

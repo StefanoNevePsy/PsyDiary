@@ -5,6 +5,7 @@
   import InBreve from '../components/InBreve.svelte';
   import Suggerimenti from '../components/Suggerimenti.svelte';
   import Etichette from '../components/Etichette.svelte';
+  import Condivisione from '../components/Condivisione.svelte';
   import { RAPIDI, suggerimentiRuoli } from '../lib/famiglia.js';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
   // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
@@ -125,6 +126,7 @@
             {#if tutto && r.inizio}<span>in carico dal {breveAnno(r.inizio)}</span>{/if}
             {#if r.stato === 'concluso'}<span class="mano concluso">percorso concluso</span>{/if}
           </p>
+          {#if tutto}<Condivisione {r} />{/if}
           {#if tutto && (gestisce || r.etichette?.length)}<p class="etich"><Etichette valori={r.etichette || []} modificabile={gestisce} alCambio={(x) => campo('etichette', x)} /></p>{/if}
           <p class="appartiene">
             {#each gruppi as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{/each}

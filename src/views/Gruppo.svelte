@@ -2,8 +2,10 @@
   import { T, M } from '../lib/parole.svelte.js';
   // Il gruppo: storico delle sedute, prossimi piani, membri e impostazioni.
   import {
-    dati, gruppo, ragazzo, nomeBreve, nomeCompleto, membriAl, storicoGruppo, puoGestire, salva, elimina, sedutePeriodo, statoSeduta, ragazziAttivi,
+    dati, gruppo, ragazzo, nomeBreve, nomeCompleto, membriAl, storicoGruppo, puoGestire, salva, elimina, sedutePeriodo, statoSeduta, ragazziAttivi, accessoDi,
   } from '../lib/dati.svelte.js';
+  import { REALE } from '../lib/centro/config.js';
+  import { condividiPaziente, gestisceCondivisioni } from '../lib/centro/sync.svelte.js';
   import { rotta, vai } from '../lib/rotta.svelte.js';
   import { oggi, piu, lunga, relativa, breveAnno, nomeGiorno } from '../lib/date.js';
   import { daFare, anteprima } from '../lib/testo.js';
@@ -51,10 +53,20 @@
   let quandoData = $state(O);
   const quandoScelto = $derived(quando ?? (inizio && inizio < O ? 'inizio' : 'oggi'));
   const dalScelto = (q, d) => (q === 'inizio' ? null : q === 'data' ? d || O : O);
-  function entra() {
+  async function entra() {
     if (!daAggiungere) return;
-    campo('membri', [...(g.membri || []), { ragazzoId: daAggiungere, dal: dalScelto(quandoScelto, quandoData) }]);
+    const rid = daAggiungere;
+    campo('membri', [...(g.membri || []), { ragazzoId: rid, dal: dalScelto(quandoScelto, quandoData) }]);
     daAggiungere = '';
+    // un paziente riservato in un gruppo: gli altri del gruppo non ne vedrebbero il nome
+    const a = accessoDi(rid);
+    if (a && a.mio && !a.tutti && (!REALE || gestisceCondivisioni())
+      && confirm(`${nomeCompleto(ragazzo(rid))} è riservato: chi lavora nel gruppo non ne vede nemmeno il nome. Aprirlo a tutti gli operatori dell'aula?`)) {
+      try {
+        if (REALE) await condividiPaziente(rid, { condivisi: a.condivisi || [], tutti: true });
+        else { const r = ragazzo(rid); await salva('ragazzi', { ...$state.snapshot(r), accesso: { ...r.accesso, tutti: true } }); }
+      } catch (e) { alert(e.message || String(e)); }
+    }
   }
   // cambiare la data di ingresso di chi è già nel gruppo
   let inModifica = $state(null);

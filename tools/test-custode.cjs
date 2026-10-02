@@ -124,6 +124,45 @@ chiama('stefano@aula.it', 'accessi.salva', { accessi: acc2, versioneBase: 1 });
 ok(chiama('stefano@aula.it', 'dispositivi.elenco').dati.length === 0, 'tolta dagli accessi, il suo dispositivo sparisce');
 ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra più');
 
+// pazienti riservati: di chi li crea, visibili ad altri solo se condivisi
+{
+  // tutto quello creato sopra fa da "pazienti di prima" (custode senza registro)
+  fs.rmSync(path.join(dir, '_config/pazienti.json'), { force: true });
+  const vede = (email, rid) => { const d = chiama(email, 'sync', {}).dati; return d.ambiti.includes('r:' + rid); };
+  ok((chiama('elena@aula.it', 'io').dati.funzioni || []).includes('riservati'), 'il custode dichiara i pazienti riservati');
+  let r = chiama('elena@aula.it', 'sync', { invii: [voce('rpriv1', 'ragazzo', 'r:rpriv1'), voce('rpriv1sc', 'scheda', 'r:rpriv1')] });
+  ok(r.dati.esiti.every((e) => e.ok), 'Elena crea un paziente (nome e scheda nel suo ambito)');
+  ok(r.dati.pazienti.rpriv1 && r.dati.pazienti.rpriv1.mio && !r.dati.pazienti.rpriv1.tutti, 'è suo e riservato');
+  const st = chiama('stefano@aula.it', 'sync', {}).dati;
+  ok(!st.ambiti.includes('r:rpriv1') && !st.voci.some((v) => v.id.startsWith('rpriv1')), 'un altro operatore non lo riceve, nemmeno il nome');
+  ok(st.pazienti.rluca01 && st.pazienti.rluca01.daPrima && st.pazienti.rluca01.tutti, 'i pazienti di prima restano di tutta l\'aula');
+  ok(chiama('stefano@aula.it', 'sync', { invii: [voce('npriv', 'nota', 'r:rpriv1')] }).dati.esiti[0].errore === 'vietato', 'e non ci scrive');
+  ok(chiama('stefano@aula.it', 'paziente.condivisione', { id: 'rpriv1', condivisi: ['stefano@aula.it'] }).errore === 'vietato', 'né se lo condivide da solo');
+  ok(chiama('elena@aula.it', 'paziente.condivisione', { id: 'rpriv1', condivisi: ['stefano@aula.it'] }).ok, 'Elena lo condivide con Stefano');
+  const st2 = chiama('stefano@aula.it', 'sync', {}).dati;
+  ok(st2.ambiti.includes('r:rpriv1') && st2.voci.some((v) => v.id === 'rpriv1sc'), 'ora Stefano lo riceve tutto');
+  ok(st2.pazienti.rpriv1.mio === false && st2.pazienti.rpriv1.proprietario === 'elena@aula.it', 'e sa che è di Elena');
+  ok(chiama('stefano@aula.it', 'sync', { invii: [voce('npriv', 'nota', 'r:rpriv1')] }).dati.esiti[0].ok, 'e ci scrive');
+  ok(chiama('elena@aula.it', 'paziente.condivisione', { id: 'rpriv1', condivisi: [], tutti: true }).ok && vede('stefano@aula.it', 'rpriv1') && !vede('marco@aula.it', 'rpriv1'), 'aperto a tutta l\'aula: tutti gli operatori, non i tirocinanti');
+  ok(chiama('elena@aula.it', 'paziente.condivisione', { id: 'rpriv1', condivisi: [], tutti: false }).ok && !vede('stefano@aula.it', 'rpriv1'), 'richiuso: Stefano non lo vede più');
+  // tirocinanti: li assegna solo chi vede il paziente
+  const a = chiama('stefano@aula.it', 'accessi.leggi').dati;
+  const conMarco = JSON.parse(JSON.stringify({ utenti: a.utenti })); conMarco.utenti['marco@aula.it'].ragazzi = ['rpriv1'];
+  ok(chiama('stefano@aula.it', 'accessi.salva', { accessi: conMarco, versioneBase: a.version }).errore === 'vietato', 'Stefano non può assegnare a Marco un riservato che non vede');
+  ok(chiama('elena@aula.it', 'accessi.salva', { accessi: conMarco, versioneBase: a.version }).ok && vede('marco@aula.it', 'rpriv1'), 'Elena sì, e Marco lo vede');
+  // pazienti di prima: decide chi ne ha creato la scheda
+  ok(chiama('elena@aula.it', 'paziente.condivisione', { id: 'rluca01', condivisi: [] }).errore === 'vietato', 'un paziente di prima lo rende riservato solo chi l\'ha creato');
+  ok(chiama('stefano@aula.it', 'paziente.condivisione', { id: 'rluca01', condivisi: [] }).ok && !vede('elena@aula.it', 'rluca01') && vede('stefano@aula.it', 'rluca01'), 'Stefano lo rende riservato: Elena non lo vede più');
+  ok(chiama('stefano@aula.it', 'paziente.condivisione', { id: 'rnonce', condivisi: [] }).errore === 'non-trovato', 'paziente inesistente');
+  // chi esce dall'aula: i suoi pazienti passano a chi ospita il custode
+  const a2 = chiama('stefano@aula.it', 'accessi.leggi').dati;
+  const senzaElena = { utenti: JSON.parse(JSON.stringify(a2.utenti)) }; delete senzaElena.utenti['elena@aula.it'];
+  chiama('stefano@aula.it', 'accessi.salva', { accessi: senzaElena, versioneBase: a2.version });
+  const st3 = chiama('stefano@aula.it', 'sync', {}).dati;
+  ok(st3.ambiti.includes('r:rpriv1') && st3.pazienti.rpriv1.orfano, 'Elena non è più abilitata: chi ospita il custode vede i suoi pazienti');
+  ok(chiama('stefano@aula.it', 'paziente.condivisione', { id: 'rpriv1', condivisi: [], proprietario: 'stefano@aula.it' }).dati.mio, 'e può prenderli in carico');
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${n - falliti}/${n} superati`);
 process.exit(falliti ? 1 : 0);

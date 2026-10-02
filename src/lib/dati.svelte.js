@@ -17,7 +17,9 @@ export const PERSONE_INIZIALI = [
 const OSPITE = { id: '?', nome: '?', ruolo: 'tirocinante', ragazzi: [] };
 export const sessione = $state({ utenteId: 'stefano', tema: 'auto' });
 // Con il custode, chi sei lo dice lui (sync.svelte.js scrive qui)
-export const centro = $state({ io: null });
+// pazienti: rid → { proprietario, condivisi, tutti, mio, daPrima?, locale? } dei
+// pazienti di cui questo account vede la scheda (null: custode che non li gestisce)
+export const centro = $state({ io: null, pazienti: null });
 /** La persona che sta usando l'app (sempre aggiornata con i permessi). */
 export function io() {
   if (REALE) {
@@ -48,7 +50,37 @@ export function puoModificare(autore, testo) {
  * Ragazzi condivisi: chi è admin li vede tutti; un tirocinante vede tutto dei
  * ragazzi condivisi con lui, degli altri solo quello che succede nei gruppi.
  */
-export const condiviso = (rid) => eAdmin() || (io().ragazzi || []).includes(rid);
+export function condiviso(rid) {
+  if (REALE) {
+    if (!centro.pazienti) return eAdmin() || (io().ragazzi || []).includes(rid);
+    return !!centro.pazienti[rid];
+  }
+  // prototipo: la condivisione sta nel ragazzo stesso
+  const a = ragazzo(rid)?.accesso;
+  const assegnato = !eAdmin() && (io().ragazzi || []).includes(rid);
+  if (!a) return eAdmin() || assegnato;
+  return a.proprietario === io().id || (a.condivisi || []).includes(io().id) || (a.tutti && eAdmin()) || assegnato;
+}
+/**
+ * Con chi è condiviso un paziente: { proprietario, condivisi, tutti, mio, daPrima }.
+ * daPrima: paziente di prima dei riservati (di tutta l'aula, nessun titolare).
+ */
+export function accessoDi(rid) {
+  if (REALE) return centro.pazienti?.[rid] || null;
+  const a = ragazzo(rid)?.accesso;
+  if (!a) return { tutti: true, daPrima: true, condivisi: [] };
+  return { ...a, condivisi: a.condivisi || [], mio: a.proprietario === io().id };
+}
+/** Un paziente nuovo è di chi lo crea: lo vede solo lui finché non lo condivide. */
+export async function creaPaziente(campi) {
+  const id = nuovoId('r');
+  const r = { id, ...campi };
+  if (REALE) { if (centro.pazienti) centro.pazienti[id] = { proprietario: io().email, condivisi: [], tutti: false, mio: true, locale: true }; }
+  else r.accesso = { proprietario: io().id, condivisi: [], tutti: false };
+  return salva('ragazzi', r);
+}
+/** Prototipo: un paziente riservato di altri non compare (col custode non arriva proprio). */
+export const nascosto = (r) => !REALE && !!r?.accesso && !condiviso(r.id);
 export const TIPI_PERSONALI = ['individuale', 'genitori', 'conoscenza'];
 export const visibileSeduta = (s) => !s || s.tipo === 'gruppo' || condiviso(s.ragazzoId);
 // le note "nel gruppo" su un ragazzo si vedono (e si scrivono) anche senza condivisione
@@ -138,7 +170,7 @@ export function membriAl(g, data) {
 export const gruppiDi = (rid) => dati.gruppi.filter((g) => (g.membri || []).some((m) => m.ragazzoId === rid && !m.al));
 export const ragazziCondivisi = () => ragazziAttivi().filter((r) => condiviso(r.id));
 export const ragazziVisibili = () => ragazziAttivi();
-export const ragazziAttivi = () => dati.ragazzi.filter((r) => r.stato !== 'concluso').sort((a, b) => nomeCompleto(a).localeCompare(nomeCompleto(b), 'it'));
+export const ragazziAttivi = () => dati.ragazzi.filter((r) => r.stato !== 'concluso' && !nascosto(r)).sort((a, b) => nomeCompleto(a).localeCompare(nomeCompleto(b), 'it'));
 
 // ---------------------------------------------------------------------------
 // Sedute: quelle salvate + quelle previste dalle ricorrenze (virtuali finché

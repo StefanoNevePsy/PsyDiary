@@ -1,7 +1,7 @@
 <script>
   import { T, M } from '../lib/parole.svelte.js';
   // Elenco dei ragazzi: chi sono, in che gruppo, quando li si rivede.
-  import { dati, nomeCompleto, gruppiDi, puoGestire, salva, nuovoId, sedutePeriodo, soggetto, condiviso, visibileNota } from '../lib/dati.svelte.js';
+  import { dati, nomeCompleto, gruppiDi, puoGestire, creaPaziente, sedutePeriodo, soggetto, condiviso, visibileNota, nascosto, accessoDi } from '../lib/dati.svelte.js';
   import Immagine from '../components/Immagine.svelte';
   import { serieInCorso } from '../lib/dati.svelte.js';
   import { vai } from '../lib/rotta.svelte.js';
@@ -20,7 +20,7 @@
 
   const elenco = $derived(
     dati.ragazzi
-      .filter((r) => (conclusi ? r.stato === 'concluso' : r.stato !== 'concluso'))
+      .filter((r) => (conclusi ? r.stato === 'concluso' : r.stato !== 'concluso') && !nascosto(r))
       .filter((r) => !q.trim() || (nomeCompleto(r) + ' ' + (r.scuola || '') + ' ' + (r.classe || '') + ' ' + (r.etichette || []).join(' ')).toLowerCase().includes(q.trim().toLowerCase()))
       .filter((r) => scelte.every((t) => (r.etichette || []).includes(t)))
       .sort((a, b) => (a.cognome || a.nome).localeCompare(b.cognome || b.nome, 'it')),
@@ -37,7 +37,7 @@
     return s ? relativa(s.data) : '—';
   }
   async function nuovo() {
-    const r = await salva('ragazzi', { id: nuovoId('r'), nome: '', cognome: '', stato: 'attivo', inizio: O, genitori: [], noteStabili: '' });
+    const r = await creaPaziente({ nome: '', cognome: '', stato: 'attivo', inizio: O, genitori: [], noteStabili: '' });
     vai('ragazzo/' + r.id + '?scheda=1');
   }
   const etichetteInUso = $derived.by(() => {

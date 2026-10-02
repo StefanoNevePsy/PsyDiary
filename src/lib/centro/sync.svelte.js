@@ -104,6 +104,16 @@ const togliVoce = (id) => op('voci', 'readwrite', (s) => s.delete(id));
 const meta = (k) => op('meta', 'readonly', (s) => s.get(k));
 const scriviMeta = (k, v) => op('meta', 'readwrite', (s) => s.put($state.snapshot(v) ?? v, k));
 
+// Pazienti riservati (se il custode li gestisce): nome e foto restano nel loro
+// ambito, a meno che il paziente non sia aperto a tutta l'aula
+const gestisceRiservati = () => (sync.io?.funzioni || []).includes('riservati');
+function riservato(rid) {
+  if (!gestisceRiservati()) return false;
+  const a = centro.pazienti?.[rid];
+  return a ? !a.tutti : true;     // un paziente non ancora noto al custode è nuovo: riservato
+}
+const opzVoci = { riservato };
+
 // coda: "tabella|id" degli oggetti cambiati qui e non ancora inviati
 let coda = new Set();
 async function salvaCoda() { sync.inCoda = coda.size; await scriviMeta('coda', [...coda]); }
@@ -183,7 +193,7 @@ async function invia() {
   for (const k of lotto) {
     const [tabella, id] = k.split('|');
     const o = oggettoLocale(tabella, id);
-    const voci = o ? vociDi(tabella, $state.snapshot(o)) : idVociDi(tabella, id).map((vid) => ({ id: vid, eliminato: true }));
+    const voci = o ? vociDi(tabella, $state.snapshot(o), opzVoci) : idVociDi(tabella, id).map((vid) => ({ id: vid, eliminato: true }));
     for (const v of voci) {
       if (!v.eliminato && !/^(aula|r:[a-z0-9]{2,40})$/.test(v.ambito)) { console.warn('voce senza ambito valido', v); continue; }
       const l = await voceLocale(v.id);
@@ -257,6 +267,9 @@ async function ricevi(invii = []) {
     }
     const l = await voceLocale(v.id);
     if (v.eliminato && l && l.ambito !== v.ambito) continue;   // lapide di un vecchio ambito
+    // spostata in un ambito che vedo (es. paziente reso riservato e condiviso
+    // con me): arriva la versione nuova, la lapide non deve togliere niente
+    if (v.eliminato && v.spostato && r.ambiti.includes(v.spostato)) continue;
     if (l && l.version >= v.version && l.ambito === v.ambito) continue;
     let d = null;
     try { d = await apriVoce(v); } catch (e) { console.warn('voce illeggibile', v.id, e); continue; }
@@ -264,7 +277,7 @@ async function ricevi(invii = []) {
     if (inCoda.has(v.id) && l) {
       // modificata qui e là: si unisce, e la versione unita ripartirà
       const { tabella, id } = destinazione(v);
-      const mia = vociDi(tabella, $state.snapshot(oggettoLocale(tabella, id) || {})).find((x) => x.id === v.id)?.dati;
+      const mia = vociDi(tabella, $state.snapshot(oggettoLocale(tabella, id) || {}), opzVoci).find((x) => x.id === v.id)?.dati;
       if (d && mia) await scriviInLocale(v, unisci(l.base, mia, d, v.aggiornatoDa));
       await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d });
       continue;
@@ -283,6 +296,13 @@ async function ricevi(invii = []) {
   const nuovi = {};
   for (const a of r.ambiti) nuovi[a] = r.cursori[a];
   await scriviMeta('cursori', nuovi);
+  if (r.pazienti) {
+    // i pazienti creati qui e non ancora arrivati al custode restano miei
+    const p = { ...r.pazienti };
+    for (const [rid, a] of Object.entries(centro.pazienti || {})) if (a.locale && !p[rid] && coda.has('ragazzi|' + rid)) p[rid] = a;
+    centro.pazienti = p;
+    await scriviMeta('pazienti', p);
+  }
   await scriviMeta('ambitiImmagini', ambitiImmagini);
   return r;
 }
@@ -340,7 +360,7 @@ async function cancellaDatiAula() {
   await op('voci', 'readwrite', (s) => s.clear());
   await op('meta', 'readwrite', (s) => s.clear());
   await C.dimenticaTutto();
-  coda.clear(); chiavi = {}; sync.io = null; centro.io = null; sync.cfg = null; sync.inCoda = 0;
+  coda.clear(); chiavi = {}; sync.io = null; centro.io = null; centro.pazienti = null; sync.cfg = null; sync.inCoda = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +448,7 @@ export async function avvia() {
   // senza rete si lavora con quanto già noto: profilo e chiave ricordati
   sync.io = await meta('io');
   sync.cfg = await meta('cfg');
+  centro.pazienti = (await meta('pazienti')) || null;
   chiavi = await C.portachiavi();
   if (sync.io && sync.io.email === u.email) { centro.io = sync.io; aggiornaFase(); } else sync.fase = 'fuori';
   try { await prepara(); } catch (e) { gestisciErrore(e); }
@@ -465,6 +486,23 @@ export const preparaChiave = C.nuovaConfigurazione;
 export async function elencoDispositivi() { sync.dispositivi = await chiama('dispositivi.elenco'); return sync.dispositivi; }
 export async function togliDispositivo(id) { await chiama('dispositivo.togli', { id }); return elencoDispositivi(); }
 export const leggiAccessi = () => chiama('accessi.leggi');
+export const gestisceCondivisioni = gestisceRiservati;
+/**
+ * Con chi è condiviso un paziente: { condivisi: [email], tutti, proprietario? }.
+ * Poi nome e foto si spostano nell'ambito giusto (aula se aperto a tutti).
+ */
+export async function condividiPaziente(rid, scelta) {
+  // un paziente appena creato deve prima arrivare al custode
+  if (coda.has('ragazzi|' + rid)) await sincronizza();
+  if (coda.has('ragazzi|' + rid)) throw new Error('Il paziente non è ancora arrivato al custode: riprova quando c\'è rete.');
+  const a = await chiama('paziente.condivisione', { id: rid, ...scelta });
+  centro.pazienti = { ...(centro.pazienti || {}), [rid]: a };
+  await scriviMeta('pazienti', centro.pazienti);
+  coda.add('ragazzi|' + rid);
+  await salvaCoda();
+  await sincronizza();
+  return a;
+}
 export const salvaAccessi = (accessi, versioneBase) => chiama('accessi.salva', { accessi, versioneBase });
 export const accessoDev = Auth.accessoDev;
 export const pulsanteGoogle = Auth.pulsante;
