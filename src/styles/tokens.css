@@ -100,3 +100,42 @@
     color-scheme: dark;
   }
 }
+
+/* ---- genogrammi: famiglie di colore dello standard, accordate al tema ----
+   (verde affetto, rosso conflitto, blu adozione/fidanzamento, viola, bordeaux
+   abuso, rosa, grigio distanza, ottanio cura, oro relazioni extra) */
+:root {
+  --g-verde: oklch(0.52 0.12 150);
+  --g-rosso: oklch(0.55 0.19 27);
+  --g-bordeaux: oklch(0.42 0.12 20);
+  --g-arancio: oklch(0.7 0.15 58);
+  --g-oro: oklch(0.68 0.13 85);
+  --g-ottanio: oklch(0.53 0.08 195);
+  --g-blu: oklch(0.49 0.14 262);
+  --g-viola: oklch(0.5 0.14 310);
+  --g-rosa: oklch(0.6 0.19 355);
+}
+:root[data-tema='scuro'] {
+  --g-verde: oklch(0.76 0.13 150);
+  --g-rosso: oklch(0.71 0.17 27);
+  --g-bordeaux: oklch(0.66 0.13 15);
+  --g-arancio: oklch(0.78 0.14 60);
+  --g-oro: oklch(0.83 0.13 88);
+  --g-ottanio: oklch(0.76 0.09 195);
+  --g-blu: oklch(0.74 0.12 262);
+  --g-viola: oklch(0.74 0.12 310);
+  --g-rosa: oklch(0.76 0.15 355);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='chiaro']) {
+    --g-verde: oklch(0.76 0.13 150);
+    --g-rosso: oklch(0.71 0.17 27);
+    --g-bordeaux: oklch(0.66 0.13 15);
+    --g-arancio: oklch(0.78 0.14 60);
+    --g-oro: oklch(0.83 0.13 88);
+    --g-ottanio: oklch(0.76 0.09 195);
+    --g-blu: oklch(0.74 0.12 262);
+    --g-viola: oklch(0.74 0.12 310);
+    --g-rosa: oklch(0.76 0.15 355);
+  }
+}

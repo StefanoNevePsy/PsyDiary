@@ -143,6 +143,7 @@ function tipoDaiByte(u8) {
   if (testo.startsWith('GIF8')) return 'image/gif';
   if (testo.startsWith('RIFF') && testo.slice(8, 12) === 'WEBP') return 'image/webp';
   if (testo.startsWith('%PDF')) return 'application/pdf';
+  if (testo.startsWith('{') || testo.startsWith('[')) return 'application/json';
   if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<svg/i.test(testo)) return 'image/svg+xml';
   return 'application/octet-stream';
 }

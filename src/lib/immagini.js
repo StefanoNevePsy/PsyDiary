@@ -78,6 +78,12 @@ function tipoDaNome(n) {
     doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', odt: 'application/vnd.oasis.opendocument.text',
     txt: 'text/plain', json: 'application/json' }[e] || 'application/octet-stream';
 }
+/** Il contenuto testuale di un allegato (per i genogrammi in JSON). */
+export async function testoAllegato(id) {
+  let r = await A.uno('immagini', id);
+  if (!r && recupera && (await recupera(id))) r = await A.uno('immagini', id);
+  return r ? r.blob.text() : null;
+}
 /** URL (blob:) del file di un allegato, con il suo tipo (per aprirlo o scaricarlo). */
 export async function urlAllegato(id, tipo) {
   let r = await A.uno('immagini', id);
