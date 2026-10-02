@@ -6,6 +6,7 @@
   import { vai } from '../lib/rotta.svelte.js';
   import { DESTINATARI, nuovoModulo, nuovaUnita, nuovaLibera, sposta, daTesto, aTesto } from '../lib/programmi.js';
   import { scegliImmagine, togliImmagine } from '../lib/immagini.js';
+  import { copiaPrompt } from '../lib/prompt-programma.js';
   import Immagine from '../components/Immagine.svelte';
   import Editor from '../components/Editor.svelte';
   import Icona from '../components/Icona.svelte';
@@ -50,6 +51,8 @@
   }
   function togliUnita(i, j) { if (confirm(`Togliere «${p.moduli[i].unita[j].titolo}»?`)) moduli((l) => { l[i].unita.splice(j, 1); return l; }); }
 
+  let copiato = $state(false);
+  async function copia() { copiato = await copiaPrompt(); setTimeout(() => (copiato = false), 2500); }
   // documento incollato → moduli
   let dialogo = $state(), testo = $state(''), modo = $state('aggiungi');
   const anteprima = $derived(testo.trim() ? daTesto(testo) : null);
@@ -192,7 +195,7 @@
 
   <dialog bind:this={dialogo} class="dlg-doc" aria-labelledby="doc-titolo">
     <h2 id="doc-titolo" class="display">Incolla da un documento</h2>
-    <p class="sotto piccolo">«# Nome» diventa un modulo, «## Titolo» un'unità con il testo che segue come attività. «Obiettivi: …» e «Durata: 50» sotto un'unità si riconoscono. Una sezione «# Attività libere» va nel menù.</p>
+    <p class="sotto piccolo">«# Nome» diventa un modulo, «## Titolo» un'unità con il testo che segue come attività. «Obiettivi: …» e «Durata: 50» sotto un'unità si riconoscono. Una sezione «# Attività libere» va nel menù. Per un manuale o un PDF: <button type="button" class="link" onclick={copia}>{copiato ? 'prompt copiato ✓' : 'copia il prompt'}</button> e dallo a un modello di IA insieme al documento.</p>
     <textarea class="input" rows="12" bind:value={testo} placeholder={'# Problem solving\n## Il problema in tre parole\nObiettivi: riconoscere un problema\n- [ ] cerchio iniziale\n\n# Attività libere\n## Gioco del gomitolo'}></textarea>
     {#if anteprima}<p class="sotto piccolo">Trovati: {anteprima.moduli.filter((m) => m.nome || m.unita.length).length} moduli, {anteprima.moduli.reduce((n, m) => n + m.unita.length, 0)} unità, {anteprima.libere.length} attività libere.</p>{/if}
     <div class="modo">
@@ -257,6 +260,7 @@
   .dlg-doc p { margin: 0; }
   .dlg-doc textarea { font-family: ui-monospace, monospace; font-size: 13px; }
   .modo { display: flex; flex-wrap: wrap; gap: var(--s-4); }
+  .link { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--spot-testo); text-decoration: underline; cursor: pointer; }
   .bottoni { display: flex; justify-content: flex-end; gap: var(--s-2); }
   .vuoto { padding: var(--s-6); }
   @media (max-width: 720px) {

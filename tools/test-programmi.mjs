@@ -1,4 +1,5 @@
 // Programmi e protocolli (node tools/test-programmi.mjs)
+import { PROMPT_PROGRAMMA } from '../src/lib/prompt-programma.js';
 import { nuovoProgramma, nuovoModulo, nuovaUnita, assegna, unitaInOrdine, statoUnita, prossima, avanzamento, anticipa, aggiornaDa, daAggiornare, pianoDi, daTesto, aTesto, sedutaFatta, adatto } from '../src/lib/programmi.js';
 let n = 0, f = 0;
 const ok = (c, m) => { n++; if (!c) { f++; console.log('NO  ' + m); } else console.log('ok  ' + m); };
@@ -80,5 +81,12 @@ const piano = pianoDi(as, U[0].unita.id);
 ok(piano.startsWith('### Problem solving · Il problema in tre parole') && piano.includes('**Obiettivi:** riconoscere') && piano.includes('- [ ] scenette'), 'il piano della seduta: titolo, obiettivi, attività');
 ok(pianoDi(as, as.libere[0].id).includes('Gioco del gomitolo'), 'anche per le attività libere');
 ok(nuovoProgramma().moduli.length === 1, 'programma nuovo con un modulo');
+// l'esempio del prompt per l'IA si importa davvero
+{
+  const es = PROMPT_PROGRAMMA.split('ESEMPIO DI OUTPUT')[1].split('DOCUMENTO:')[0];
+  const pe = daTesto(es);
+  ok(pe.moduli.length === 2 && pe.moduli[0].unita.length === 3 && pe.libere.length === 1, 'l\'esempio del prompt: 2 moduli, 4 unità, 1 attività libera');
+  ok(pe.moduli[0].unita[2].facoltativa && pe.moduli[0].unita[0].durata === 60 && pe.descrizione.startsWith('Percorso'), 'con facoltativa, durata e descrizione');
+}
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);
