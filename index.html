@@ -10,10 +10,7 @@
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icone/apple-180.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <script>
-      // tema scelto prima del primo disegno, niente lampi
-      try { var t = localStorage.getItem('psy:tema'); if (t === 'chiaro' || t === 'scuro') document.documentElement.dataset.tema = t; } catch (e) {}
-    </script>
+    <script src="./tema.js"></script>
   </head>
   <body>
     <div id="app"></div>
