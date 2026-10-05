@@ -71,6 +71,23 @@
     return () => mq.removeEventListener('change', f);
   });
   const selezionata = $derived(sel ? sedute.find((s) => s.id === sel) || null : null);
+
+  // Il foglio accanto è alto quanto lo spazio che si vede davvero: da dove
+  // comincia (sotto l'intestazione, o in cima quando la pagina è scorsa) fino
+  // al fondo della finestra. Così non esce dal bordo e si scorre tutto dentro.
+  function altezzaVisibile(el) {
+    let raf = 0;
+    const misura = () => {
+      raf = 0;
+      const sopra = Math.max(el.getBoundingClientRect().top, parseFloat(getComputedStyle(el).top) || 0);
+      el.style.maxHeight = Math.max(240, window.innerHeight - sopra - 16) + 'px';
+    };
+    const pianifica = () => { if (!raf) raf = requestAnimationFrame(misura); };
+    misura();
+    addEventListener('scroll', pianifica, { passive: true });
+    addEventListener('resize', pianifica);
+    return () => { cancelAnimationFrame(raf); removeEventListener('scroll', pianifica); removeEventListener('resize', pianifica); };
+  }
   function apri(e, s) {
     if (!largo) return; // su telefono e tablet si va alla pagina della seduta
     e.preventDefault();
@@ -161,7 +178,7 @@
       </ol>
       {/if}
       {#if largo && selezionata}
-        <aside class="lato" aria-label="Seduta selezionata">
+        <aside class="lato" aria-label="Seduta selezionata" {@attach altezzaVisibile}>
           {#key chiave}
             <Foglio s={selezionata} alCambioId={(id, via) => { if (via) sel = null; else sel = id; }} />
           {/key}
@@ -200,7 +217,7 @@
 
   .corpo { display: grid; grid-template-columns: 1fr; gap: var(--s-6); align-items: start; }
   .con-foglio .corpo { grid-template-columns: minmax(0, 1fr) minmax(460px, 600px); }
-  .lato { position: sticky; top: calc(var(--barra) + var(--s-4)); max-height: calc(100dvh - var(--barra) - var(--s-6)); overflow: auto; overscroll-behavior: contain; }
+  .lato { position: sticky; top: calc(var(--barra) + var(--s-4)); max-height: calc(100dvh - var(--barra) - var(--s-6)); overflow: hidden auto; min-width: 0; overscroll-behavior: contain; }
 
   .giorni { list-style: none; margin: 0; padding: 0; }
   .giorno { display: grid; grid-template-columns: 110px 1fr auto; gap: var(--s-4); padding: var(--s-4) 0; border-top: 1px solid var(--matita); }

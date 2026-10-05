@@ -302,7 +302,7 @@
   .sospesi .eti { width: 100%; }
   .sosp { border: 1px dashed var(--matita-forte); background: transparent; border-radius: 999px; padding: 3px 12px; font-size: var(--t-sm); cursor: pointer; }
   .sosp:hover { border-style: solid; border-color: var(--spot); }
-  .part { display: grid; grid-template-columns: 110px 1fr; gap: var(--s-3); align-items: baseline; padding: 6px 0; border-top: 1px dashed var(--matita); }
+  .part { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: var(--s-3); align-items: baseline; padding: 6px 0; border-top: 1px dashed var(--matita); }
   .part .chi { font-size: 17px; text-decoration: none; line-height: 1.3; }
   .assenti { margin-top: 4px; }
   .futura { font-style: italic; max-width: 52ch; }

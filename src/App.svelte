@@ -35,7 +35,8 @@
     carica().then(() => (REALE ? avvia() : null)).catch((e) => { errore = e.message || String(e); });
     const tasti = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !e.target.closest?.('.cm-editor')) { e.preventDefault(); ui.cerca = true; }
-      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName) && !e.target.closest?.('.cm-editor')) { e.preventDefault(); ui.cerca = true; }
+      // "/" apre la ricerca solo fuori dai testi: campi, menu e editor (contenteditable)
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) && !e.target.isContentEditable && !e.target.closest?.('[contenteditable], .cm-editor')) { e.preventDefault(); ui.cerca = true; }
     };
     window.addEventListener('keydown', tasti);
     return () => window.removeEventListener('keydown', tasti);
