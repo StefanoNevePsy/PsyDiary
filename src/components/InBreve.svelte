@@ -5,6 +5,7 @@
   import { leggiGenogrammi } from '../lib/genogramma.js';
   import Genogramma from './geno/Genogramma.svelte';
   import Icona from './Icona.svelte';
+  import { PROFILO } from '../lib/anagrafica.js';
   import { onMount } from 'svelte';
 
   let { r, apriAnagrafica } = $props();
@@ -21,7 +22,8 @@
     caricato = id; dati = null;
     if (id) testoAllegato(id).then((t) => { if (caricato === id) dati = t ? leggiGenogrammi(t)[0] || null : null; }).catch(() => {});
   });
-  const vuoto = $derived(!r.diagnosi && !r.certificazioni && !r.servizi && !familiari.length && !r.noteFamiglia && !geno);
+  const profilo = $derived(PROFILO.filter(([k]) => String(r[k] || '').trim()));
+  const vuoto = $derived(!profilo.length && !r.diagnosi && !r.certificazioni && !r.servizi && !familiari.length && !r.noteFamiglia && !geno);
   let dialogo = $state(), grande = $state(false);
   function apri() { grande = true; queueMicrotask(() => dialogo?.showModal()); }
   const primaRiga = (t) => String(t || '').split('\n')[0];
@@ -33,8 +35,14 @@
 <details class="in-breve" bind:open={aperto}>
   <summary class="eti">In breve</summary>
   {#if vuoto}
-    <p class="sotto piccolo">Diagnosi, familiari e genogramma compaiono qui quando li inserisci <button type="button" class="link" onclick={apriAnagrafica}>nell'anagrafica</button>.</p>
+    <p class="sotto piccolo">Interessi, bisogni, diagnosi, familiari e genogramma compaiono qui quando li inserisci <button type="button" class="link" onclick={apriAnagrafica}>nell'anagrafica</button>.</p>
   {:else}
+    {#if profilo.length}
+      <dl class="profilo">
+        {#each profilo as [k, nome] (k)}<div><dt class="eti">{nome}</dt><dd title={r[k]}>{r[k]}</dd></div>{/each}
+      </dl>
+    {/if}
+    {#if r.diagnosi || (r.certificazioni && r.certificazioni !== 'nessuna') || r.servizi || familiari.length || r.noteFamiglia || geno}
     <div class="colonne">
       <dl class="clinica">
         {#if r.diagnosi}<div><dt class="eti">Diagnosi o ipotesi</dt><dd>{r.diagnosi}</dd></div>{/if}
@@ -59,6 +67,7 @@
         </button>
       {/if}
     </div>
+    {/if}
   {/if}
 </details>
 
@@ -76,6 +85,9 @@
   .colonne { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 150px; gap: var(--s-4); align-items: start; }
   .colonne:not(:has(.geno)) { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
   dl { margin: 0; display: grid; gap: var(--s-2); }
+  .profilo { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--s-3) var(--s-4); margin-bottom: var(--s-3); padding-bottom: var(--s-3); border-bottom: 1px dashed var(--matita); }
+  .profilo dd { white-space: pre-line; }
+  .profilo:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
   dt { font-size: 10.5px; }
   dd { margin: 0; font-size: var(--t-sm); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .famiglia .eti { margin: 0 0 4px; font-size: 10.5px; }

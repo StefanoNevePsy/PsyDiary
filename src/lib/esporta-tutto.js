@@ -117,7 +117,8 @@ export function componi(dati, file = new Map(), opz = {}) {
   cartelle.set('aula', 'aula');
   const programmi = [...T.programmi].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'it'));
   for (const p of programmi) cartelle.set('p:' + p.id, cartella('programmi', p.nome || 'Programma', p.id));
-  const nomeR = (id) => { const r = T.ragazzi.find((x) => x.id === id); return r ? nomeCompleto(r) : '(paziente non presente)'; };
+  const alunni = new Map(T.gruppi.flatMap((g) => (g.alunni || []).map((a) => [a.id, a.nome])));
+  const nomeR = (id) => { const r = T.ragazzi.find((x) => x.id === id); return r ? nomeCompleto(r) : alunni.has(id) ? alunni.get(id) + ' (alunno)' : '(paziente non presente)'; };
   const nomeG = (id) => T.gruppi.find((x) => x.id === id)?.nome || '(gruppo non presente)';
 
   // di chi è ogni voce (cartella in cui finisce)
@@ -287,7 +288,7 @@ export function componi(dati, file = new Map(), opz = {}) {
   testo('tabelle/presenze.csv', csv(['seduta_id', 'data', 'gruppo', 'paziente_id', 'paziente', 'presente', 'nota'],
     sedute.filter((s) => s.tipo === 'gruppo').flatMap((s) => {
       const g = T.gruppi.find((x) => x.id === s.gruppoId);
-      const ids = new Set([...(g?.membri || []).filter((m) => (!m.dal || m.dal <= s.data) && (!m.al || m.al >= s.data)).map((m) => m.ragazzoId), ...Object.keys(s.presenze || {}), ...Object.keys(s.partecipanti || {})]);
+      const ids = new Set([...(g?.membri || []).filter((m) => (!m.dal || m.dal <= s.data) && (!m.al || m.al >= s.data)).map((m) => m.ragazzoId), ...(g?.tipo === 'classe' ? (g.alunni || []).map((a) => a.id) : []), ...Object.keys(s.presenze || {}), ...Object.keys(s.partecipanti || {})]);
       return [...ids].map((rid) => ({ seduta_id: s.id, data: s.data, gruppo: nomeG(s.gruppoId), paziente_id: rid, paziente: nomeR(rid), presente: s.presenze?.[rid] === false ? 'no' : 'sì', nota: s.partecipanti?.[rid] || '' }));
     })));
   testo('tabelle/note.csv', csv(['id', 'data', 'categoria', 'titolo', 'autore', 'paziente_id', 'paziente', 'gruppo_id', 'gruppo', 'testo'],

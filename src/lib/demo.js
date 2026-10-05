@@ -96,6 +96,9 @@ export function creaDemo() {
     servizi: 'NPI ASL, logopedia fino al 2023', pediatra: 'dott. Neri', consensoPrivacy: piu(L, -126), consensoFoto: 'sì', consensoScuola: 'sì',
     motivoInvio: 'Scatti di rabbia a scuola e a casa, fatica a gestire le frustrazioni. La scuola segnala litigi frequenti.',
     noteFamiglia: 'Vive con la madre e la sorella di 9 anni. Il padre vive in un\'altra città, lo vede nel fine settimana.',
+    interessi: 'Calcio (portiere), Minecraft, disegnare fumetti', puntiForza: 'Generoso con i più piccoli; molto bravo nel disegno',
+    bisogni: 'Riconoscere la rabbia prima che esploda; tollerare la frustrazione', obiettivi: 'Meno litigi a scuola entro fine quadrimestre',
+    strategie: 'Preavvisare i cambi di attività; pausa disegno quando sale la tensione', attenzioni: 'Non riprenderlo davanti ai compagni',
   });
   r.rluca01.genitori.push({ nome: 'Andrea Martini', relazione: 'padre', telefono: '335 444 7788' });
   Object.assign(r.rmart07, {

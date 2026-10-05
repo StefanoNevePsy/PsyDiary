@@ -141,14 +141,15 @@
             {#each SEZIONI as sez (sez.titolo)}
               <fieldset disabled={!gestisce}>
                 <legend class="eti">{sez.titolo}</legend>
+                {#if sez.nota}<p class="sotto piccolo nota-sez">{sez.nota}</p>{/if}
                 <div class="griglia">
-                  {#each sez.campi as [k, nome, tipo, opzioni, larga] (k)}
+                  {#each sez.campi as [k, nome, tipo, opzioni, larga, aiuto] (k)}
                     <label class="campo" class:larga>
                       <span>{nome}</span>
                       {#if tipo === 'select'}
                         <Scelta value={r[k] ?? ''} onchange={(v) => campo(k, v)} etichetta={nome} opzioni={opzioni.map(([v, n]) => ({ valore: v, etichetta: n }))} />
                       {:else if tipo === 'area'}
-                        <textarea class="input" rows="2" value={r[k] || ''} oninput={(e) => campo(k, e.currentTarget.value)}></textarea>
+                        <textarea class="input" rows="2" value={r[k] || ''} placeholder={aiuto || ''} oninput={(e) => campo(k, e.currentTarget.value)}></textarea>
                       {:else}
                         <input class="input" type={tipo || 'text'} value={r[k] || ''} oninput={(e) => campo(k, e.currentTarget.value)} />
                       {/if}
@@ -287,6 +288,7 @@
   .quando { font-weight: 600; }
   .anagrafica { display: grid; gap: var(--s-6); }
   fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--s-4); min-width: 0; }
+  .nota-sez { margin: calc(-1 * var(--s-2)) 0 0; }
   legend { margin-bottom: var(--s-3); padding-bottom: 4px; border-bottom: 1px solid var(--matita); width: 100%; }
   .griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--s-4) var(--s-5); }
   .griglia.quattro { grid-template-columns: repeat(4, minmax(0, 1fr)); }

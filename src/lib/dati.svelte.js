@@ -391,7 +391,16 @@ export function statoSeduta(s) {
 export function partecipantiSeduta(s) {
   if (s.tipo !== 'gruppo') return s.ragazzoId ? [s.ragazzoId] : [];
   const g = gruppo(s.gruppoId);
-  return g ? membriAl(g, s.data) : Object.keys(s.presenze || {});
+  if (!g) return Object.keys(s.presenze || {});
+  // in una classe ci sono anche gli alunni (non pazienti), con i loro id
+  return [...membriAl(g, s.data), ...(g.tipo === 'classe' ? (g.alunni || []).map((a) => a.id) : [])];
+}
+/** Il nome di chi partecipa a una seduta di gruppo: un paziente o un alunno della classe. */
+export function partecipante(s, id) {
+  const r = ragazzo(id);
+  if (r) return { id, breve: nomeBreve(r), completo: nomeCompleto(r), paziente: true, foto: r.foto };
+  const a = (gruppo(s?.gruppoId)?.alunni || []).find((x) => x.id === id);
+  return { id, breve: a?.nome || '?', completo: a?.nome || '?', paziente: false, alunno: !!a };
 }
 export const presente = (s, rid) => (s.presenze && s.presenze[rid] === false ? false : true);
 
@@ -446,7 +455,7 @@ function voceSeduta(s, perRagazzo) {
   } else {
     if (s.argomento) blocchi.push({ chiave: 'argomento', etichetta: s.data > oggi() ? 'Da fare' : 'Argomento', testo: s.argomento });
     if (s.resoconto) blocchi.push({ chiave: 'resoconto', etichetta: 'Com\'è andata', testo: s.resoconto, principale: true });
-    if (s.tipo === 'gruppo') for (const [rid, t] of Object.entries(s.partecipanti || {})) if (t) blocchi.push({ chiave: 'p:' + rid, etichetta: nomeBreve(ragazzo(rid)), testo: t, ragazzo: rid });
+    if (s.tipo === 'gruppo') for (const [rid, t] of Object.entries(s.partecipanti || {})) if (t) blocchi.push({ chiave: 'p:' + rid, etichetta: partecipante(s, rid).breve, testo: t, ragazzo: rid });
     if (s.prossima) blocchi.push({ chiave: 'prossima', etichetta: 'Per la prossima volta', testo: s.prossima });
   }
   const testi = blocchi.map((b) => b.testo).join('\n');
@@ -474,7 +483,8 @@ export function diarioRagazzo(rid) {
       const g = gruppo(s.gruppoId);
       const membro = g && membriAl(g, s.data).includes(rid);
       const citato = menzioniDi([s.argomento, s.resoconto, s.prossima].join('\n')).includes(rid);
-      if ((membro && (s.resoconto || (s.partecipanti || {})[rid] || s.presenze?.[rid] === false)) || citato) out.push(voceSeduta(s, rid));
+      // una nota su di lui conta anche se in quella data non era (ancora) nel gruppo
+      if ((membro && (s.resoconto || s.presenze?.[rid] === false)) || (s.partecipanti || {})[rid] || citato) out.push(voceSeduta(s, rid));
     } else if (s.ragazzoId === rid && (s.argomento || s.resoconto)) out.push(voceSeduta(s));
   }
   for (const n of dati.note) if (visibileNota(n) && (n.ragazzoId === rid || menzioniDi(n.testo).includes(rid))) out.push(voceNota(n));
