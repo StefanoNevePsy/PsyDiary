@@ -1,4 +1,7 @@
 <script>
+  import { oraTesto } from '../lib/orario.js';
+  import CampoOra from './CampoOra.svelte';
+  import CampoData from './CampoData.svelte';
   import { T, M } from '../lib/parole.svelte.js';
   // Il foglio di una seduta: piano, com'è andata, i ragazzi, la prossima volta.
   import {
@@ -179,8 +182,8 @@
     {#if spostando}
       <form class="sposta no-stampa" onsubmit={sposta}>
         {#if laSerie}<span class="eti">Solo questa volta</span>{/if}
-        <input class="input" type="date" bind:value={nuovaData} required aria-label="Data" />
-        <input class="input" type="time" bind:value={nuovaOra} required aria-label="Ora di inizio" />
+        <CampoData bind:value={nuovaData} required etichetta="Data" />
+        <CampoOra bind:value={nuovaOra} required etichetta="Ora di inizio" />
         <label class="durata"><input class="input" type="number" min="5" max="600" step="1" inputmode="numeric" bind:value={nuovaDurata} required aria-label="Durata in minuti" /><span class="sotto piccolo">min</span></label>
         <button class="btn pieno piccolo">Salva</button>
         <button type="button" class="btn nudo piccolo" onclick={() => (spostando = false)}>Annulla</button>
@@ -188,7 +191,7 @@
     {/if}
     <p class="eti">
       {dataTitolo} ·
-      {#if puoGestire() || !laSerie}<button type="button" class="orario link" title="Cambia data, ora e durata" onclick={iniziaSposta}>{s.ora}–{fineOra(s.ora, s.durata)}</button>{:else}{s.ora}–{fineOra(s.ora, s.durata)}{/if}
+      {#if puoGestire() || !laSerie}<button type="button" class="orario link" title="Cambia data, ora e durata" onclick={iniziaSposta}>{oraTesto(s.ora)}–{oraTesto(fineOra(s.ora, s.durata))}</button>{:else}{oraTesto(s.ora)}–{oraTesto(fineOra(s.ora, s.durata))}{/if}
       · {TIPI[s.tipo].breve}
       {#if statoS === 'da-scrivere'}<span class="mano segno">da scrivere</span>{/if}
       {#if statoS === 'oggi'}<span class="mano segno">oggi</span>{/if}
@@ -298,7 +301,7 @@
     <h3><span class="margine mano">la prossima volta</span><span class="eti">Per la prossima volta</span></h3>
     <Editor testo={s.prossima || ''} compatto etichetta="Per la prossima volta"
       segnaposto="Diventa il piano della prossima seduta" alCambio={(t) => modifica({ prossima: t })} />
-    {#if prossimaSeduta}<p class="sotto piccolo">Prossima: <a href={'#/seduta/' + encodeURIComponent(prossimaSeduta.id)}>{lunga(prossimaSeduta.data)}, {prossimaSeduta.ora}</a></p>{/if}
+    {#if prossimaSeduta}<p class="sotto piccolo">Prossima: <a href={'#/seduta/' + encodeURIComponent(prossimaSeduta.id)}>{lunga(prossimaSeduta.data)}, {oraTesto(prossimaSeduta.ora)}</a></p>{/if}
   </section>
 
   <footer>

@@ -1,4 +1,6 @@
 <script>
+  import CampoOra from './CampoOra.svelte';
+  import CampoData from './CampoData.svelte';
   import { T, M } from '../lib/parole.svelte.js';
   import Scelta from './Scelta.svelte';
   // Un appuntamento ricorrente: si crea, si modifica "da una data in poi",
@@ -81,8 +83,8 @@
       </div>
     {/if}
     <div class="riga3">
-      {#if !S0}<label class="campo"><span>A partire dal</span><input class="input" type="date" bind:value={dal} required /></label>{/if}
-      <label class="campo"><span>Ora</span><input class="input" type="time" bind:value={ora} required /></label>
+      {#if !S0}<label class="campo"><span>A partire dal</span><CampoData bind:value={dal} required /></label>{/if}
+      <label class="campo"><span>Ora</span><CampoOra bind:value={ora} required /></label>
       <label class="campo"><span>Durata (min)</span><input class="input" type="number" min="5" max="600" step="1" inputmode="numeric" bind:value={durata} /></label>
     </div>
     {#if tipo === 'genitori' || tipo === 'conoscenza'}<label class="campo"><span>Chi c'è di solito</span><input class="input" bind:value={chi} placeholder="es. madre e padre" /></label>{/if}
@@ -90,7 +92,7 @@
     {#if prossime.length}<p class="sotto piccolo">Prossime: {prossime.map((d) => lunga(d)).join(' · ')}</p>{/if}
 
     {#if S0}
-      <label class="campo quando"><span>Le modifiche valgono dal</span><input class="input" type="date" bind:value={daQuando} min={S0.dal} />
+      <label class="campo quando"><span>Le modifiche valgono dal</span><CampoData bind:value={daQuando} min={S0.dal} />
         <small class="sotto">Prima di questa data resta tutto com'era.</small></label>
     {/if}
     {#if errore}<p class="err">{errore}</p>{/if}
@@ -100,7 +102,7 @@
     {#if S0}
       <section class="gestione foglio-sotto">
         <div class="riga3">
-          <label class="campo"><span>Ultimo appuntamento il</span><input class="input" type="date" bind:value={terminaIl} min={S0.dal} /></label>
+          <label class="campo"><span>Ultimo appuntamento il</span><CampoData bind:value={terminaIl} min={S0.dal} /></label>
           <button type="button" class="btn piccolo" onclick={termina} disabled={!terminaIl || terminaIl < S0.dal}>Termina la serie</button>
         </div>
         {#if eccezioni.length}

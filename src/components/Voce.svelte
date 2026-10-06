@@ -1,4 +1,5 @@
 <script>
+  import { oraTesto } from '../lib/orario.js';
   // Una voce di diario o di storico: data a sinistra, contenuto a destra.
   import { numeroGiorno, nomeGiornoBreve, relativa } from '../lib/date.js';
   import { dati, gruppo, ragazzo, nomeCompleto, salva } from '../lib/dati.svelte.js';
@@ -29,7 +30,7 @@
 <article class="voce tipo-{v.tipo}" class:da-scrivere={v.stato === 'da-scrivere'}>
   <div class="quando" aria-hidden="true">
     <span class="num display">{numeroGiorno(v.data)}</span>
-    <span class="eti">{nomeGiornoBreve(v.data)}{v.ora ? ' · ' + v.ora : ''}</span>
+    <span class="eti">{nomeGiornoBreve(v.data)}{v.ora ? ' · ' + oraTesto(v.ora) : ''}</span>
   </div>
   <div class="corpo">
     <header>

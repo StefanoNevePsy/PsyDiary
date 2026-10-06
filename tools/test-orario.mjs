@@ -1,0 +1,28 @@
+// Test di src/lib/orario.js: date europee e ore a 12/24
+import { leggiDataEuropea, dataEuropea, leggiOra, oraTesto } from '../src/lib/orario.js';
+import assert from 'node:assert';
+let n = 0;
+const ok = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };
+const ref = new Date(2026, 9, 6);
+ok(leggiDataEuropea('6/10/2026', ref), '2026-10-06');
+ok(leggiDataEuropea('06.10.26', ref), '2026-10-06');
+ok(leggiDataEuropea('6-10', ref), '2026-10-06');
+ok(leggiDataEuropea('06102026', ref), '2026-10-06');
+ok(leggiDataEuropea('31/2/2026', ref), null, '31 febbraio non esiste');
+ok(leggiDataEuropea('', ref), '');
+ok(leggiDataEuropea('ciao', ref), null);
+ok(dataEuropea('2026-10-06'), '06/10/2026');
+ok(leggiOra('1630'), '16:30');
+ok(leggiOra('16.30'), '16:30');
+ok(leggiOra('9'), '09:00');
+ok(leggiOra('930'), '09:30');
+ok(leggiOra('4:30 pm'), '16:30');
+ok(leggiOra('12am'), '00:00');
+ok(leggiOra('4:30', { ore12: true, pm: true }), '16:30');
+ok(leggiOra('4:30', { ore12: true, pm: false }), '04:30');
+ok(leggiOra('25:00'), null);
+ok(oraTesto('16:30', { ore12: false }), '16:30');
+ok(oraTesto('16:30', { ore12: true }), '4:30 pm');
+ok(oraTesto('00:15', { ore12: true }), '12:15 am');
+ok(oraTesto('14:00', { ore12: true, corta: true }), '2 pm');
+console.log(`ok: ${n}/${n} controlli su date e orari`);

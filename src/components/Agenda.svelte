@@ -1,4 +1,5 @@
 <script>
+  import { oraTesto } from '../lib/orario.js';
   // La settimana come agenda: una colonna per giorno, le ore in verticale, ogni
   // seduta alta quanto dura. Si vedono l'ordine, le sovrapposizioni (affiancate)
   // e gli spazi liberi; toccando uno spazio vuoto si crea una seduta a quell'ora.
@@ -41,7 +42,7 @@
   {/each}
 
   <div class="ore" aria-hidden="true">
-    {#each tacche as t (t)}<span style:top={(t - ore.da) * K + 'px'}>{oraDi(t)}</span>{/each}
+    {#each tacche as t (t)}<span style:top={(t - ore.da) * K + 'px'}>{oraTesto(oraDi(t), { corta: true })}</span>{/each}
   </div>
   {#each giorni as d (d)}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -55,8 +56,8 @@
           style:left={`calc(${(100 * v.colonna) / v.colonne}% + 2px)`} style:width={`calc(${100 / v.colonne}% - 4px)`}
           href={'#/seduta/' + encodeURIComponent(s.id)} onclick={(e) => apri(e, s)}
           aria-current={scelta === s.id ? 'true' : undefined}
-          title={`${s.ora}–${fineOra(s.ora, s.durata)} · ${titoloSeduta(s)} · ${TIPI[s.tipo].breve}`}>
-          <span class="quando">{s.ora}<span class="fine">–{fineOra(s.ora, s.durata)}</span></span>
+          title={`${oraTesto(s.ora)}–${oraTesto(fineOra(s.ora, s.durata))} · ${titoloSeduta(s)} · ${TIPI[s.tipo].breve}`}>
+          <span class="quando">{oraTesto(s.ora)}<span class="fine">–{oraTesto(fineOra(s.ora, s.durata))}</span></span>
           <span class="chi display">{titoloSeduta(s)}</span>
           {#if alta >= 64}<span class="eti tipo">{#if s.serieId || serieDiSeduta(s)}↻ {/if}{TIPI[s.tipo].breve}</span>{/if}
           {#if alta >= 100 && s.argomento}<span class="piano">{piano(s)}</span>{/if}

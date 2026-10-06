@@ -1,4 +1,5 @@
 <script>
+  import CampoData from '../CampoData.svelte';
   import { T, M } from '../../lib/parole.svelte.js';
   import Scelta from '../Scelta.svelte';
   // Persone e accessi, sul custode: chi entra (per email), con che ruolo, e per
@@ -92,7 +93,7 @@
           </div>
           <div class="riga extra">
             <label class="spunta"><input type="checkbox" checked={p.attivo} onchange={(e) => cambia(p.email, { attivo: e.currentTarget.checked })} /> attivo</label>
-            <label class="scade"><span class="eti">accesso fino al</span><input class="input breve" type="date" value={p.scadenza || ''} onchange={(e) => cambia(p.email, { scadenza: e.currentTarget.value || null })} /></label>
+            <label class="scade"><span class="eti">accesso fino al</span><CampoData class="input breve" value={p.scadenza || ''} etichetta="Accesso fino al" onchange={(v) => cambia(p.email, { scadenza: v || null })} /></label>
           </div>
           {#if aperto === p.email && p.ruolo === 'tirocinante'}
             <div class="scelta">

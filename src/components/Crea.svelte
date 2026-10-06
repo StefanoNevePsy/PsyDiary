@@ -1,4 +1,7 @@
 <script>
+  import { oraTesto } from '../lib/orario.js';
+  import CampoOra from './CampoOra.svelte';
+  import CampoData from './CampoData.svelte';
   import { T, M } from '../lib/parole.svelte.js';
   import Scelta from './Scelta.svelte';
   // "Scrivi": il punto unico da cui si comincia una nota o una seduta.
@@ -121,7 +124,7 @@
           <p class="eti">Da scrivere adesso</p>
           {#each recenti.slice(0, 3) as s (s.id)}
             <button type="button" class="seduta" onclick={() => fine('seduta/' + encodeURIComponent(s.id))}>
-              <span class="display">{titoloSeduta(s)}</span><span class="sotto piccolo">{relativa(s.data)}, {s.ora} · {TIPI[s.tipo].breve}</span>
+              <span class="display">{titoloSeduta(s)}</span><span class="sotto piccolo">{relativa(s.data)}, {oraTesto(s.ora)} · {TIPI[s.tipo].breve}</span>
               <Icona nome="freccia" />
             </button>
           {/each}
@@ -132,7 +135,7 @@
           <p class="eti">Già in calendario {lunga(data)}</p>
           {#each delGiorno as s (s.id)}
             <button type="button" class="seduta" onclick={() => fine('seduta/' + encodeURIComponent(s.id))}>
-              <span class="display">{titoloSeduta(s)}</span><span class="sotto piccolo">{s.ora} · {TIPI[s.tipo].breve}</span><Icona nome="freccia" />
+              <span class="display">{titoloSeduta(s)}</span><span class="sotto piccolo">{oraTesto(s.ora)} · {TIPI[s.tipo].breve}</span><Icona nome="freccia" />
             </button>
           {/each}
         </div>
@@ -165,8 +168,8 @@
           <label class="campo"><span>Titolo (facoltativo)</span><input class="input" bind:value={titolo} placeholder="es. Telefonata con la scuola" /></label>
         {/if}
         <div class="riga">
-          <label class="campo"><span>Data</span><input class="input" type="date" bind:value={data} required /></label>
-          {#if tipo !== 'nota'}<label class="campo"><span>Ora</span><input class="input" type="time" bind:value={ora} /></label>
+          <label class="campo"><span>Data</span><CampoData bind:value={data} required /></label>
+          {#if tipo !== 'nota'}<label class="campo"><span>Ora</span><CampoOra bind:value={ora} /></label>
             <label class="campo"><span>Durata (min)</span><input class="input" type="number" min="5" max="600" step="1" inputmode="numeric" bind:value={durata} /></label>{/if}
         </div>
         {#if tipo === 'genitori' || tipo === 'conoscenza'}<label class="campo"><span>Chi c'è</span><input class="input" bind:value={chi} placeholder="es. madre e padre" /></label>{/if}

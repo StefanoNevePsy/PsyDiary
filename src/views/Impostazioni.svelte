@@ -7,6 +7,11 @@
   import AccessiCentro from '../components/centro/AccessiCentro.svelte';
   import { REALE } from '../lib/centro/config.js';
   import { sync, esci, mostraFrase } from '../lib/centro/sync.svelte.js';
+  import { usaOre12, impostaOre12, oraTesto } from '../lib/orario.js';
+
+  // 12 o 24 ore: vale per tutta l'app, si ricarica per ridisegnare ogni orario
+  let ore12 = $state(usaOre12());
+  function scegliOre(v) { if (v === ore12) return; impostaOre12(v); ore12 = v; location.reload(); }
 
   let frase = $state('');
   async function vediFrase() { frase = frase ? '' : (await mostraFrase()) || 'Su questo dispositivo la frase non c\'è: è arrivata come chiave consegnata.'; }
@@ -35,6 +40,12 @@
         </button>
       {/each}
     </div>
+    <h2 class="eti sotto-tit">Orari</h2>
+    <div class="scelte" role="radiogroup" aria-label="Formato degli orari">
+      <button role="radio" aria-checked={!ore12} class="orario" onclick={() => scegliOre(false)}>24 ore <span class="sotto piccolo">{oraTesto('16:30', { ore12: false })}</span></button>
+      <button role="radio" aria-checked={ore12} class="orario" onclick={() => scegliOre(true)}>12 ore <span class="sotto piccolo">{oraTesto('16:30', { ore12: true })}</span></button>
+    </div>
+    <p class="sotto piccolo">Le date si scrivono sempre giorno/mese/anno, qualunque sia la lingua del dispositivo.</p>
   </section>
 
   <section class="blocco">
@@ -50,7 +61,7 @@
   {#if REALE}
     <section class="blocco">
       <h2 class="eti">Il tuo accesso</h2>
-      <p class="sotto">{io().nome} · {io().ruolo === 'admin' ? 'operatore' : 'tirocinante'} · {io().email}{sync.ultima ? ' · ultima sincronizzazione ' + new Date(sync.ultima).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : ''}</p>
+      <p class="sotto">{io().nome} · {io().ruolo === 'admin' ? 'operatore' : 'tirocinante'} · {io().email}{sync.ultima ? ' · ultima sincronizzazione ' + new Date(sync.ultima).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: ore12 }) : ''}</p>
       <div class="scelte">
         <button class="btn" onclick={() => esciDa(false)}>Esci</button>
         <button class="btn nudo" onclick={() => esciDa(true)}>Esci e togli i dati da questo dispositivo</button>
@@ -122,6 +133,7 @@
   .scelte button { display: flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: 8px 16px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; cursor: pointer; font-weight: 600; }
   .scelte button[aria-checked='true'] { border-color: var(--inchiostro); box-shadow: inset 0 0 0 1px var(--inchiostro); background: var(--carta-2); }
   .scelte .display { font-size: 18px; font-weight: 400; }
+  .sotto-tit { margin-top: var(--s-2); }
   .campione { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--matita-forte); }
   .t-auto .campione { background: linear-gradient(135deg, oklch(0.958 0.015 82) 50%, oklch(0.19 0.016 265) 50%); }
   .t-chiaro .campione { background: oklch(0.958 0.015 82); }

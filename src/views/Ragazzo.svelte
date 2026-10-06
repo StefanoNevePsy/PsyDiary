@@ -1,4 +1,6 @@
 <script>
+  import { oraTesto } from '../lib/orario.js';
+  import CampoData from '../components/CampoData.svelte';
   import { T, M } from '../lib/parole.svelte.js';
   import Scelta from '../components/Scelta.svelte';
   import Allegati from '../components/Allegati.svelte';
@@ -150,6 +152,8 @@
                         <Scelta value={r[k] ?? ''} onchange={(v) => campo(k, v)} etichetta={nome} opzioni={opzioni.map(([v, n]) => ({ valore: v, etichetta: n }))} />
                       {:else if tipo === 'area'}
                         <textarea class="input" rows="2" value={r[k] || ''} placeholder={aiuto || ''} oninput={(e) => campo(k, e.currentTarget.value)}></textarea>
+                      {:else if tipo === 'date'}
+                        <CampoData value={r[k] || ''} etichetta={nome} disabled={!gestisce} onchange={(v) => campo(k, v)} />
                       {:else}
                         <input class="input" type={tipo || 'text'} value={r[k] || ''} oninput={(e) => campo(k, e.currentTarget.value)} />
                       {/if}
@@ -233,7 +237,7 @@
             <h3 class="eti">Prossimi appuntamenti</h3>
             <ul class="agenda">
               {#each agenda as s (s.id)}
-                <li><a href={'#/seduta/' + encodeURIComponent(s.id)}><span class="quando">{relativa(s.data)}, {s.ora}</span> <span class="sotto">{s.tipo === 'gruppo' ? titoloSeduta(s) : TIPI[s.tipo].breve}</span></a></li>
+                <li><a href={'#/seduta/' + encodeURIComponent(s.id)}><span class="quando">{relativa(s.data)}, {oraTesto(s.ora)}</span> <span class="sotto">{s.tipo === 'gruppo' ? titoloSeduta(s) : TIPI[s.tipo].breve}</span></a></li>
               {:else}
                 <li class="sotto">Nessuno nelle prossime tre settimane.</li>
               {/each}

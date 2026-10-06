@@ -1,4 +1,5 @@
 <script>
+  import CampoData from './CampoData.svelte';
   import Scelta from './Scelta.svelte';
   // "Si ripete?": mai, ogni settimana, ogni 2/3/4 settimane, una volta al mese.
   // Con i giorni della settimana e la fine (mai, una data, dopo N volte).
@@ -51,7 +52,7 @@
         <button type="button" class="scelta" aria-pressed={fine.tipo === 'mai'} onclick={() => (fine = { ...fine, tipo: 'mai' })}>Sempre</button>
         <button type="button" class="scelta" aria-pressed={fine.tipo === 'data'} onclick={() => (fine = { ...fine, tipo: 'data' })}>Una data</button>
         <button type="button" class="scelta" aria-pressed={fine.tipo === 'volte'} onclick={() => (fine = { ...fine, tipo: 'volte' })}>Un numero di volte</button>
-        {#if fine.tipo === 'data'}<input class="input breve" type="date" min={data} value={fine.al} onchange={(e) => (fine = { ...fine, al: e.currentTarget.value })} aria-label="Ultimo giorno" />{/if}
+        {#if fine.tipo === 'data'}<span class="breve-data"><CampoData class="input breve" min={data} value={fine.al} onchange={(v) => (fine = { ...fine, al: v })} etichetta="Ultimo giorno" /></span>{/if}
         {#if fine.tipo === 'volte'}<input class="input breve num" type="number" min="1" max="200" value={fine.volte} onchange={(e) => (fine = { ...fine, volte: Math.max(1, +e.currentTarget.value || 1) })} aria-label="Quante volte" /> <span class="sotto piccolo">volte</span>{/if}
       </div>
     </div>

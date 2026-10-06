@@ -1,4 +1,5 @@
 <script>
+  import { oraTesto } from '../lib/orario.js';
   // Il calendario come un taccuino: una riga per giorno, biglietti per le sedute.
   // Su schermi larghi il foglio della seduta si apre accanto.
   import { onMount } from 'svelte';
@@ -159,7 +160,7 @@
                 {#if sp && sp.minuti !== 0}<span class="spazio" class:sovrapposte={sp.minuti < 0}>{sp.minuti > 0 ? durataLeggibile(sp.minuti) + ' liberi' : 'si sovrappone di ' + durataLeggibile(sp.minuti)}</span>{/if}
                 <a class="biglietto tipo-{s.tipo} stato-{st}" class:scelto={largo && sel === s.id}
                   href={'#/seduta/' + encodeURIComponent(s.id)} onclick={(e) => apri(e, s)} aria-current={largo && sel === s.id ? 'true' : undefined}>
-                  <span class="ora">{s.ora}<span class="fine">–{fineOra(s.ora, s.durata)}</span></span>
+                  <span class="ora">{oraTesto(s.ora)}<span class="fine">–{oraTesto(fineOra(s.ora, s.durata))}</span></span>
                   <span class="tit">
                     <span class="nome display">{titoloSeduta(s)}</span>
                     <span class="eti tipo">{#if s.serieId || serieDiSeduta(s)}<span class="giro-mini" title="Si ripete">↻ </span>{/if}{TIPI[s.tipo].breve}{assenti(s) ? ` · ${assenti(s)} assent${assenti(s) > 1 ? 'i' : 'e'}` : ''}</span>
@@ -193,7 +194,7 @@
         <div class="cella" class:fuori={d.slice(0, 7) !== primo.slice(0, 7)} class:oggi={d === O} role="gridcell">
           <a class="n display" href={`#/calendario/settimana/${d}`} aria-label={'Settimana del ' + numeroGiorno(d) + ' ' + nomeMese(d)}>{numeroGiorno(d)}{#if d === O}<Cerchio seme={3} />{/if}</a>
           {#each qui.slice(0, 3) as s (s.id)}
-            <a class="riga stato-{statoSeduta(s)} tipo-{s.tipo}" href={'#/seduta/' + encodeURIComponent(s.id)}><span class="o">{s.ora}</span> {titoloSeduta(s)}</a>
+            <a class="riga stato-{statoSeduta(s)} tipo-{s.tipo}" href={'#/seduta/' + encodeURIComponent(s.id)}><span class="o">{oraTesto(s.ora)}</span> {titoloSeduta(s)}</a>
           {/each}
           {#if qui.length > 3}<a class="altre" href={`#/calendario/settimana/${d}`}>+{qui.length - 3}</a>{/if}
         </div>

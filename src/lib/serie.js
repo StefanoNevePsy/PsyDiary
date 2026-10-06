@@ -12,6 +12,7 @@
 //   eccezioni?: { 'AAAA-MM-GG': 'saltata' | 'spostata' }
 // }
 // Funzioni pure: si provano in Node (tools/test-serie.mjs).
+import { oraTesto } from './orario.js';
 import { piu, lunedi, giornoSettimana, daIso, iso, nomeGiorno } from './date.js';
 
 const GIORNI = ['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'];
@@ -74,7 +75,7 @@ export function descrivi(s) {
     t = (r.ogni || 1) === 1 ? `ogni ${giorni}` : `ogni ${r.ogni} settimane, ${giorni.startsWith('sab') || giorni.startsWith('dom') ? 'il ' + giorni : giorni}`;
     if ((r.ogni || 1) === 1 && g.some((x) => x >= 6)) t = 'ogni ' + g.map((x) => GIORNI[x]).join(' e ');
   }
-  return `${t} alle ${s.ora}`;
+  return `${t} alle ${oraTesto(s.ora)}`;
 }
 /** "fino al 20 dicembre", "10 volte", "" */
 export function fine(s, formato = (d) => d) {

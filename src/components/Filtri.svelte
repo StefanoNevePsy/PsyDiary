@@ -1,5 +1,6 @@
 <script>
   // Filtri del diario: tipo, tag (si combinano), intervallo di date, testo.
+  import CampoData from './CampoData.svelte';
   import { conteggioTag } from '../lib/dati.svelte.js';
   import { oggi, piu } from '../lib/date.js';
   import Icona from './Icona.svelte';
@@ -38,8 +39,8 @@
     {#each PERIODI as [id, nome, g] (id)}
       <button type="button" class="scelta" aria-pressed={filtro.da === piu(oggi(), -g) && !filtro.a} onclick={() => periodo(g)}>{nome}</button>
     {/each}
-    <label class="data"><span class="eti">dal</span><input class="input" type="date" bind:value={filtro.da} /></label>
-    <label class="data"><span class="eti">al</span><input class="input" type="date" bind:value={filtro.a} /></label>
+    <label class="data"><span class="eti">dal</span><CampoData bind:value={filtro.da} etichetta="Dal giorno" /></label>
+    <label class="data"><span class="eti">al</span><CampoData bind:value={filtro.a} etichetta="Al giorno" /></label>
   </div>
 
   {#if tags.length}

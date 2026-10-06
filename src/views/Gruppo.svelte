@@ -1,4 +1,6 @@
 <script>
+  import { oraTesto } from '../lib/orario.js';
+  import CampoData from '../components/CampoData.svelte';
   import { T, M } from '../lib/parole.svelte.js';
   // Il gruppo: storico delle sedute, prossimi piani, membri e impostazioni.
   import {
@@ -169,7 +171,7 @@
             <section class="prossime no-stampa" aria-label="Prossime sedute">
               {#each prossime as s (s.id)}
                 <a class="prossima" href={'#/seduta/' + encodeURIComponent(s.id)}>
-                  <span class="eti">{relativa(s.data)} · {s.ora}</span>
+                  <span class="eti">{relativa(s.data)} · {oraTesto(s.ora)}</span>
                   <span class="display quando">{lunga(s.data)}</span>
                   {#if s.argomento}
                     <span class="piano">{daFare(s.argomento).length ? daFare(s.argomento).slice(0, 3).join(' · ') : anteprima(s.argomento, 80)}</span>
@@ -217,7 +219,7 @@
                     {#if inModifica?.rid === m.ragazzoId}
                       <span class="modifica-dal">
                         <Scelta breve bind:value={inModifica.quando} etichetta="Da quando" opzioni={QUANDO.filter((q) => q.valore !== 'oggi')} />
-                        {#if inModifica.quando === 'data'}<input class="input data" type="date" bind:value={inModifica.data} aria-label="Data di ingresso" />{/if}
+                        {#if inModifica.quando === 'data'}<CampoData class="input data" bind:value={inModifica.data} etichetta="Data di ingresso" />{/if}
                         <button type="button" class="btn piccolo" onclick={salvaIngresso}>Salva</button>
                         <button type="button" class="btn nudo piccolo" onclick={() => (inModifica = null)}>Annulla</button>
                       </span>
@@ -232,7 +234,7 @@
                 <div class="entra">
                   <span class="chi"><Scelta bind:value={daAggiungere} vuota={'Aggiungi ' + T('un') + '…'} etichetta={M('uno') + ' da aggiungere'} opzioni={candidati.map((r) => ({ valore: r.id, etichetta: nomeCompleto(r) }))} /></span>
                   <Scelta breve value={quandoScelto} onchange={(v) => (quando = v)} etichetta="Da quando è nel gruppo" opzioni={QUANDO} />
-                  {#if quandoScelto === 'data'}<input class="input data" type="date" bind:value={quandoData} aria-label="Nel gruppo dal" />{/if}
+                  {#if quandoScelto === 'data'}<CampoData class="input data" bind:value={quandoData} etichetta="Nel gruppo dal" />{/if}
                   <button type="button" class="btn piccolo" onclick={entra} disabled={!daAggiungere}>Aggiungi</button>
                 </div>
               {/if}

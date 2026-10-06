@@ -1,4 +1,5 @@
 <script>
+  import CampoData from '../components/CampoData.svelte';
   import { T, M } from '../lib/parole.svelte.js';
   import { untrack } from 'svelte';
   // Una nota libera: su un ragazzo, su un gruppo o sull'aula.
@@ -55,7 +56,7 @@
       {#if modificabile}
         <input class="titolo display" value={n.titolo} placeholder="Titolo" aria-label="Titolo della nota" oninput={(e) => modifica({ titolo: e.currentTarget.value })} />
         <div class="meta">
-          <label class="data"><span class="eti">Data</span><input class="input" type="date" value={n.data} onchange={(e) => modifica({ data: e.currentTarget.value })} /></label>
+          <label class="data"><span class="eti">Data</span><CampoData value={n.data} etichetta="Data" onchange={(v) => v && modifica({ data: v })} /></label>
           <div class="categorie" role="group" aria-label="Che nota è">
             {#each Object.entries(CATEGORIE_NOTA) as [k, c] (k)}<button type="button" class="cat" aria-pressed={n.categoria === k} disabled={soloGruppo && k !== 'gruppo'} onclick={() => modifica({ categoria: n.categoria === k ? '' : k })}>{c}</button>{/each}
           </div>

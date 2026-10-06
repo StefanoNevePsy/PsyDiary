@@ -1,4 +1,5 @@
 <script>
+  import { usaOre12 } from '../lib/orario.js';
   // Esportazione completa, per passare a un altro sistema: i dati di tutti,
   // in uno zip cifrato con anagrafiche e diari leggibili, tabelle CSV, JSON e
   // allegati. La fa solo chi ospita il custode (l'unico che riceve tutto),
@@ -66,7 +67,7 @@
     } finally { password = ''; frase = ''; pw1 = ''; pw2 = ''; }
   }
   const peso = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
-  const quando = (t) => new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const quando = (t) => new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: usaOre12() });
 </script>
 
 {#if puo || (REALE && eAdmin())}

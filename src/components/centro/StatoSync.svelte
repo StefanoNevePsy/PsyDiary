@@ -1,4 +1,5 @@
 <script>
+  import { oraTesto } from '../../lib/orario.js';
   // Il pallino in alto: lo stato rispetto al Drive dell'aula.
   //   verde: tutto salvato · giallo: da inviare, o fermo da un po' · rosso: errore · grigio: senza rete
   import { onMount } from 'svelte';
@@ -6,7 +7,7 @@
 
   let adesso = $state(Date.now());
   onMount(() => { const t = setInterval(() => (adesso = Date.now()), 30000); return () => clearInterval(t); });
-  const ora = (iso) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  const ora = (iso) => { const d = new Date(iso); return oraTesto(String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')); };
   const minuti = $derived(sync.ultima ? Math.floor((adesso - Date.parse(sync.ultima)) / 60000) : null);
   const stato = $derived(
     !sync.online ? ['spento', 'senza rete: lavori sul dispositivo, i dati partono appena torna la connessione']
