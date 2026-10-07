@@ -36,6 +36,7 @@
   }
   function gruppoIntero(email, g) {
     const membri = membriAl(g, oggi()), l = acc.utenti[email].ragazzi || [];
+    if (!membri.length) return;
     const dentro = membri.every((m) => l.includes(m));
     cambia(email, { ragazzi: dentro ? l.filter((x) => !membri.includes(x)) : [...new Set([...l, ...membri])] });
   }
@@ -100,7 +101,10 @@
               <div class="rapidi">
                 <span class="eti">Interi gruppi</span>
                 {#each gruppi as g (g.id)}
-                  <button class="pill" aria-pressed={membriAl(g, oggi()).every((m) => (p.ragazzi || []).includes(m))} onclick={() => gruppoIntero(p.email, g)}>{g.nome}</button>
+                  {@const membri = membriAl(g, oggi())}
+                  <!-- un gruppo senza pazienti (es. una classe con soli alunni) non ha niente da condividere -->
+                  <button class="pill" aria-pressed={membri.length > 0 && membri.every((m) => (p.ragazzi || []).includes(m))} disabled={!membri.length}
+                    title={membri.length ? '' : 'Nessun paziente in questo gruppo, oggi'} onclick={() => gruppoIntero(p.email, g)}>{g.nome}</button>
                 {/each}
               </div>
               <div class="ragazzi">
@@ -160,6 +164,7 @@
   .rapidi { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .pill { min-height: 30px; padding: 2px 12px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
   .pill[aria-pressed='true'] { background: var(--inchiostro); color: var(--su-inchiostro); border-color: var(--inchiostro); }
+  .pill:disabled { opacity: 0.45; cursor: default; border-style: dashed; }
   .ragazzi { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px var(--s-3); }
   .ragazzo { display: flex; align-items: center; gap: var(--s-2); padding: 3px 8px; border-radius: 999px; cursor: pointer; }
   .ragazzo.si { font-weight: 600; }

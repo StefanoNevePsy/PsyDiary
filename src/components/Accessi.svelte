@@ -22,6 +22,7 @@
   function gruppoIntero(p, g) {
     const membri = membriAl(g, oggi());
     const l = p.ragazzi || [];
+    if (!membri.length) return;
     const tuttiDentro = membri.every((m) => l.includes(m));
     salvaPersona(p, tuttiDentro ? l.filter((x) => !membri.includes(x)) : [...new Set([...l, ...membri])]);
   }
@@ -58,8 +59,9 @@
             <div class="rapidi">
               <span class="eti">Interi gruppi</span>
               {#each gruppi as g (g.id)}
-                {@const dentro = membriAl(g, oggi()).every((m) => (p.ragazzi || []).includes(m))}
-                <button class="pill" aria-pressed={dentro} onclick={() => gruppoIntero(p, g)}>{g.nome}</button>
+                {@const membriG = membriAl(g, oggi())}
+                {@const dentro = membriG.length > 0 && membriG.every((m) => (p.ragazzi || []).includes(m))}
+                <button class="pill" aria-pressed={dentro} disabled={!membriG.length} title={membriG.length ? '' : 'Nessun paziente in questo gruppo, oggi'} onclick={() => gruppoIntero(p, g)}>{g.nome}</button>
               {/each}
             </div>
             <div class="ragazzi">
@@ -96,6 +98,7 @@
   .rapidi { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .pill { min-height: 30px; padding: 2px 12px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
   .pill[aria-pressed='true'] { background: var(--inchiostro); color: var(--su-inchiostro); border-color: var(--inchiostro); }
+  .pill:disabled { opacity: 0.45; cursor: default; border-style: dashed; }
   .ragazzi { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px var(--s-3); }
   .ragazzo { display: flex; align-items: center; gap: var(--s-2); padding: 4px 8px; border-radius: 999px; cursor: pointer; }
   .ragazzo:hover { background: var(--carta-3); }
