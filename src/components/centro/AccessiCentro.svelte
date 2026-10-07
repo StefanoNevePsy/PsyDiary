@@ -5,7 +5,7 @@
   // Persone e accessi, sul custode: chi entra (per email), con che ruolo, e per
   // ogni tirocinante quali ragazzi vede per intero.
   import { onMount } from 'svelte';
-  import { leggiAccessi, salvaAccessi, elencoDispositivi, togliDispositivo, sync } from '../../lib/centro/sync.svelte.js';
+  import { leggiAccessi, accessiNoti, salvaAccessi, elencoDispositivi, togliDispositivo, sync } from '../../lib/centro/sync.svelte.js';
   import { dati, nomeCompleto, ragazziAttivi, membriAl } from '../../lib/dati.svelte.js';
   import { oggi, lunga, relativa } from '../../lib/date.js';
   import Icona from '../Icona.svelte';
@@ -19,9 +19,18 @@
   let nuovo = $state({ nome: '', email: '', ruolo: 'tirocinante' });
   let dispositivi = $state([]);
 
+  // Subito l'ultimo elenco visto su questo dispositivo, poi quello del custode;
+  // accessi e dispositivi si chiedono insieme. Si salva solo partendo da quello aggiornato.
+  let aggiornato = $state(false);
   async function carica() {
-    try { acc = await leggiAccessi(); modificato = false; errore = ''; dispositivi = await elencoDispositivi(); }
-    catch (e) { errore = e.message; }
+    const noto = accessiNoti();
+    if (noto && !acc) acc = JSON.parse(JSON.stringify(noto));
+    try {
+      const [a, d] = await Promise.all([leggiAccessi(), elencoDispositivi().catch(() => dispositivi)]);
+      if (!modificato) acc = a;
+      else acc = { ...a, utenti: { ...a.utenti, ...acc.utenti } };   // modifiche fatte intanto: restano, sulla versione nuova
+      aggiornato = true; errore = ''; dispositivi = d;
+    } catch (e) { errore = e.message; }
   }
   onMount(carica);
 
@@ -126,7 +135,7 @@
       <button class="btn piccolo"><Icona nome="piu" /> Aggiungi</button>
     </form>
     <div class="salva">
-      <button class="btn pieno" disabled={!modificato} onclick={salvaTutto}>Salva gli accessi</button>
+      <button class="btn pieno" disabled={!modificato || !aggiornato} onclick={salvaTutto}>{aggiornato ? 'Salva gli accessi' : 'Aggiorno l\'elenco…'}</button>
       {#if modificato}<span class="mano">modifiche da salvare</span>{/if}
       {#if messaggio}<span class="sotto piccolo">{messaggio}</span>{/if}
       {#if errore}<span class="err">{errore}</span>{/if}

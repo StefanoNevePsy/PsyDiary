@@ -205,7 +205,7 @@ async function scriviInLocale(voce, d) {
 }
 
 async function invia() {
-  if (!coda.size) return;
+  if (!coda.size) return false;
   const lotto = [...coda].slice(0, 60);
   const invii = [], prep = {};
   for (const k of lotto) {
@@ -230,7 +230,7 @@ async function invia() {
     coda.delete(k);
   }
   await salvaCoda();
-  if (!invii.length) return;
+  if (!invii.length) return false;
   const r = await ricevi(invii);
   // conflitti: si unisce e si rimette in coda
   for (const e of r.esiti) {
@@ -267,6 +267,7 @@ async function invia() {
     }
   }
   await salvaCoda();
+  return true;
 }
 
 /** Una chiamata "sync": invia (se c'è) e applica quello che arriva. */
@@ -274,6 +275,7 @@ async function ricevi(invii = []) {
   const cursori = (await meta('cursori')) || {};
   const r = await chiama('sync', { cursori, invii });
   if (!r || !Array.isArray(r.voci) || !Array.isArray(r.esiti)) throw new ErroreRete('Risposta del custode incompleta: riprovo.');
+  ultimaRisposta = { inAttesa: r.inAttesa };
   const inCoda = new Set([...coda].flatMap((k) => { const [t, id] = k.split('|'); return idVociDi(t, id); }));
   const mieInviate = new Set(invii.map((v) => v.id));
   // prima le lapidi, poi le voci vive (una voce che cambia ambito arriva come tutte e due)
@@ -342,7 +344,7 @@ async function ricevi(invii = []) {
   return r;
 }
 
-let incorso = null, timer = null;
+let incorso = null, timer = null, ultimaRisposta = {}, ultimaConsegna = 0;
 function programma(ms) { clearTimeout(timer); timer = setTimeout(() => sincronizza(), ms); }
 export function sincronizza() {
   if (sync.fase !== 'pronto' || !sync.online) return Promise.resolve();
@@ -350,10 +352,17 @@ export function sincronizza() {
   sync.lavoro = true;
   incorso = (async () => {
     try {
-      for (let giro = 0; giro < 4 && coda.size; giro++) await invia();
-      await ricevi();
+      // l'invio è già una "sync": riceve anche le novità, non serve chiederle di nuovo
+      let ricevuto = false;
+      for (let giro = 0; giro < 4 && coda.size; giro++) { if (await invia()) ricevuto = true; }
+      if (!ricevuto) await ricevi();
       if (coda.size) await invia();
-      if (eOperatore()) await consegnaChiavi();
+      // l'elenco dei dispositivi solo se il custode dice che qualcuno aspetta la chiave
+      // (i custodi vecchi non lo dicono: allora ogni 10 minuti)
+      if (eOperatore() && (ultimaRisposta.inAttesa > 0 || (ultimaRisposta.inAttesa === undefined && Date.now() - ultimaConsegna > 600000))) {
+        ultimaConsegna = Date.now();
+        await consegnaChiavi();
+      }
       sync.ultima = new Date().toISOString();
       sync.errore = null;
     } catch (e) { gestisciErrore(e); } finally { sync.lavoro = false; incorso = null; }
@@ -395,7 +404,7 @@ async function cancellaDatiAula() {
   await op('voci', 'readwrite', (s) => s.clear());
   await op('meta', 'readwrite', (s) => s.clear());
   await C.dimenticaTutto();
-  coda.clear(); chiavi = {}; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.programmi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
+  coda.clear(); chiavi = {}; accessiCache = null; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.programmi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -448,7 +457,8 @@ async function prepara() {
   sync.io = await chiama('io');
   centro.io = sync.io;
   await scriviMeta('io', sync.io);
-  sync.cfg = sync.io.cifratura ? await chiama('cifratura.leggi') : null;
+  // i custodi aggiornati la mandano insieme a "io": una chiamata in meno all'accesso
+  sync.cfg = !sync.io.cifratura ? null : sync.io.cfg !== undefined ? sync.io.cfg : await chiama('cifratura.leggi');
   await scriviMeta('cfg', sync.cfg);
   chiavi = await C.portachiavi();
   sync.negato = null; sync.errore = null;
@@ -487,6 +497,7 @@ export async function avvia() {
   centro.pazientiNoti = !!centro.pazienti;
   centro.gruppi = (await meta('gruppi')) || null;
   centro.programmi = (await meta('programmi')) || null;
+  accessiCache = (await meta('accessi')) || null;
   chiavi = await C.portachiavi();
   if (sync.io && sync.io.email === u.email) { centro.io = sync.io; aggiornaFase(); } else sync.fase = 'fuori';
   try { await prepara(); } catch (e) { gestisciErrore(e); }
@@ -523,7 +534,15 @@ export const nuovaFrase = C.generaFrase;
 export const preparaChiave = C.nuovaConfigurazione;
 export async function elencoDispositivi() { sync.dispositivi = await chiama('dispositivi.elenco'); return sync.dispositivi; }
 export async function togliDispositivo(id) { await chiama('dispositivo.togli', { id }); return elencoDispositivi(); }
-export const leggiAccessi = () => chiama('accessi.leggi');
+// Gli accessi si ricordano sul dispositivo: l'elenco compare subito e si aggiorna appena risponde il custode
+let accessiCache = null;
+export const accessiNoti = () => accessiCache;
+export async function leggiAccessi() {
+  const a = await chiama('accessi.leggi');
+  accessiCache = a;
+  scriviMeta('accessi', a).catch(() => {});
+  return a;
+}
 
 // ---------------------------------------------------------------------------
 // Esportazione completa (solo chi ospita il custode)
@@ -629,7 +648,12 @@ export async function condividiPaziente(rid, scelta) {
   await sincronizza();
   return a;
 }
-export const salvaAccessi = (accessi, versioneBase) => chiama('accessi.salva', { accessi, versioneBase });
+export async function salvaAccessi(accessi, versioneBase) {
+  const a = await chiama('accessi.salva', { accessi, versioneBase });
+  accessiCache = a;
+  scriviMeta('accessi', a).catch(() => {});
+  return a;
+}
 export const accessoDev = Auth.accessoDev;
 export const pulsanteGoogle = Auth.pulsante;
 export async function esci(cancella) {

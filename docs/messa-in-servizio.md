@@ -278,6 +278,21 @@ aggiornato il custode»). Dieci minuti, i dati non si toccano:
 Per non doverlo più fare a mano: imposta `SCRIPT_ID`, `CUSTODE_DEPLOYMENT_ID`
 e `CLASPRC_JSON` (vedi l'inizio del workflow `pubblica.yml`).
 
+### Un custode più pronto (facoltativo, 1 minuto)
+
+Apps Script, quando per un po' nessuno lo usa, alla prima richiesta impiega
+qualche secondo a ripartire: è la lentezza che si nota soprattutto entrando.
+Per tenerlo pronto nelle ore di lavoro: nel progetto **PsyDiary · custode**
+scegli la funzione **attivaRisveglio** nel menu in alto e premi ▶ **Esegui**
+(Google chiede il permesso di creare un attivatore: consenti). Da quel momento
+ogni 10 minuti, tra le 7 e le 21, il custode si sveglia da solo per circa un
+secondo e tiene in memoria la configurazione. Per toglierlo: **disattivaRisveglio**.
+
+Il custode tiene comunque in memoria (la cache di Apps Script) i file che
+legge più spesso: accessi, chiave, stato, registro dei pazienti. Così entrare
+e sincronizzare costa una frazione di prima; salvare resta un po' più lento,
+perché ogni salvataggio scrive davvero su Drive.
+
 ## Programmi e protocolli
 
 In **Programmi** c'è la biblioteca: ogni programma ha moduli (con

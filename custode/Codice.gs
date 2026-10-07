@@ -144,17 +144,63 @@ function archivioDrive_() {
     memoria['f:' + percorso] = trovato;
     return trovato;
   }
+  // Il contenuto dei file si tiene anche nella cache di Apps Script (molto più
+  // veloce di Drive): si aggiorna a ogni scrittura, che passa sempre di qui.
+  // I file grandi si spezzano in pezzi da 90 KB; oltre ~900 KB si legge da Drive.
+  var PEZZO = 90000, MAX_PEZZI = 10;
+  function chiaveC(p) { return 'c:' + hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, p)).slice(0, 40); }
+  // undefined: la cache non sa niente; null: il file non c'è; testo: il contenuto
+  function daCache(p) {
+    if (!daTenere(p)) return undefined;
+    var k = chiaveC(p), testa = cache.get(k);
+    if (!testa) return undefined;
+    try {
+      var t = JSON.parse(testa);
+      if (t.assente) return null;
+      var chiavi = [];
+      for (var i = 0; i < t.n; i++) chiavi.push(k + ':' + t.tag + ':' + i);
+      var pezzi = cache.getAll(chiavi), out = '';
+      for (var j = 0; j < chiavi.length; j++) { if (pezzi[chiavi[j]] == null) return undefined; out += pezzi[chiavi[j]]; }
+      return out.length === t.len ? out : undefined;
+    } catch (e) { return undefined; }
+  }
+  // le immagini no: sono tante, grandi e si leggono di rado (riempirebbero la cache)
+  var daTenere = function (p) { return p.indexOf('Immagini/') !== 0; };
+  function inCache(p, testo) {
+    if (!daTenere(p)) return;
+    var k = chiaveC(p);
+    try {
+      if (testo.length > PEZZO * MAX_PEZZI) { cache.remove(k); return; }
+      var tag = Math.random().toString(36).slice(2, 8), n = Math.ceil(testo.length / PEZZO), pezzi = {};
+      for (var i = 0; i < n; i++) pezzi[k + ':' + tag + ':' + i] = testo.slice(i * PEZZO, (i + 1) * PEZZO);
+      cache.putAll(pezzi, 21600);
+      cache.put(k, JSON.stringify({ tag: tag, n: n, len: testo.length }), 21600);
+    } catch (e) { try { cache.remove(k); } catch (x) { /* solo una comodità */ } }
+  }
+  function leggiTesto(p) {
+    var c = daCache(p);
+    if (c !== undefined) return c;
+    var f = file(p);
+    if (!f) {
+      if (daTenere(p)) { try { cache.put(chiaveC(p), JSON.stringify({ assente: true }), 21600); } catch (e) { /* solo una comodità */ } }
+      return null;
+    }
+    var testo = f.getBlob().getDataAsString('UTF-8');
+    inCache(p, testo);
+    return testo;
+  }
   return {
-    leggiJSON: function (p) { var f = file(p); return f ? JSON.parse(f.getBlob().getDataAsString('UTF-8')) : null; },
+    leggiJSON: function (p) { var t = leggiTesto(p); return t ? JSON.parse(t) : null; },
     scriviJSON: function (p, o) {
       var testo = JSON.stringify(o), f = file(p);
-      if (f) { f.setContent(testo); return; }
+      if (f) { f.setContent(testo); inCache(p, testo); return; }
       var parti = p.split('/'), nome = parti.pop();
       var nuovo = cartella(parti.join('/'), true).createFile(nome, testo, 'application/json');
       cache.put('f:' + p, nuovo.getId(), 21600);
       memoria['f:' + p] = nuovo;
+      inCache(p, testo);
     },
-    esiste: function (p) { return !!file(p); },
+    esiste: function (p) { var c = daCache(p); return c !== undefined ? c !== null : !!file(p); },
     conLock: function (fn) {
       var lock = LockService.getScriptLock();
       if (!lock.tryLock(25000)) {
@@ -201,4 +247,28 @@ function configura() {
   // Una chiamata esterna, così l'autorizzazione copre anche la verifica degli accessi
   UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo', { muteHttpExceptions: true });
   Logger.log(clientId ? 'Pronto. Ora: Distribuisci > Nuova distribuzione > App web.' : 'Quasi pronto: manca il client ID.');
+}
+
+/**
+ * Facoltativo, per un custode più pronto. Apps Script, quando nessuno lo usa
+ * per un po', alla prima richiesta impiega qualche secondo a ripartire: un
+ * risveglio ogni 10 minuti nelle ore di lavoro lo tiene pronto e rinfresca la
+ * cache dei file di configurazione. Esegui una volta `attivaRisveglio` dall'editor
+ * (chiede il permesso di creare un attivatore); `disattivaRisveglio` lo toglie.
+ * Costa circa un secondo ogni 10 minuti, tra le 7 e le 21.
+ */
+function attivaRisveglio() {
+  disattivaRisveglio();
+  ScriptApp.newTrigger('risveglio').timeBased().everyMinutes(10).create();
+  Logger.log('Risveglio attivo: ogni 10 minuti, dalle 7 alle 21.');
+}
+function disattivaRisveglio() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'risveglio') ScriptApp.deleteTrigger(t); });
+}
+function risveglio() {
+  var ora = Number(Utilities.formatDate(new Date(), 'Europe/Rome', 'H'));
+  if (ora < 7 || ora >= 21) return;
+  var a = archivioDrive_();
+  ['_config/accessi.json', '_config/cifratura.json', '_config/dispositivi.json', '_config/stato.json', '_config/pazienti.json']
+    .forEach(function (p) { try { a.leggiJSON(p); } catch (e) { /* al prossimo giro */ } });
 }

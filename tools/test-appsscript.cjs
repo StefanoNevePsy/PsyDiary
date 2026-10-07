@@ -55,7 +55,9 @@ const ctx = {
     createFolder: (nome) => { const c = nuovaCartella(nome); mioDrive.push(c); return c; },
   },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => prop[k] || null, setProperty: (k, v) => { prop[k] = v; }, deleteProperty: (k) => { delete prop[k]; } }) },
-  CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
+  CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { if (String(v).length > 100000) throw new Error('valore troppo grande'); cache[k] = v; }, remove: (k) => { delete cache[k]; },
+    getAll: (ks) => { const o = {}; ks.forEach((k) => { if (cache[k] != null) o[k] = cache[k]; }); return o; },
+    putAll: (o) => { Object.entries(o).forEach(([k, v]) => { if (String(v).length > 100000) throw new Error('valore troppo grande'); cache[k] = v; }); } }) },
   LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock: () => true, releaseLock: () => {} }) },
   UrlFetchApp: { fetch: (url) => {
     chiamateGoogle++;
@@ -109,6 +111,38 @@ vm.runInContext('_custode = null;', ctx);
 const io1 = chiama('stefano@aula.it', 'io');
 ok(io1.ok && io1.dati.ruolo === 'admin', 'anche quando Google non dice chi è il proprietario, resta operatore');
 emailSessione = 'stefano@aula.it';
+
+// ---- cache del contenuto dei file: sempre coerente con Drive ----
+{
+  const nuovaEsecuzione = () => vm.runInContext('_custode = null;', ctx);
+  const A = () => vm.runInContext('archivioDrive_()', ctx);
+  nuovaEsecuzione();
+  A().scriviJSON('_config/prova.json', { a: 1 });
+  nuovaEsecuzione();
+  ok(A().leggiJSON('_config/prova.json').a === 1, 'cache: si rilegge quello appena scritto');
+  A().scriviJSON('_config/prova.json', { a: 2 });
+  nuovaEsecuzione();
+  ok(A().leggiJSON('_config/prova.json').a === 2, 'cache: dopo una scrittura si legge il nuovo, mai il vecchio');
+  const grande = { testo: 'x'.repeat(350000) };
+  A().scriviJSON('Dati/grande.json', grande);
+  nuovaEsecuzione();
+  ok(A().leggiJSON('Dati/grande.json').testo.length === 350000, 'cache: un file da 350 KB si tiene in pezzi e si ricompone');
+  ok(A().leggiJSON('_config/manca.json') === null && !A().esiste('_config/manca.json'), 'cache: un file assente resta assente');
+  A().scriviJSON('_config/manca.json', { c: 3 });
+  nuovaEsecuzione();
+  ok(A().esiste('_config/manca.json') && A().leggiJSON('_config/manca.json').c === 3, 'cache: appena creato non risulta più assente');
+  // Google svuota la cache quando vuole: si torna a Drive
+  Object.keys(cache).filter((k) => k.startsWith('c:')).forEach((k) => delete cache[k]);
+  nuovaEsecuzione();
+  ok(A().leggiJSON('_config/prova.json').a === 2 && A().leggiJSON('Dati/grande.json').testo.length === 350000, 'cache svuotata: si rilegge da Drive');
+  // un pezzo perso non fa leggere un file a metà
+  A().scriviJSON('Dati/grande.json', { testo: 'y'.repeat(350000) });
+  const pezzo = Object.keys(cache).find((k) => /^c:.*:1$/.test(k) && cache[k].startsWith('y'));
+  delete cache[pezzo];
+  nuovaEsecuzione();
+  ok(A().leggiJSON('Dati/grande.json').testo === 'y'.repeat(350000), 'un pezzo perso: si legge da Drive, mai mezzo file');
+  ok(typeof ctx.attivaRisveglio === 'function' && typeof ctx.risveglio === 'function', 'risveglio facoltativo disponibile');
+}
 
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);

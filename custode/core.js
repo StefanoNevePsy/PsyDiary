@@ -209,7 +209,8 @@ var PD = (function () {
     var azioni = {};
     azioni['io'] = function (u) {
       var c = A.leggiJSON(P.cifratura);
-      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi'] };
+      // con la configurazione della chiave (non segreta): all'accesso basta una chiamata
+      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, cfg: c || null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa'] };
     };
     azioni['cifratura.leggi'] = function () { return A.leggiJSON(P.cifratura); };
     azioni['cifratura.imposta'] = function (u, d) {
@@ -339,12 +340,19 @@ var PD = (function () {
         busta: v.eliminato === true ? null : bustaV(v.busta, MAX_VOCE, 'busta'),
       };
     }
+    // Le versioni precedenti: nella stessa richiesta un file di storia si legge
+    // e si scrive una volta sola, anche se cambiano più voci dello stesso ambito.
+    var storie = null;
     function archiviaStoria(ambito, r) {
-      var s = A.leggiJSON(P.storia(ambito)) || { schema: SCHEMA, voci: {} };
+      var s = storie && storie[ambito];
+      if (!s) {
+        s = A.leggiJSON(P.storia(ambito)) || { schema: SCHEMA, voci: {} };
+        if (storie) storie[ambito] = s;
+      }
       var l = s.voci[r.id] || [];
       l.unshift({ version: r.version, busta: r.busta, aggiornato: r.aggiornato, aggiornatoDa: r.aggiornatoDa, eliminato: !!r.eliminato });
       s.voci[r.id] = l.slice(0, STORIA_PER_VOCE);
-      A.scriviJSON(P.storia(ambito), s);
+      if (!storie) A.scriviJSON(P.storia(ambito), s);
     }
 
     /**
@@ -358,7 +366,8 @@ var PD = (function () {
       var esiti = [];
       if (invii.length) {
         if (!c) throw err('senza-chiave', 'Prima un operatore deve creare la chiave dell\'aula.');
-        conLock(function () {
+        storie = {};
+        try { conLock(function () {
           var stato = leggiStato();
           stato.indice = stato.indice || {};
           var toccati = {};   // ambito -> file (si scrive una volta sola)
@@ -413,8 +422,9 @@ var PD = (function () {
             }
           });
           Object.keys(toccati).forEach(function (a) { A.scriviJSON(P.ambito(a), toccati[a]); });
+          Object.keys(storie).forEach(function (a) { A.scriviJSON(P.storia(a), storie[a]); });
           A.scriviJSON(P.stato, stato);
-        });
+        }); } finally { storie = null; }
       }
       // cosa è cambiato da quando il dispositivo ha guardato l'ultima volta
       var cursori = oggettoV(d.cursori || {}, 'cursori');
@@ -440,7 +450,13 @@ var PD = (function () {
       var regAll = leggiPazienti();
       Object.keys(regAll.gruppi).forEach(function (gid) { if (!gruppi[gid] && regAll.gruppi[gid].tutti) gruppi[gid] = accessoPer(u, gid, 'g:' + gid); });
       Object.keys(regAll.programmi).forEach(function (pid) { if (!programmi[pid] && regAll.programmi[pid].tutti) programmi[pid] = accessoPer(u, pid, 'p:' + pid); });
-      return { esiti: esiti, voci: cambi, ambiti: visibili, cursori: stato.ambiti, rev: stato.rev, kid: c ? c.kid : null, pazienti: pazienti, gruppi: gruppi, programmi: programmi };
+      // agli operatori: quanti dispositivi aspettano la chiave (così l'app chiede l'elenco solo se serve)
+      var inAttesa = 0;
+      if (eAdmin(u) && c) {
+        var dd = leggiDispositivi().dispositivi;
+        Object.keys(dd).forEach(function (id) { var x = dd[id]; if (!(x.chiavi && x.chiavi[c.kid]) && abilitato(x.email)) inAttesa++; });
+      }
+      return { esiti: esiti, voci: cambi, ambiti: visibili, cursori: stato.ambiti, rev: stato.rev, kid: c ? c.kid : null, pazienti: pazienti, gruppi: gruppi, programmi: programmi, inAttesa: inAttesa };
     };
 
     /**
