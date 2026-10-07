@@ -291,7 +291,10 @@ secondo e tiene in memoria la configurazione. Per toglierlo: **disattivaRisvegli
 Il custode tiene comunque in memoria (la cache di Apps Script) i file che
 legge più spesso: accessi, chiave, stato, registro dei pazienti. Così entrare
 e sincronizzare costa una frazione di prima; salvare resta un po' più lento,
-perché ogni salvataggio scrive davvero su Drive.
+perché ogni salvataggio scrive davvero su Drive. Se un giorno modifichi a mano i file nel
+Drive (da evitare: per esempio un file ripristinato da una versione
+precedente), esegui **svuotaCache** dall'editor, altrimenti per qualche ora il
+custode continua a usare la copia che ha in memoria.
 
 ## Programmi e protocolli
 

@@ -148,7 +148,8 @@ function archivioDrive_() {
   // veloce di Drive): si aggiorna a ogni scrittura, che passa sempre di qui.
   // I file grandi si spezzano in pezzi da 90 KB; oltre ~900 KB si legge da Drive.
   var PEZZO = 90000, MAX_PEZZI = 10;
-  function chiaveC(p) { return 'c:' + hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, p)).slice(0, 40); }
+  // la generazione cambia con svuotaCache(): da lì tutto si rilegge da Drive
+  function chiaveC(p) { return 'c' + generazioneCache_() + ':' + hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, p)).slice(0, 40); }
   // undefined: la cache non sa niente; null: il file non c'è; testo: il contenuto
   function daCache(p) {
     if (!daTenere(p)) return undefined;
@@ -271,4 +272,19 @@ function risveglio() {
   var a = archivioDrive_();
   ['_config/accessi.json', '_config/cifratura.json', '_config/dispositivi.json', '_config/stato.json', '_config/pazienti.json']
     .forEach(function (p) { try { a.leggiJSON(p); } catch (e) { /* al prossimo giro */ } });
+}
+
+// Dopo una modifica fatta a mano sui file in Drive (da evitare: es. un file
+// ripristinato da una versione precedente) il custode continuerebbe a usare la
+// copia in cache per qualche ora. svuotaCache, eseguita dall'editor, la fa
+// rileggere tutta da Drive.
+var _generazione = null;
+function generazioneCache_() {
+  if (_generazione == null) _generazione = PropertiesService.getScriptProperties().getProperty('GENERAZIONE_CACHE') || '0';
+  return _generazione;
+}
+function svuotaCache() {
+  _generazione = Date.now().toString(36);
+  PropertiesService.getScriptProperties().setProperty('GENERAZIONE_CACHE', _generazione);
+  Logger.log('Cache svuotata: il custode rilegge tutto da Drive.');
 }

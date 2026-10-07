@@ -142,6 +142,13 @@ emailSessione = 'stefano@aula.it';
   nuovaEsecuzione();
   ok(A().leggiJSON('Dati/grande.json').testo === 'y'.repeat(350000), 'un pezzo perso: si legge da Drive, mai mezzo file');
   ok(typeof ctx.attivaRisveglio === 'function' && typeof ctx.risveglio === 'function', 'risveglio facoltativo disponibile');
+  // un file cambiato a mano su Drive: dopo svuotaCache si legge quello
+  const f = Object.values(tutti).find((x) => x._tipo === 'file' && x._nome === 'prova.json');
+  f._testo = JSON.stringify({ a: 99 });
+  nuovaEsecuzione();
+  ok(A().leggiJSON('_config/prova.json').a === 2, 'cambio a mano su Drive: per ora resta la copia in cache');
+  ctx.svuotaCache(); nuovaEsecuzione();
+  ok(A().leggiJSON('_config/prova.json').a === 99, 'dopo svuotaCache si legge da Drive');
 }
 
 console.log(`\n${n - f}/${n} superati`);
