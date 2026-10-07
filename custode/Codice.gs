@@ -171,6 +171,7 @@ function archivioDrive_() {
     if (!daTenere(p)) return;
     var k = chiaveC(p);
     try {
+      if (testo == null) { cache.put(k, JSON.stringify({ assente: true }), 21600); return; }
       if (testo.length > PEZZO * MAX_PEZZI) { cache.remove(k); return; }
       var tag = Math.random().toString(36).slice(2, 8), n = Math.ceil(testo.length / PEZZO), pezzi = {};
       for (var i = 0; i < n; i++) pezzi[k + ':' + tag + ':' + i] = testo.slice(i * PEZZO, (i + 1) * PEZZO);
@@ -178,17 +179,21 @@ function archivioDrive_() {
       cache.put(k, JSON.stringify({ tag: tag, n: n, len: testo.length }), 21600);
     } catch (e) { try { cache.remove(k); } catch (x) { /* solo una comodità */ } }
   }
+  // Una copia letta da Drive entra in cache solo se nessuno può scrivere intanto:
+  // dentro il lucchetto delle scritture, o prendendolo se è libero. Altrimenti una
+  // lettura lenta potrebbe rimettere in cache la versione vecchia di un file
+  // appena salvato da un'altra persona.
+  var inLock = false;
+  function testoDrive(p) { var f = file(p); return f ? f.getBlob().getDataAsString('UTF-8') : null; }
   function leggiTesto(p) {
     var c = daCache(p);
     if (c !== undefined) return c;
-    var f = file(p);
-    if (!f) {
-      if (daTenere(p)) { try { cache.put(chiaveC(p), JSON.stringify({ assente: true }), 21600); } catch (e) { /* solo una comodità */ } }
-      return null;
+    if (inLock || !daTenere(p)) { var t = testoDrive(p); if (inLock) inCache(p, t); return t; }
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(0)) {
+      try { var t2 = testoDrive(p); inCache(p, t2); return t2; } finally { lock.releaseLock(); }
     }
-    var testo = f.getBlob().getDataAsString('UTF-8');
-    inCache(p, testo);
-    return testo;
+    return testoDrive(p);
   }
   return {
     leggiJSON: function (p) { var t = leggiTesto(p); return t ? JSON.parse(t) : null; },
@@ -209,7 +214,8 @@ function archivioDrive_() {
         e.occupato = true;
         throw e;
       }
-      try { return fn(); } finally { lock.releaseLock(); }
+      inLock = true;
+      try { return fn(); } finally { inLock = false; lock.releaseLock(); }
     },
   };
 }

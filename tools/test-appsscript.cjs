@@ -37,6 +37,7 @@ const mioDrive = [];
 const CLIENT_ID = '123-test.apps.googleusercontent.com';
 const prop = {};
 const cache = {};
+let lucchettoAltrui = false;   // un'altra persona sta salvando
 let chiamateGoogle = 0;
 const adesso = Math.floor(Date.now() / 1000);
 function tokeninfo(t) {
@@ -58,7 +59,7 @@ const ctx = {
   CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { if (String(v).length > 100000) throw new Error('valore troppo grande'); cache[k] = v; }, remove: (k) => { delete cache[k]; },
     getAll: (ks) => { const o = {}; ks.forEach((k) => { if (cache[k] != null) o[k] = cache[k]; }); return o; },
     putAll: (o) => { Object.entries(o).forEach(([k, v]) => { if (String(v).length > 100000) throw new Error('valore troppo grande'); cache[k] = v; }); } }) },
-  LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock: () => true, releaseLock: () => {} }) },
+  LockService: { getScriptLock: () => ({ tryLock: () => !lucchettoAltrui, waitLock: () => true, releaseLock: () => {} }) },
   UrlFetchApp: { fetch: (url) => {
     chiamateGoogle++;
     const t = decodeURIComponent((url.split('id_token=')[1] || ''));
@@ -141,6 +142,15 @@ emailSessione = 'stefano@aula.it';
   delete cache[pezzo];
   nuovaEsecuzione();
   ok(A().leggiJSON('Dati/grande.json').testo === 'y'.repeat(350000), 'un pezzo perso: si legge da Drive, mai mezzo file');
+  // mentre un'altra persona salva (lucchetto occupato) una lettura da Drive non entra in cache:
+  // potrebbe essere la versione appena superata
+  Object.keys(cache).filter((k) => k.startsWith('c')).forEach((k) => delete cache[k]);
+  lucchettoAltrui = true; nuovaEsecuzione();
+  ok(A().leggiJSON('_config/prova.json').a === 2, 'lucchetto occupato: si legge da Drive');
+  ok(!Object.keys(cache).some((k) => /^c[^:]*:/.test(k)), 'lucchetto occupato: niente in cache');
+  lucchettoAltrui = false; nuovaEsecuzione();
+  A().leggiJSON('_config/prova.json');
+  ok(Object.keys(cache).some((k) => /^c[^:]*:/.test(k)), 'lucchetto libero: la lettura entra in cache');
   ok(typeof ctx.attivaRisveglio === 'function' && typeof ctx.risveglio === 'function', 'risveglio facoltativo disponibile');
   // un file cambiato a mano su Drive: dopo svuotaCache si legge quello
   const f = Object.values(tutti).find((x) => x._tipo === 'file' && x._nome === 'prova.json');
