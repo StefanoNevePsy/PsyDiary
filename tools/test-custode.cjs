@@ -83,6 +83,18 @@ r = chiama('stefano@aula.it', 'sync', { invii: [{ id: 'sgr1', tipo: 'seduta', am
 ok(r.dati.esiti[0].ok, 'eliminazione');
 ok(chiama('stefano@aula.it', 'voce.storia', { id: 'sgr1', ambito: 'aula' }).dati.length === 2, 'le versioni precedenti restano nella storia');
 ok(chiama('marco@aula.it', 'voce.storia', { id: 'sind1', ambito: 'r:rluca01' }).errore === 'vietato', 'storia di un ambito non condiviso: vietata');
+{
+  // mentre si scrive l'app salva ogni secondo e mezzo: nella storia non 15 bozze dello stesso minuto
+  let ver = 0;
+  for (let k = 0; k < 8; k++) { const x = chiama('stefano@aula.it', 'sync', { invii: [voce('bozza1', 'seduta', 'aula', ver)] }); ver = x.dati.esiti[0].version; }
+  const st = chiama('stefano@aula.it', 'voce.storia', { id: 'bozza1', ambito: 'aula' }).dati;
+  ok(st.length === 1, 'otto salvataggi di fila della stessa persona: una versione precedente sola (' + st.length + ')');
+  // poi scrive Elena: nella storia l'ultima di Stefano e, dal suo secondo salvataggio, la sua
+  const el = chiama('elena@aula.it', 'sync', { invii: [voce('bozza1', 'seduta', 'aula', ver)] });
+  chiama('elena@aula.it', 'sync', { invii: [voce('bozza1', 'seduta', 'aula', el.dati.esiti[0].version)] });
+  const st2 = chiama('stefano@aula.it', 'voce.storia', { id: 'bozza1', ambito: 'aula' }).dati;
+  ok(st2.length === 2 && st2[0].aggiornatoDa === 'elena@aula.it' && st2[1].aggiornatoDa === 'stefano@aula.it', 'un\'altra persona: una versione per ciascuno');
+}
 
 // immagini
 ok(chiama('giulia@aula.it', 'immagine.carica', { id: 'i123', ambito: 'r:rluca01', busta: busta() }).ok, 'immagine caricata nel personale di Luca');

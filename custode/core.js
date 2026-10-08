@@ -40,6 +40,7 @@ var PD = (function () {
   // I tirocinanti scrivono ma non gestiscono: niente ragazzi, schede, gruppi.
   var SOLO_ADMIN = { ragazzo: true, scheda: true, gruppo: true, serie: true, programma: true };
   var STORIA_PER_VOCE = 15;   // versioni precedenti tenute per ogni voce
+  var BOZZE_MS = 30 * 60000;  // salvataggi della stessa persona entro 30 minuti: una versione sola
 
   // "r:" pazienti, "g:" gruppi e classi, "p:" programmi riservati
   var CARTELLA = { r: 'ragazzi/', g: 'gruppi/', p: 'programmi/' };
@@ -350,7 +351,15 @@ var PD = (function () {
         if (storie) storie[ambito] = s;
       }
       var l = s.voci[r.id] || [];
-      l.unshift({ version: r.version, busta: r.busta, aggiornato: r.aggiornato, aggiornatoDa: r.aggiornatoDa, eliminato: !!r.eliminato });
+      var nuova = { version: r.version, busta: r.busta, aggiornato: r.aggiornato, aggiornatoDa: r.aggiornatoDa, eliminato: !!r.eliminato };
+      // L'app salva mentre si scrive: le bozze della stessa persona a pochi minuti
+      // l'una dall'altra sono una sessione di scrittura sola e se ne tiene l'ultima.
+      // Così restano le versioni che servono (com'era prima di ogni sessione) e la
+      // storia non si riempie di 15 bozze dello stesso minuto.
+      var prec = l[0];
+      if (prec && !prec.eliminato && !nuova.eliminato && prec.aggiornatoDa === nuova.aggiornatoDa &&
+          Math.abs(Date.parse(nuova.aggiornato) - Date.parse(prec.aggiornato)) < BOZZE_MS) l[0] = nuova;
+      else l.unshift(nuova);
       s.voci[r.id] = l.slice(0, STORIA_PER_VOCE);
       if (!storie) A.scriviJSON(P.storia(ambito), s);
     }
