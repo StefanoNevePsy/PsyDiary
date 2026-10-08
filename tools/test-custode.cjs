@@ -242,6 +242,53 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   ok(chiama('marco@aula.it', 'esportazioni.leggi').errore === 'vietato', 'i tirocinanti no');
 }
 
+// tirocinanti: tutti i pazienti dell'aula, accesso a tempo con revoca della chiave
+{
+  let adesso = new Date('2026-10-08T09:00:00Z');
+  const d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'psy-custode-'));
+  const c2 = creaLocale(d2, { proprietario: 'stefano@aula.it', ora: () => adesso.toISOString() });
+  const ch = (email, azione, dati) => c2.gestisci({ v: 1, token: 'dev:' + email + '|' + email.split('@')[0], azione, dati });
+  ch('stefano@aula.it', 'cifratura.imposta', { cifratura });
+  ch('stefano@aula.it', 'accessi.salva', { accessi: { utenti: {
+    'luca@aula.it': { nome: 'Luca', ruolo: 'tirocinante', ragazzi: [], tuttiRagazzi: true, scadenza: '2026-12-31' },
+    'sara@aula.it': { nome: 'Sara', ruolo: 'admin', tuttiRagazzi: true },
+  } }, versioneBase: 0 });
+  const acc = ch('stefano@aula.it', 'accessi.leggi').dati;
+  ok(acc.utenti['luca@aula.it'].tuttiRagazzi === true && acc.utenti['sara@aula.it'].tuttiRagazzi === false, 'tutti i pazienti: solo per i tirocinanti');
+  ch('stefano@aula.it', 'sync', { invii: [voce('raula1', 'ragazzo', 'r:raula1'), voce('rmio1', 'ragazzo', 'r:rmio1')] });
+  ch('stefano@aula.it', 'paziente.condivisione', { id: 'raula1', condivisi: [], tutti: true });
+  const io = ch('luca@aula.it', 'io').dati;
+  ok(io.tuttiRagazzi === true && io.scadenza === '2026-12-31', 'l\'app sa che Luca vede tutti, fino al 31/12');
+  ch('sara@aula.it', 'sync', { invii: [voce('rsara1', 'ragazzo', 'r:rsara1')] });
+  const amb = ch('luca@aula.it', 'sync', {}).dati.ambiti;
+  ok(acc.utenti['luca@aula.it'].tuttiDa === 'stefano@aula.it', 'tutti: quelli di chi concede l\'accesso (Stefano)');
+  ok(amb.includes('r:raula1') && amb.includes('r:rmio1') && !amb.includes('r:rsara1'), 'Luca vede i pazienti di Stefano, anche riservati, non quelli riservati di Sara');
+  ch('stefano@aula.it', 'sync', { invii: [voce('rnuovo1', 'ragazzo', 'r:rnuovo1')] });
+  ok(ch('luca@aula.it', 'sync', {}).dati.ambiti.includes('r:rnuovo1'), 'e anche quelli nuovi');
+  const ac2 = ch('sara@aula.it', 'accessi.leggi').dati;
+  ch('sara@aula.it', 'accessi.salva', { accessi: { utenti: ac2.utenti }, versioneBase: ac2.version });
+  ok(ch('sara@aula.it', 'accessi.leggi').dati.utenti['luca@aula.it'].tuttiDa === 'stefano@aula.it', 'se Sara salva gli accessi non diventa lei a concederli');
+  // dispositivo con la chiave, poi la scadenza
+  ch('luca@aula.it', 'dispositivo.registra', { id: 'dluca00001', pubblica: 'AAAA', nome: 'Telefono' });
+  ok(ch('stefano@aula.it', 'dispositivi.abilita', { id: 'dluca00001', kid: 'kprova', chiave: 'BBBB', pubblica: 'AAAA' }).ok, 'Luca riceve la chiave');
+  adesso = new Date('2027-01-01T09:00:00Z');
+  ok(c2.revocaScaduti() === 1 && c2.revocaScaduti() === 0, 'il giorno dopo la scadenza il risveglio revoca la chiave (una volta)');
+  ok(ch('luca@aula.it', 'io').errore === 'scaduto', 'e Luca non entra più');
+  const d = ch('stefano@aula.it', 'dispositivi.elenco').dati.find((x) => x.id === 'dluca00001');
+  ok(d && !d.abilitato && !d.personaAbilitata, 'il dispositivo resta, senza chiave');
+  // prolungato: torna in attesa di una nuova consegna
+  const a2 = ch('stefano@aula.it', 'accessi.leggi').dati;
+  a2.utenti['luca@aula.it'].scadenza = '2027-06-30';
+  ch('stefano@aula.it', 'accessi.salva', { accessi: { utenti: a2.utenti }, versioneBase: a2.version });
+  const d3 = ch('stefano@aula.it', 'dispositivi.elenco').dati.find((x) => x.id === 'dluca00001');
+  ok(d3.personaAbilitata && !d3.abilitato, 'prolungato: riceverà di nuovo la chiave');
+  ch('stefano@aula.it', 'dispositivi.abilita', { id: 'dluca00001', kid: 'kprova', chiave: 'BBBB', pubblica: 'AAAA' });
+  adesso = new Date('2027-07-01T09:00:00Z');
+  ok(ch('luca@aula.it', 'dispositivo.chiave', { id: 'dluca00001' }).errore === 'scaduto'
+    && !ch('stefano@aula.it', 'dispositivi.elenco').dati.find((x) => x.id === 'dluca00001').abilitato, 'scaduto e si ripresenta: la chiave si revoca subito');
+  fs.rmSync(d2, { recursive: true, force: true });
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${n - falliti}/${n} superati`);
 process.exit(falliti ? 1 : 0);

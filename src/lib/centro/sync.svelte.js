@@ -276,6 +276,11 @@ async function ricevi(invii = []) {
   const r = await chiama('sync', { cursori, invii });
   if (!r || !Array.isArray(r.voci) || !Array.isArray(r.esiti)) throw new ErroreRete('Risposta del custode incompleta: riprovo.');
   ultimaRisposta = { inAttesa: r.inAttesa };
+  if (r.accesso && sync.io && ['scadenza', 'tuttiRagazzi', 'ragazzi'].some((k) => JSON.stringify(sync.io[k] ?? null) !== JSON.stringify(r.accesso[k] ?? null))) {
+    sync.io = { ...sync.io, ...r.accesso };
+    centro.io = sync.io;
+    await scriviMeta('io', sync.io);
+  }
   const inCoda = new Set([...coda].flatMap((k) => { const [t, id] = k.split('|'); return idVociDi(t, id); }));
   const mieInviate = new Set(invii.map((v) => v.id));
   // prima le lapidi, poi le voci vive (una voce che cambia ambito arriva come tutte e due)
@@ -398,6 +403,19 @@ function confermaNegato(codice) {
   return verifica;
 }
 
+// Accesso a tempo: passata la data, i dati dell'aula lasciano il dispositivo
+// anche senza rete (il custode intanto ha già revocato la chiave)
+const oggiQui = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+async function controllaScadenza() {
+  const sc = sync.io?.scadenza;
+  if (!sc || oggiQui() <= sc || pulizia) return false;
+  pulizia = cancellaDatiAula().finally(() => { pulizia = null; });
+  await pulizia;
+  sync.fase = 'fuori';
+  sync.negato = 'Il tuo accesso è scaduto il ' + sc.split('-').reverse().join('/') + ': i dati dell\'aula sono stati tolti da questo dispositivo.';
+  return true;
+}
+
 /** Accesso tolto: niente dati dell'aula su questo dispositivo. */
 async function cancellaDatiAula() {
   for (const t of ['ragazzi', 'gruppi', 'sedute', 'note', 'sospesi', 'serie', 'programmi']) for (const o of [...dati[t]]) await elimina(t, o.id, true);
@@ -486,6 +504,7 @@ export async function avvia() {
   window.addEventListener('offline', () => { sync.online = false; });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sincronizza(); });
   setInterval(() => {
+    controllaScadenza();
     if (document.visibilityState !== 'visible') return;
     if (sync.fase === 'attesa') prepara().catch(gestisciErrore); else sincronizza();
   }, 60000);
@@ -500,6 +519,7 @@ export async function avvia() {
   accessiCache = (await meta('accessi')) || null;
   chiavi = await C.portachiavi();
   if (sync.io && sync.io.email === u.email) { centro.io = sync.io; aggiornaFase(); } else sync.fase = 'fuori';
+  await controllaScadenza();
   try { await prepara(); } catch (e) { gestisciErrore(e); }
 }
 

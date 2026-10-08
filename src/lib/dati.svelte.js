@@ -26,7 +26,7 @@ export const centro = $state({ io: null, pazienti: null, gruppi: null, programmi
 export function io() {
   if (REALE) {
     const c = centro.io;
-    return c ? { id: c.email, email: c.email, nome: c.nome, ruolo: c.ruolo, ragazzi: c.ragazzi || [] } : OSPITE;
+    return c ? { id: c.email, email: c.email, nome: c.nome, ruolo: c.ruolo, ragazzi: c.ragazzi || [], tuttiRagazzi: !!c.tuttiRagazzi } : OSPITE;
   }
   return dati.persone.find((p) => p.id === sessione.utenteId) || dati.persone[0] || OSPITE;
 }
@@ -55,7 +55,7 @@ export function puoModificare(autore, testo) {
 export function condiviso(rid) {
   if (REALE) {
     if (centro.pazienti?.[rid]) return true;
-    return !centro.pazientiNoti && (eAdmin() || (io().ragazzi || []).includes(rid));
+    return !centro.pazientiNoti && (eAdmin() || io().tuttiRagazzi || (io().ragazzi || []).includes(rid));
   }
   // prototipo: la condivisione sta nel ragazzo stesso
   const a = ragazzo(rid)?.accesso;

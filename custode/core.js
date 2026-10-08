@@ -124,6 +124,8 @@ var PD = (function () {
         nome: testoV(u.nome, 60, false, 'nome') || e.split('@')[0],
         ruolo: ruolo,
         ragazzi: ruolo === 'admin' ? [] : listaV(u.ragazzi, 2000, 'ragazzi').map(function (x) { return idV(x, RE.id, 'ragazzi'); }),
+        // tirocinante con tutti i pazienti dell'operatore che gli dà l'accesso (tuttiDa), anche i futuri
+        tuttiRagazzi: ruolo !== 'admin' && u.tuttiRagazzi === true,
         attivo: u.attivo !== false,
         scadenza: u.scadenza ? (RE.data.test(u.scadenza) ? u.scadenza : null) : null,
       };
@@ -165,9 +167,30 @@ var PD = (function () {
         return { email: email, nome: (voce && voce.nome) || identita.nome || email, ruolo: 'admin', ragazzi: [], proprietario: true };
       }
       if (!voce) throw err('non-autorizzato', 'L\'account ' + email + ' non è abilitato a PsyDiary. Chiedi a un operatore di aggiungerti.');
-      if (voce.attivo === false) throw err('disattivato', 'L\'account ' + email + ' è stato disattivato.');
-      if (voce.scadenza && oggi() > voce.scadenza) throw err('scaduto', 'L\'accesso di ' + email + ' è scaduto il ' + voce.scadenza + '.');
-      return { email: email, nome: voce.nome || identita.nome || email, ruolo: voce.ruolo, ragazzi: voce.ragazzi || [], proprietario: false };
+      if (voce.attivo === false) { revocaSeServe(email); throw err('disattivato', 'L\'account ' + email + ' è stato disattivato.'); }
+      if (voce.scadenza && oggi() > voce.scadenza) { revocaSeServe(email); throw err('scaduto', 'L\'accesso di ' + email + ' è scaduto il ' + voce.scadenza + '.'); }
+      return { email: email, nome: voce.nome || identita.nome || email, ruolo: voce.ruolo, ragazzi: voce.ragazzi || [],
+        tuttiDa: voce.ruolo !== 'admin' && voce.tuttiRagazzi && voce.tuttiDa ? voce.tuttiDa : null, scadenza: voce.scadenza || null, proprietario: false };
+    }
+    // Revoca della chiave: chi non è più abilitato (scaduto, disattivato) perde la
+    // busta con la chiave dell'aula su tutti i suoi dispositivi. Se torna abilitato,
+    // un operatore gliela riconsegna in automatico come a un dispositivo nuovo.
+    function revocaChiavi() {
+      var disp = leggiDispositivi(), n = 0;
+      Object.keys(disp.dispositivi).forEach(function (id) {
+        var r = disp.dispositivi[id];
+        if (r.chiavi && Object.keys(r.chiavi).length && !abilitato(r.email)) {
+          r.chiavi = {}; r.revocatoIl = amb.ora(); delete r.abilitatoDa; delete r.abilitatoIl; n++;
+        }
+      });
+      if (n) A.scriviJSON(P.dispositivi, disp);
+      return n;
+    }
+    function revocaSeServe(email) {
+      var dd = leggiDispositivi().dispositivi;
+      var ha = Object.keys(dd).some(function (id) { return dd[id].email === email && dd[id].chiavi && Object.keys(dd[id].chiavi).length; });
+      if (!ha) return;
+      try { conLock(revocaChiavi); } catch (e) { /* alla prossima richiesta, o al risveglio */ }
     }
     var eAdmin = function (u) { return u.ruolo === 'admin'; };
 
@@ -188,11 +211,19 @@ var PD = (function () {
     function vedeAmbito(u, a) {
       if (a === 'aula') return true;
       var rid = a.slice(2), rec = recDi(a);
-      var assegnato = a[0] === 'r' && !eAdmin(u) && u.ragazzi.indexOf(rid) >= 0;
+      var assegnato = a[0] === 'r' && !eAdmin(u) && (u.ragazzi.indexOf(rid) >= 0 || vedeChiConcede(u, a));
       if (!rec) return eAdmin(u) || assegnato;              // di tutta l'aula (da prima)
       if (rec.proprietario === u.email || rec.condivisi.indexOf(u.email) >= 0 || assegnato) return true;
       if (rec.tutti && eAdmin(u)) return true;
       return !!u.proprietario && orfano(rec);
+    }
+    // "Tutti i pazienti": quelli che vede l'operatore che ha dato l'accesso, finché è operatore abilitato
+    function vedeChiConcede(u, a) {
+      var e = u.tuttiDa;
+      if (!e || !abilitato(e)) return false;
+      var v = leggiAccessi().utenti[e];
+      if (e !== proprietario() && (!v || v.ruolo !== 'admin')) return false;
+      return vedeAmbito({ email: e, ruolo: 'admin', ragazzi: [], proprietario: e === proprietario() }, a);
     }
     /** Come appare il paziente (o il gruppo, con a = "g:<id>") a chi lo vede (per l'app). */
     function accessoPer(u, rid, a) {
@@ -211,7 +242,7 @@ var PD = (function () {
     azioni['io'] = function (u) {
       var c = A.leggiJSON(P.cifratura);
       // con la configurazione della chiave (non segreta): all'accesso basta una chiamata
-      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, cfg: c || null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa'] };
+      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, tuttiRagazzi: !!u.tuttiDa, scadenza: u.scadenza || null, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, cfg: c || null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa'] };
     };
     azioni['cifratura.leggi'] = function () { return A.leggiJSON(P.cifratura); };
     azioni['cifratura.imposta'] = function (u, d) {
@@ -314,6 +345,11 @@ var PD = (function () {
             if (prima.indexOf(rid) < 0 && leggiPazienti().pazienti[rid] && !vedeAmbito(u, 'r:' + rid)) throw err('vietato', 'Non puoi assegnare un paziente riservato che non vedi.');
           });
         });
+        // "tutti i pazienti" resta legato all'operatore che l'ha concesso per primo
+        Object.keys(nuovo.utenti).forEach(function (e) {
+          var n = nuovo.utenti[e], prima = attuale.utenti[e];
+          if (n.tuttiRagazzi) n.tuttiDa = (prima && prima.tuttiRagazzi && prima.tuttiDa) || u.email;
+        });
         nuovo.version = (attuale.version || 0) + 1;
         nuovo.aggiornato = amb.ora(); nuovo.aggiornatoDa = u.email;
         A.scriviJSON(P.accessi, nuovo);
@@ -324,6 +360,7 @@ var PD = (function () {
           if (e !== proprietario() && !nuovo.utenti[e]) { delete disp.dispositivi[id]; cambiati = true; }
         });
         if (cambiati) A.scriviJSON(P.dispositivi, disp);
+        revocaChiavi();
         nuovo.proprietario = proprietario();
         return nuovo;
       });
@@ -465,7 +502,9 @@ var PD = (function () {
         var dd = leggiDispositivi().dispositivi;
         Object.keys(dd).forEach(function (id) { var x = dd[id]; if (!(x.chiavi && x.chiavi[c.kid]) && abilitato(x.email)) inAttesa++; });
       }
-      return { esiti: esiti, voci: cambi, ambiti: visibili, cursori: stato.ambiti, rev: stato.rev, kid: c ? c.kid : null, pazienti: pazienti, gruppi: gruppi, programmi: programmi, inAttesa: inAttesa };
+      return { esiti: esiti, voci: cambi, ambiti: visibili, cursori: stato.ambiti, rev: stato.rev, kid: c ? c.kid : null, pazienti: pazienti, gruppi: gruppi, programmi: programmi, inAttesa: inAttesa,
+        // l'accesso può cambiare mentre l'app è aperta (scadenza, pazienti): l'app lo aggiorna senza chiedere "io"
+        accesso: { scadenza: u.scadenza || null, tuttiRagazzi: !!u.tuttiDa, ragazzi: u.ragazzi } };
     };
 
     /**
@@ -622,7 +661,9 @@ var PD = (function () {
         return { ok: false, errore: 'interno', messaggio: 'Errore interno del custode: ' + String(e && e.message || e).slice(0, 300) };
       }
     }
-    return { gestisci: gestisci, azioni: Object.keys(azioni) };
+    /** Dal risveglio periodico: le chiavi di chi è scaduto si revocano anche se non si ripresenta. */
+    function revocaScaduti() { return conLock(revocaChiavi); }
+    return { gestisci: gestisci, azioni: Object.keys(azioni), revocaScaduti: revocaScaduti };
   }
 
   return { SCHEMA: SCHEMA, TIPI: TIPI, RUOLI: RUOLI, PERCORSI: P, RE: RE, creaCustode: creaCustode, stabile: stabile };

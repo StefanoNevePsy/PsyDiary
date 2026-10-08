@@ -59,6 +59,8 @@
     nuovo = { nome: '', email: '', ruolo: 'tirocinante' };
     modificato = true; errore = '';
   }
+  // accesso a tempo: proposta di sei mesi, modificabile
+  function traSeiMesi() { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function togli(email) {
     if (!confirm(`Togliere l'accesso a ${acc.utenti[email].nome}? Le note che ha scritto restano; i suoi dispositivi perdono la chiave.`)) return;
     delete acc.utenti[email];
@@ -66,7 +68,7 @@
   }
   async function salvaTutto() {
     try {
-      const pulito = { utenti: Object.fromEntries(Object.entries($state.snapshot(acc.utenti)).map(([e, u]) => [e, { ...u, ragazzi: u.ruolo === 'admin' ? [] : (u.ragazzi || []).filter((r) => tutti.some((x) => x.id === r)) }])) };
+      const pulito = { utenti: Object.fromEntries(Object.entries($state.snapshot(acc.utenti)).map(([e, u]) => [e, { ...u, ragazzi: u.ruolo === 'admin' ? [] : (u.ragazzi || []).filter((r) => tutti.some((x) => x.id === r)), tuttiRagazzi: u.ruolo !== 'admin' && !!u.tuttiRagazzi }])) };
       acc = await salvaAccessi(pulito, acc.version || 0);
       modificato = false; errore = ''; messaggio = 'Salvato. Chi entra per la prima volta riceve la chiave da un vostro dispositivo entro un minuto.';
       dispositivi = await elencoDispositivi();
@@ -97,16 +99,34 @@
             <span class="spazio"></span>
             <Scelta breve value={p.ruolo} onchange={(v) => cambia(p.email, { ruolo: v })} etichetta={'Ruolo di ' + p.nome} opzioni={RUOLI} />
             {#if p.ruolo === 'tirocinante'}
-              <button class="btn piccolo" aria-expanded={aperto === p.email} onclick={() => (aperto = aperto === p.email ? null : p.email)}>{n ? `${n} condivisi` : 'solo gruppi'}</button>
+              <button class="btn piccolo" aria-expanded={aperto === p.email} onclick={() => (aperto = aperto === p.email ? null : p.email)}>{p.tuttiRagazzi ? `tutti ${T('i')}` : n ? `${n} condivisi` : 'solo gruppi'}</button>
             {/if}
             <button class="btn nudo piccolo" onclick={() => togli(p.email)} aria-label={'Togli ' + p.nome}><Icona nome="cestino" /></button>
           </div>
           <div class="riga extra">
             <label class="spunta"><input type="checkbox" checked={p.attivo} onchange={(e) => cambia(p.email, { attivo: e.currentTarget.checked })} /> attivo</label>
-            <label class="scade"><span class="eti">accesso fino al</span><CampoData class="input breve" value={p.scadenza || ''} etichetta="Accesso fino al" onchange={(v) => cambia(p.email, { scadenza: v || null })} /></label>
+            <span class="interruttore" role="group" aria-label={'Durata dell\'accesso di ' + p.nome}>
+              <button class="pill" aria-pressed={!p.scadenza} onclick={() => cambia(p.email, { scadenza: null })}>senza scadenza</button>
+              <button class="pill" aria-pressed={!!p.scadenza} onclick={() => { if (!p.scadenza) cambia(p.email, { scadenza: traSeiMesi() }); }}>con scadenza</button>
+            </span>
+            {#if p.scadenza}
+              <label class="scade"><span class="eti">fino al</span><CampoData class="input breve" value={p.scadenza} etichetta="Accesso fino al" onchange={(v) => cambia(p.email, { scadenza: v || null })} /></label>
+              {#if p.scadenza < oggi()}<span class="err">scaduto</span>{/if}
+            {/if}
           </div>
+          {#if p.scadenza}
+            <p class="sotto piccolo nota">Il giorno dopo l'accesso si chiude da solo: il custode toglie la chiave ai suoi dispositivi e i dati dell'aula spariscono da lì, anche senza rete. Spostando la data in avanti la chiave gli torna da sola.</p>
+          {/if}
           {#if aperto === p.email && p.ruolo === 'tirocinante'}
             <div class="scelta">
+              <span class="interruttore" role="group" aria-label={'Pazienti di ' + p.nome}>
+                <button class="pill" aria-pressed={!!p.tuttiRagazzi} onclick={() => cambia(p.email, { tuttiRagazzi: true })}>tutti {T('i')}</button>
+                <button class="pill" aria-pressed={!p.tuttiRagazzi} onclick={() => cambia(p.email, { tuttiRagazzi: false })}>solo alcuni</button>
+              </span>
+              {#if p.tuttiRagazzi}
+                {@const da = p.tuttiDa && p.tuttiDa !== sync.io?.email ? (acc.utenti[p.tuttiDa]?.nome || p.tuttiDa) : null}
+                <p class="sotto piccolo">{da ? `Vede per intero tutti ${T('i')} che vede ${da}, che gli ha dato l'accesso: i suoi, quelli condivisi con lei o lui e quelli di tutta l'aula.` : `Vede per intero tutti ${T('i')} che vedi tu: i tuoi, quelli condivisi con te e quelli di tutta l'aula.`} Anche quelli aggiunti in futuro; i riservati degli altri operatori restano esclusi.</p>
+              {:else}
               <div class="rapidi">
                 <span class="eti">Interi gruppi</span>
                 {#each gruppi as g (g.id)}
@@ -123,6 +143,7 @@
                   </label>
                 {/each}
               </div>
+              {/if}
             </div>
           {/if}
         </li>
@@ -169,6 +190,8 @@
   .spunta { display: inline-flex; gap: 6px; align-items: center; }
   .spunta input, .ragazzo input { accent-color: var(--spot); }
   .scade { display: inline-flex; gap: 6px; align-items: baseline; }
+  .interruttore { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .nota { margin: 0; }
   .scelta { display: grid; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px dashed var(--matita); }
   .rapidi { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .pill { min-height: 30px; padding: 2px 12px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
