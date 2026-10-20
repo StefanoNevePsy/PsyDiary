@@ -1,7 +1,7 @@
 // Etichette dei pazienti: per riconoscere a colpo d'occhio il tipo di
 // paziente (dell'aula, esterno, privato…) e filtrare l'elenco. Testo libero;
 // queste sono solo le proposte iniziali, poi si propongono quelle già usate.
-export const PREDEFINITE = ['aula', 'esterno', 'privato', 'inviato dai servizi', 'scuola', 'valutazione', 'follow-up'];
+export const PREDEFINITE = ['colloqui', 'aula', 'esterno', 'privato', 'inviato dai servizi', 'scuola', 'valutazione', 'follow-up'];
 export const MAX = 8;
 
 export const pulisci = (t) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase().slice(0, 30);

@@ -382,11 +382,23 @@ export function titoloSeduta(s) {
 /** futura · oggi · da-scrivere (passata senza resoconto) · scritta */
 export function statoSeduta(s) {
   const o = oggi();
-  const scritta = !!(s.resoconto && s.resoconto.trim());
+  // scritta anche se c'è solo una nota su qualcuno del gruppo
+  const scritta = !!(s.resoconto && s.resoconto.trim()) || Object.values(s.partecipanti || {}).some((t) => String(t || '').trim());
   if (scritta) return 'scritta';
   if (s.data > o) return 'futura';
   if (s.data === o) return 'oggi';
   return 'da-scrivere';
+}
+/** La nota in evidenza di un paziente: la più recente scritta in una seduta, finché non la si toglie. */
+export function inEvidenza(r) {
+  if (!r) return null;
+  let migliore = null;
+  for (const s of dati.sedute) {
+    const t = String((s.evidenza || {})[r.id] || '').trim();
+    if (t && (!migliore || s.data > migliore.data || (s.data === migliore.data && (s.ora || '') > (migliore.ora || '')))) migliore = { testo: t, data: s.data, ora: s.ora, sedutaId: s.id };
+  }
+  if (!migliore || r.evidenzaTolta === migliore.sedutaId + ':' + migliore.testo) return null;
+  return migliore;
 }
 export function partecipantiSeduta(s) {
   if (s.tipo !== 'gruppo') return s.ragazzoId ? [s.ragazzoId] : [];

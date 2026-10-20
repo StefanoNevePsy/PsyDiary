@@ -58,7 +58,7 @@
     const campi = $state.snapshot(x);
     untrack(() => {
       if (Object.keys(coda).length) return;   // sto scrivendo io: prima si salva
-      for (const k of ['argomento', 'resoconto', 'prossima', 'presenze', 'partecipanti', 'chi', 'autori', 'ora', 'data', 'programma']) {
+      for (const k of ['argomento', 'resoconto', 'prossima', 'presenze', 'partecipanti', 'evidenza', 'chi', 'autori', 'ora', 'data', 'programma']) {
         if (JSON.stringify(campi[k]) !== JSON.stringify(s[k])) s[k] = campi[k];
       }
     });
@@ -260,6 +260,11 @@
         segnaposto="Clima, cosa è emerso, cosa ha funzionato. #tag e @nomi per ritrovarlo dopo"
         alCambio={(t) => modifica({ resoconto: t })} />
       {#if s.autori?.resoconto && s.autori.resoconto !== io().nome}<p class="autore">di {s.autori.resoconto}</p>{/if}
+      {#if s.tipo !== 'gruppo' && s.ragazzoId}
+        <label class="evid"><span class="eti">In evidenza sulla sua pagina</span>
+          <textarea class="input" rows="2" placeholder="Nota importante: resta in cima alla pagina del paziente finché non la togli"
+            value={(s.evidenza || {})[s.ragazzoId] || ''} oninput={(e) => modifica({ evidenza: { ...(s.evidenza || {}), [s.ragazzoId]: e.currentTarget.value } })}></textarea></label>
+      {/if}
     </section>
 
     {#if s.tipo === 'gruppo'}
@@ -270,6 +275,11 @@
             {#if p.paziente}<a class="chi display" href={'#/ragazzo/' + p.id}>{p.breve}</a>{:else}<span class="chi display">{p.breve}</span>{/if}
             <Editor testo={(s.partecipanti || {})[p.id] || ''} compatto etichetta={'Nota su ' + p.completo}
               segnaposto="—" alCambio={(t) => modifica({ partecipanti: { ...(s.partecipanti || {}), [p.id]: t } })} />
+            {#if p.paziente}
+              <label class="evid"><span class="eti">In evidenza sulla sua pagina</span>
+                <textarea class="input" rows="1" placeholder="Nota importante: resta in cima alla pagina di {p.breve} finché non la togli"
+                  value={(s.evidenza || {})[p.id] || ''} oninput={(e) => modifica({ evidenza: { ...(s.evidenza || {}), [p.id]: e.currentTarget.value } })}></textarea></label>
+            {/if}
           </div>
         {/each}
         {#if daAprire.length}
@@ -372,4 +382,6 @@
   .orario { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
   .durata { display: inline-flex; align-items: center; gap: 4px; }
   .durata .input { width: 5.5em; }
+  .evid { display: grid; gap: 4px; margin-top: var(--s-3); }
+  .evid textarea { resize: vertical; min-height: 40px; border-left: 0; background: var(--spot-tenue); }
 </style>

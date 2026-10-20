@@ -29,7 +29,7 @@
   import Immagine from '../components/Immagine.svelte';
   import Icona from '../components/Icona.svelte';
   import ElencoSerie from '../components/ElencoSerie.svelte';
-  import { serieInCorso } from '../lib/dati.svelte.js';
+  import { serieInCorso, inEvidenza } from '../lib/dati.svelte.js';
   import { descrivi } from '../lib/serie.js';
 
   let { id } = $props();
@@ -84,6 +84,7 @@
     vai('ragazzi');
   }
   const gestisce = $derived(puoGestire());
+  const pin = $derived(inEvidenza(r));
 </script>
 
 {#if r}
@@ -109,6 +110,13 @@
             {#if r.stato === 'concluso'}<span class="mano concluso">percorso concluso</span>{/if}
           </p>
           {#if tutto}<Condivisione {r} />{/if}
+          {#if pin}
+            <div class="evidenza retino">
+              <span class="eti">In evidenza · <a href={'#/seduta/' + encodeURIComponent(pin.sedutaId)}>{breveAnno(pin.data)}</a></span>
+              <p>{pin.testo}</p>
+              <button type="button" class="btn nudo piccolo no-stampa" onclick={() => campo('evidenzaTolta', pin.sedutaId + ':' + pin.testo)}>Togli dall'evidenza</button>
+            </div>
+          {/if}
           {#if tutto && (gestisce || r.etichette?.length)}<p class="etich"><Etichette valori={r.etichette || []} modificabile={gestisce} alCambio={(x) => campo('etichette', x)} /></p>{/if}
           <p class="appartiene">
             {#each gruppi as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{/each}
@@ -335,4 +343,6 @@
     .lato .box:not(.retino) { display: none; }
     .schede { gap: var(--s-4); overflow-x: auto; }
   }
+  .evidenza { margin: var(--s-3) 0; padding: var(--s-3) var(--s-4); border: 1px dashed var(--spot); border-radius: var(--r); max-width: var(--misura); }
+  .evidenza p { margin: 4px 0; font-size: var(--t-nota); white-space: pre-wrap; }
 </style>
