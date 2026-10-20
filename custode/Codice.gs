@@ -71,6 +71,7 @@ function custode_() {
   _custode = PD.creaCustode({
     archivio: archivioDrive_(),
     verificaToken: verificaToken_,
+    creaSessione: creaSessione_,
     proprietario: proprietario_,
     ora: function () { return new Date().toISOString(); },
     // Risposte alle scritture gia' fatte, per i reinvii dell'app (10 minuti)
@@ -84,8 +85,32 @@ function custode_() {
 
 // Verifica dell'ID token di "Accedi con Google": solo chi sei, nessun accesso
 // al tuo Drive o alla posta.
+// Sessione del custode: «s1.<dati>.<firma>», firmata con un segreto che il custode crea
+// da solo nelle proprietà dello script. Dura SESSIONE_GIORNI giorni e l'app la rinnova usandola.
+var SESSIONE_GIORNI = 180;
+function segretoSessione_() {
+  var s = PROP.getProperty('SESSIONE_SEGRETO');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); PROP.setProperty('SESSIONE_SEGRETO', s); }
+  return s;
+}
+function firmaSessione_(dati) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(dati, segretoSessione_())).replace(/=+$/, '');
+}
+function creaSessione_(id) {
+  var scade = Math.floor(Date.now() / 1000) + SESSIONE_GIORNI * 86400;
+  var dati = Utilities.base64EncodeWebSafe(JSON.stringify({ e: id.email, n: id.nome, x: scade }), Utilities.Charset.UTF_8).replace(/=+$/, '');
+  return { token: 's1.' + dati + '.' + firmaSessione_(dati), scade: scade };
+}
+function verificaSessione_(token) {
+  var p = token.split('.');
+  if (p.length !== 3 || firmaSessione_(p[1]) !== p[2]) throw new Error('sessione non valida');
+  var d = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(p[1])).getDataAsString());
+  if (!(d.x > Date.now() / 1000)) throw new Error('sessione scaduta');
+  return { email: String(d.e).toLowerCase(), nome: d.n || d.e, sessione: true };
+}
 function verificaToken_(token) {
   if (typeof token !== 'string' || token.length < 20 || token.length > 4096) throw new Error('token mancante');
+  if (token.indexOf('s1.') === 0) return verificaSessione_(token);
   var clientIds = impostazione_('GOOGLE_CLIENT_ID').split(/[\s,]+/).filter(Boolean);
   if (!clientIds.length) throw new Error('GOOGLE_CLIENT_ID non configurato');
   var cache = CacheService.getScriptCache();

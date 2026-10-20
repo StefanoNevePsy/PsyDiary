@@ -27,7 +27,19 @@ function creaLocale(dir, opz = {}) {
   let ora = opz.ora || (() => new Date().toISOString());
   return PD.creaCustode({
     archivio: archivioSuDisco(dir),
+    creaSessione: (id) => {
+      const scade = Math.floor(Date.now() / 1000) + 180 * 86400;
+      const d = Buffer.from(JSON.stringify({ e: id.email, n: id.nome, x: scade })).toString('base64url');
+      return { token: 's1.' + d + '.' + require('crypto').createHmac('sha256', SEGRETO).update(d).digest('base64url'), scade };
+    },
     verificaToken: (t) => {
+      if (typeof t === 'string' && t.startsWith('s1.')) {
+        const p = t.split('.'), f = require('crypto').createHmac('sha256', SEGRETO).update(p[1] || '').digest('base64url');
+        if (p.length !== 3 || f !== p[2]) throw new Error('sessione non valida');
+        const d = JSON.parse(Buffer.from(p[1], 'base64url').toString('utf8'));
+        if (!(d.x > Date.now() / 1000)) throw new Error('sessione scaduta');
+        return { email: String(d.e).toLowerCase(), nome: d.n || d.e, sessione: true };
+      }
       const m = /^dev:([^|]+)\|?(.*)$/.exec(t || '');
       if (!m) throw new Error('token');
       return { email: m[1].toLowerCase(), nome: m[2] || m[1] };
@@ -37,6 +49,7 @@ function creaLocale(dir, opz = {}) {
     ricordo: (() => { const m = new Map(); return { leggi: (k) => m.get(k) || null, scrivi: (k, v) => m.set(k, v) }; })(),
   });
 }
+const SEGRETO = require('crypto').randomBytes(32).toString('hex');
 module.exports = { creaLocale, archivioSuDisco };
 
 if (require.main === module) {

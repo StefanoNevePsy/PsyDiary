@@ -635,11 +635,19 @@ var PD = (function () {
         if (!richiesta || typeof richiesta !== 'object') throw err('richiesta-non-valida', 'Richiesta vuota.');
         if (richiesta.v !== 1) throw err('richiesta-non-valida', 'Versione del protocollo non supportata: aggiorna l\'app.');
         var fn = azioni[richiesta.azione];
-        if (!fn) throw err('richiesta-non-valida', 'Azione sconosciuta.');
+        var perSessione = (richiesta.azione === 'sessione.crea' || richiesta.azione === 'sessione.rinnova') && amb.creaSessione;
+        if (!fn && !perSessione) throw err('richiesta-non-valida', 'Azione sconosciuta.');
         registro = null;
         var identita;
         try { identita = amb.verificaToken(richiesta.token); } catch (e) { throw err('non-autenticato', 'Accesso scaduto o non valido: rientra con Google.'); }
         var u = utenteDa(identita);
+        // Accesso lungo: dopo l'accesso con Google il custode rilascia una sessione firmata;
+        // la si rinnova usandola. Chi viene tolto o scade resta fuori lo stesso (utenteDa).
+        if (perSessione) {
+          if (richiesta.azione === 'sessione.crea' && identita.sessione) throw err('richiesta-non-valida', 'Serve un accesso con Google.');
+          if (richiesta.azione === 'sessione.rinnova' && !identita.sessione) throw err('richiesta-non-valida', 'Serve una sessione.');
+          return { ok: true, dati: amb.creaSessione({ email: u.email, nome: u.nome }) };
+        }
         var chiave = amb.ricordo && RIPETIBILI[richiesta.azione] && typeof richiesta.rid === 'string' && RE_RICHIESTA.test(richiesta.rid)
           ? 'rid:' + u.email + ':' + richiesta.azione + ':' + richiesta.rid : null;
         if (chiave) {

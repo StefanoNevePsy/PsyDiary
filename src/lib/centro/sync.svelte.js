@@ -55,8 +55,9 @@ async function chiama(azione, d, { tentativi = 4 } = {}) {
     }
   }
 }
-async function chiamaUnaVolta(azione, d, rid) {
-  const token = await Auth.prendiToken();
+Auth.usaCreaSessione((azione, t) => chiamaUnaVolta(azione, {}, Math.random().toString(16).slice(2).padEnd(24, '0').slice(0, 24), t));
+async function chiamaUnaVolta(azione, d, rid, tokenFisso) {
+  const token = tokenFisso || await Auth.prendiToken();
   // Apps Script chiude ogni esecuzione dopo 6 minuti: oltre non arriva più niente
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 330000);
@@ -75,7 +76,10 @@ async function chiamaUnaVolta(azione, d, rid) {
   try { j = JSON.parse(testo); } catch (e) { throw new ErroreRete('Risposta del custode non leggibile.'); }
   if (!j || typeof j !== 'object') throw new ErroreRete('Risposta del custode non leggibile.');
   if (!j.ok) {
-    if (j.errore === 'non-autenticato') { Auth.invalida(); throw new Auth.ErroreAccesso(j.messaggio); }
+    if (j.errore === 'non-autenticato') {
+      if (Auth.scartaSessione(token)) throw new ErroreRete('Sessione scaduta: riprovo con l\'accesso Google.');
+      Auth.invalida(); throw new Auth.ErroreAccesso(j.messaggio);
+    }
     throw new ErroreCustode(j.errore, j.messaggio, j.extra);
   }
   // la risposta di "sono attivo" (GET): la richiesta non è arrivata, si riprova

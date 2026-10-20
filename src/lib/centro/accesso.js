@@ -5,6 +5,23 @@ import { CONFIG } from './config.js';
 // 'psy:utente' è anche la persona scelta nella demo: l'account ha una chiave sua
 const K_TOKEN = 'psy:token', K_UTENTE = 'psy:account', K_VECCHIA = 'psy:utente';
 let token = null, scadenza = 0, utente = null, gis = null, attesa = null;
+// Sessione lunga rilasciata dal custode (mesi): si rinnova da sola usando l'app
+const K_SESS = 'psy:sessione';
+let sessione = null, chiedendo = null, creaSess = null;
+try { const x = JSON.parse(localStorage.getItem(K_SESS) || 'null'); if (x?.token) sessione = x; } catch (e) { /* ok */ }
+const sessioneValida = () => !!sessione && Date.now() < sessione.scade * 1000 - 3600000;
+function salvaSessione(r) { if (r?.token) { sessione = { token: r.token, scade: r.scade }; try { localStorage.setItem(K_SESS, JSON.stringify(sessione)); } catch (e) { /* ok */ } } }
+/** Il modo di chiamare il custode (lo dà sync, per non dipendere da lui qui). */
+export function usaCreaSessione(f) { creaSess = f; }
+function chiediSessione(t, rinnovo) {
+  if (!creaSess || chiedendo || CONFIG.dev) return;
+  chiedendo = creaSess(rinnovo ? 'sessione.rinnova' : 'sessione.crea', t).then(salvaSessione, () => { /* custode vecchio: si resta col token di Google */ }).finally(() => { chiedendo = null; });
+}
+export function scartaSessione(usato) {
+  if (!sessione || usato !== sessione.token) return false;
+  sessione = null; try { localStorage.removeItem(K_SESS); } catch (e) { /* ok */ }
+  return valido();
+}
 const ascoltatori = [];
 export class ErroreAccesso extends Error { constructor(m) { super(m); this.accesso = true; } }
 
@@ -14,10 +31,11 @@ function payload(jwt) {
     return JSON.parse(decodeURIComponent(atob(p).split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
   } catch (e) { return null; }
 }
-function imposta(t) {
+function imposta(t, ripristino) {
   const d = payload(t);
   if (!d || !d.email) return false;
   token = t; scadenza = (d.exp || 0) * 1000;
+  if (!ripristino && sessione) { sessione = null; try { localStorage.removeItem(K_SESS); } catch (e) { /* ok */ } }
   utente = { email: String(d.email).toLowerCase(), nome: d.given_name || d.name || d.email };
   try { sessionStorage.setItem(K_TOKEN, t); localStorage.setItem(K_UTENTE, JSON.stringify(utente)); } catch (e) { /* ok */ }
   avvisa();
@@ -49,7 +67,7 @@ function caricaGIS() {
 export function inizia() {
   try {
     const t = sessionStorage.getItem(K_TOKEN);
-    if (t && !t.startsWith('dev:')) imposta(t);
+    if (t && !t.startsWith('dev:')) imposta(t, true);
     if (!utente) {
       const leggi = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
       const u = leggi(K_UTENTE) || leggi(K_VECCHIA);
@@ -79,7 +97,12 @@ export function accessoDev(email, nome) {
 /** Un token valido; se è scaduto (dura un'ora) lo rinnova in silenzio. */
 export function prendiToken() {
   if (CONFIG.dev) return token ? Promise.resolve(token) : Promise.reject(new ErroreAccesso('Serve l\'accesso.'));
-  if (valido()) return Promise.resolve(token);
+  if (sessioneValida()) {
+    // rinnovo scorrevole: usata almeno una volta ogni sei mesi, non scade mai
+    if (sessione.scade * 1000 - Date.now() < 150 * 86400000) chiediSessione(sessione.token, true);
+    return Promise.resolve(sessione.token);
+  }
+  if (valido()) { chiediSessione(token, false); return Promise.resolve(token); }
   return caricaGIS().then(() => new Promise((ok, ko) => {
     attesa = { ok };
     const timer = setTimeout(() => { if (attesa) { attesa = null; ko(new ErroreAccesso('Accesso scaduto: rientra con Google.')); } }, 9000);
@@ -90,7 +113,8 @@ export function prendiToken() {
   }));
 }
 export function invalida() {
-  token = null; scadenza = 0;
+  token = null; scadenza = 0; sessione = null;
+  try { localStorage.removeItem(K_SESS); } catch (e) { /* ok */ }
   try { sessionStorage.removeItem(K_TOKEN); } catch (e) { /* ok */ }
 }
 export function esci() {
