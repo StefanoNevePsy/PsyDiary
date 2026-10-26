@@ -44,7 +44,7 @@
     <div class="stili" role="radiogroup" aria-label="Stile dell'app">
       {#each STILI as [id, nome, desc, [c, i, sp], font] (id)}
         <button role="radio" aria-checked={(sessione.stile || 'taccuino') === id} class="stile" title={nome + ': ' + desc} onclick={() => impostaStile(id)}>
-          <span class="campione" style:background={c} style:color={i} style:font-family={font}>Aa<i style:background={sp}></i></span>
+          <span class="prova" style:background={c} style:color={i} style:font-family={font}>Aa<i style:background={sp}></i></span>
           <span class="st-nome">{nome}</span>
         </button>
       {/each}
@@ -139,7 +139,7 @@
   .blocco p { max-width: 62ch; }
   .blocco p :global(.ico) { vertical-align: -3px; }
   .scelte { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-  .scelte button { display: flex; align-items: center; white-space: nowrap; gap: var(--s-2); min-height: 44px; padding: 8px 16px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; cursor: pointer; font-weight: 600; }
+  .scelte button { display: flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: 8px 16px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; cursor: pointer; font-weight: 600; }
   .scelte button[aria-checked='true'] { border-color: var(--inchiostro); box-shadow: inset 0 0 0 1px var(--inchiostro); background: var(--carta-2); }
   .scelte .display { font-size: 18px; font-weight: 400; }
   .sotto-tit { margin-top: var(--s-2); }
@@ -155,7 +155,7 @@
   .stili { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100px, 30%), 1fr)); gap: var(--s-2); width: 100%; max-width: 760px; justify-self: stretch; }
   .stile { display: grid; gap: 6px; justify-items: start; padding: 6px; border: 1px solid var(--matita); border-radius: var(--r); background: transparent; cursor: pointer; text-align: left; }
   .stile[aria-checked='true'] { border-color: var(--spot); box-shadow: inset 0 0 0 1.5px var(--spot); }
-  .campione { position: relative; display: grid; place-items: center; width: 100%; height: 52px; border-radius: calc(var(--r) - 2px); font-size: 24px; line-height: 1; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.08); }
-  .campione i { position: absolute; right: 7px; bottom: 7px; width: 10px; height: 10px; border-radius: 50%; }
+  .prova { position: relative; display: grid; place-items: center; width: 100%; height: 52px; border-radius: calc(var(--r) - 2px); font-size: 24px; line-height: 1; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.08); }
+  .prova i { position: absolute; right: 7px; bottom: 7px; width: 10px; height: 10px; border-radius: 50%; }
   .st-nome { font-size: 12.5px; font-weight: 600; line-height: 1.2; padding: 0 2px; }
 </style>
