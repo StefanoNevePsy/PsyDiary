@@ -329,7 +329,10 @@
   p.vuoto { padding: var(--s-7); text-align: center; color: var(--inchiostro-2); }
   @media (max-width: 1000px) {
     .corpo { grid-template-columns: 1fr; }
-    .lato { position: static; order: -1; }
+    .lato { display: contents; }
+    .lato > .azioni { order: -1; }
+    .principale { order: 0; }
+    .lato > :not(.azioni) { order: 1; }
     .azioni { grid-template-columns: 1fr 1fr; }
     .azioni .pieno { grid-column: 1 / -1; }
   }
@@ -340,7 +343,6 @@
     .foto > :global(.cornice) { height: 84px; }
     h1 { font-size: 36px; }
     .griglia, .griglia.quattro { grid-template-columns: 1fr; }
-    .lato .box:not(.retino) { display: none; }
     .schede { gap: var(--s-4); overflow-x: auto; }
   }
   .evidenza { margin: var(--s-3) 0; padding: var(--s-3) var(--s-4); border: 1px dashed var(--spot); border-radius: var(--r); max-width: var(--misura); }

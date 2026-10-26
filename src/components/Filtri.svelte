@@ -61,12 +61,11 @@
   .filtri { display: grid; gap: var(--s-3); }
   .cima { display: flex; gap: var(--s-3); align-items: center; }
   .cima .testo { flex: 1; }
-  .apri-filtri { display: none; align-items: center; gap: 6px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; min-height: 36px; padding: 4px 10px; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
+  .apri-filtri { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; min-height: 36px; padding: 4px 10px; font-weight: 600; font-size: var(--t-sm); cursor: pointer; }
   .apri-filtri[aria-expanded='true'] { background: var(--inchiostro); color: var(--su-inchiostro); }
-  @media (max-width: 720px) {
-    .apri-filtri { display: inline-flex; }
-    .filtri:not(.espanso) .riga { display: none; }
-  }
+  /* tipo e periodo si aprono con «Filtri»; i tag restano sotto mano sugli schermi larghi */
+  .filtri:not(.espanso) .riga:not(.tags) { display: none; }
+  @media (max-width: 720px) { .filtri:not(.espanso) .riga.tags { display: none; } }
   .testo { display: flex; align-items: center; gap: var(--s-2); color: var(--inchiostro-2); }
   .testo .input { font-size: var(--t-ui); }
   .riga { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

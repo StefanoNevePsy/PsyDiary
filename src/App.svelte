@@ -30,6 +30,9 @@
   import Programma from './views/Programma.svelte';
 
   let errore = $state('');
+  // sul telefono le sezioni che non stanno nella barra in basso sono in «Altro»
+  let altro = $state(false);
+  const SECONDARIE = ['sospesi', 'programmi', 'impostazioni'];
 
   onMount(() => {
     carica().then(() => (REALE ? avvia() : null)).catch((e) => { errore = e.message || String(e); });
@@ -79,8 +82,9 @@
     <button class="cerca" onclick={() => (ui.cerca = true)}>
       <Icona nome="cerca" /><span>Cerca {T('tanti')}, note, date</span><kbd>Ctrl K</kbd>
     </button>
+    <button class="btn nudo cerca-tel" onclick={() => (ui.cerca = true)} aria-label="Cerca"><Icona nome="cerca" /></button>
     <button class="btn nudo" onclick={tema} aria-label="Cambia tema chiaro o scuro" title="Carta o inchiostro"><Icona nome="tema" /></button>
-    <a class="btn nudo" href="#/impostazioni" aria-label="Impostazioni" title="Impostazioni"><Icona nome="ingranaggio" /></a>
+    <a class="btn nudo impost" href="#/impostazioni" aria-label="Impostazioni" title="Impostazioni"><Icona nome="ingranaggio" /></a>
     <button class="btn pieno nuova" onclick={() => apriCrea()}><Icona nome="piu" /><span>Scrivi</span></button>
   </div>
 </header>
@@ -125,8 +129,18 @@
   {#each VOCI.slice(0, 4) as v (v.id)}
     <a href={'#/' + v.id} class:su={attiva(v.id)} aria-current={attiva(v.id) ? 'page' : undefined}><Icona nome={v.ico} /><span>{v.nome}</span></a>
   {/each}
-  <button onclick={() => (ui.cerca = true)}><Icona nome="cerca" /><span>Cerca</span></button>
+  <button class:su={SECONDARIE.includes(sezione) || ['programma'].includes(sezione)} aria-expanded={altro} onclick={() => (altro = !altro)}><Icona nome="altro" /><span>Altro</span></button>
 </nav>
+{#if altro}
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="altro-sfondo" onclick={() => (altro = false)}></div>
+  <nav class="altro-foglio" aria-label="Altre sezioni">
+    {#each VOCI.slice(4) as v (v.id)}
+      <a href={'#/' + v.id} class:su={attiva(v.id)} onclick={() => (altro = false)}><Icona nome={v.ico} /><span>{v.nome}</span></a>
+    {/each}
+    <a href="#/impostazioni" class:su={sezione === 'impostazioni'} onclick={() => (altro = false)}><Icona nome="ingranaggio" /><span>Impostazioni</span></a>
+  </nav>
+{/if}
 <button class="scrivi-tel btn spot" onclick={() => apriCrea()} aria-label="Scrivi una nota"><Icona nome="piu" /> Scrivi</button>
 
 {#if ui.cerca}<Cerca chiudi={() => (ui.cerca = false)} />{/if}
@@ -166,7 +180,7 @@
   main { outline: none; min-height: calc(100dvh - var(--barra)); }
   .carico { display: grid; place-items: center; min-height: 60vh; font-size: 28px; }
   .vuoto { padding: var(--s-7); text-align: center; color: var(--inchiostro-2); }
-  .sotto-nav, .scrivi-tel { display: none; }
+  .sotto-nav, .scrivi-tel, .cerca-tel { display: none; }
 
   @media (max-width: 1100px) {
     .cerca { min-width: 0; } .cerca span, .cerca kbd { display: none; }
@@ -174,7 +188,15 @@
   }
   @media (max-width: 720px) {
     .barra { height: 52px; padding: 0 var(--s-4); gap: var(--s-3); }
-    .navigazione, .cerca, .nuova { display: none; }
+    .navigazione, .cerca, .nuova, .impost { display: none; }
+    .cerca-tel { display: inline-flex; }
+    .altro-sfondo { position: fixed; inset: 0; z-index: 595; background: color-mix(in oklch, var(--inchiostro) 25%, transparent); }
+    .altro-foglio {
+      position: fixed; left: var(--s-3); right: var(--s-3); bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 610;
+      display: grid; gap: 2px; padding: var(--s-2); background: var(--carta); border: 1px solid var(--matita-forte); border-radius: var(--r-grande); box-shadow: var(--ombra);
+    }
+    .altro-foglio a { display: flex; align-items: center; gap: var(--s-3); min-height: 48px; padding: 0 var(--s-3); border-radius: var(--r); text-decoration: none; font-weight: 600; }
+    .altro-foglio a.su { color: var(--spot-testo); background: var(--spot-tenue); }
     main { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
     .sotto-nav {
       display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 600;

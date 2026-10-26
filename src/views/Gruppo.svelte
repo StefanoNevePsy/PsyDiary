@@ -320,7 +320,10 @@
   p.vuoto { padding: var(--s-7); text-align: center; color: var(--inchiostro-2); }
   @media (max-width: 1000px) {
     .corpo { grid-template-columns: 1fr; }
-    .lato { position: static; }
+    .lato { display: contents; }
+    .lato > .azioni { order: -1; }
+    .principale { order: 0; }
+    .lato > :not(.azioni) { order: 1; }
   }
   @media (max-width: 720px) {
     .gruppo { padding: var(--s-3) var(--s-4) var(--s-7); }

@@ -123,7 +123,8 @@
 
 <style>
   .condivisione { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; font-size: var(--t-sm); color: var(--inchiostro-2); }
-  .condividi { margin-left: 6px; }
+  .condividi { margin-left: 6px; min-height: 0; padding: 0 2px; border: 0; background: none; font-weight: 600; text-decoration: underline dotted; text-underline-offset: 3px; }
+  .condividi :global(.ico) { display: none; }
   .condivisione :global(.ico) { width: 15px; height: 15px; }
   .link { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; color: var(--inchiostro); font-weight: 600; margin-left: 4px; }
   .link:focus-visible { outline: 2px solid var(--spot); outline-offset: 2px; }
