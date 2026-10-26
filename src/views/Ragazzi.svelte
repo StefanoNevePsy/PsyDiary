@@ -158,6 +158,6 @@
     .ragazzi { padding: var(--s-4) var(--s-4) var(--s-7); }
     h1 { font-size: var(--t-lg); }
     .comandi { width: 100%; }
-    .filtro { flex: 1; } .filtro .input { width: 100%; }
+    .filtro { flex: 1 1 100%; } .filtro .input { width: 100%; }
   }
 </style>

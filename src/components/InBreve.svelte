@@ -44,11 +44,13 @@
     {/if}
     {#if r.diagnosi || (r.certificazioni && r.certificazioni !== 'nessuna') || r.servizi || familiari.length || r.noteFamiglia || geno}
     <div class="colonne">
+      {#if r.diagnosi || (r.certificazioni && r.certificazioni !== 'nessuna') || r.servizi}
       <dl class="clinica">
         {#if r.diagnosi}<div><dt class="eti">Diagnosi o ipotesi</dt><dd>{r.diagnosi}</dd></div>{/if}
         {#if r.certificazioni && r.certificazioni !== 'nessuna'}<div><dt class="eti">Certificazione</dt><dd>{CERT[r.certificazioni] || r.certificazioni}</dd></div>{/if}
         {#if r.servizi}<div><dt class="eti">Servizi</dt><dd>{r.servizi}</dd></div>{/if}
       </dl>
+      {/if}
       {#if familiari.length || r.noteFamiglia}
         <div class="famiglia">
           <p class="eti">Famiglia</p>
@@ -84,6 +86,8 @@
   summary::-webkit-details-marker { display: none; }
   .colonne { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 150px; gap: var(--s-4); align-items: start; }
   .colonne:not(:has(.geno)) { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .colonne:not(:has(.clinica)) { grid-template-columns: minmax(0, 1fr) 150px; }
+  .colonne:not(:has(.clinica)):not(:has(.geno)) { grid-template-columns: minmax(0, 1fr); }
   dl { margin: 0; display: grid; gap: var(--s-2); }
   .profilo { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--s-3) var(--s-4); margin-bottom: var(--s-3); padding-bottom: var(--s-3); border-bottom: 1px dashed var(--matita); }
   .profilo dd { white-space: pre-line; }

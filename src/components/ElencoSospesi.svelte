@@ -55,8 +55,12 @@
 <style>
   .sospesi { display: grid; gap: var(--s-3); }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s-3); padding: 8px 0; border-bottom: 1px dashed var(--matita); }
-  .testo { flex: 1 1 200px; }
+  li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px var(--s-3); padding: 8px 0; border-bottom: 1px dashed var(--matita); }
+  .testo { grid-column: 1; align-self: baseline; }
+  .chi { grid-column: 2; grid-row: 1; justify-self: end; align-self: baseline; }
+  .usa { grid-column: 1; justify-self: start; }
+  li :global(.btn.nudo) { grid-column: 2; grid-row: 2; justify-self: end; }
+  li.vuoto { display: block; }
   .testo::before { content: '— '; color: var(--inchiostro-3); }
   .usa { border: 0; background: none; padding: 2px 0; font-size: var(--t-sm); font-weight: 600; color: var(--spot-testo); cursor: pointer; }
   .usa:hover { text-decoration: underline; text-underline-offset: 3px; }

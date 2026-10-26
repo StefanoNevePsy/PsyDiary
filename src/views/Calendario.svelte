@@ -120,8 +120,8 @@
     </div>
     <div class="comandi">
       <div class="gruppo-btn azioni-cal">
-        <button class="btn pieno piccolo" onclick={() => apriCrea({ data: vista === 'mese' ? O : (giorni.includes(O) ? O : lun) })}><Icona nome="piu" /> Seduta</button>
-        <a class="btn nudo piccolo" href="#/ricorrenze" title="Appuntamenti che si ripetono"><span class="giro">↻</span> Ricorrenze</a>
+        <button class="btn pieno" onclick={() => apriCrea({ data: vista === 'mese' ? O : (giorni.includes(O) ? O : lun) })}><Icona nome="piu" /> Seduta</button>
+        <a class="btn nudo" href="#/ricorrenze" title="Appuntamenti che si ripetono"><span class="giro">↻</span> Ricorrenze</a>
       </div>
       <div class="gruppo-btn">
         <button class="btn nudo" onclick={() => sposta(-1)} aria-label={vista === 'mese' ? 'Mese precedente' : 'Settimana precedente'}><Icona nome="sinistra" /></button>
@@ -204,7 +204,7 @@
 </section>
 
 <style>
-  .cal { padding: var(--s-6) var(--s-6) var(--s-8); max-width: 1480px; margin: 0 auto; }
+  .cal { padding: var(--s-6) var(--s-6) var(--s-8); max-width: 1240px; margin: 0 auto; }
   .testa { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--s-4); margin-bottom: var(--s-5); }
   h1 { font-size: var(--t-xl); line-height: 1; margin-top: 4px; }
   .comandi { display: flex; gap: var(--s-4); align-items: center; flex-wrap: wrap; }

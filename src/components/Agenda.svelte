@@ -80,6 +80,7 @@
   .intesta { display: flex; align-items: baseline; gap: 6px; padding: var(--s-3) var(--s-2) var(--s-2); border-bottom: 1px solid var(--matita); border-left: 1px solid var(--matita); }
   .intesta .num { position: relative; font-size: 28px; line-height: 1; }
   .intesta .num :global(.cerchio) { left: -12px; top: -9px; width: 54px; height: 46px; }
+  .intesta.oggi { gap: 16px; }
   .intesta.oggi .eti { color: var(--spot-testo); }
   .intesta.passato .num { color: var(--inchiostro-2); }
   .ore { position: relative; }
@@ -109,7 +110,12 @@
   .chi { font-size: 15px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .bassa { flex-direction: row; align-items: baseline; gap: 6px; padding-top: 2px; padding-bottom: 2px; }
   .bassa .chi { font-size: 13px; -webkit-line-clamp: 1; white-space: nowrap; display: block; }
-  .tipo { font-size: 10px; }
+  .tipo { font-size: 10px; flex-shrink: 0; }
+  .quando { flex-shrink: 0; }
+  .piano { flex: 1 1 0; min-height: 0; }
+  .chi { flex-shrink: 0; }
+  .colonna { container-type: inline-size; }
+  @container (max-width: 150px) { .chi { -webkit-line-clamp: 1; font-size: 14px; } .quando .fine { display: none; } }
   .piano { font-size: 12px; color: var(--inchiostro-2); line-height: 1.35; overflow: hidden; }
   .segno { position: absolute; right: 6px; bottom: 0; font-size: 15px; transform: rotate(-4deg); color: var(--spot-testo); }
   .adesso { position: absolute; left: -4px; right: 0; height: 0; border-top: 2px solid var(--spot); z-index: 3; pointer-events: none; }
