@@ -54,6 +54,12 @@ export const STILI = [
   ['carta-topo', 'Cartografia', 'curve di livello, verde e azzurro', ['#eff3e3', '#2e4a40', '#3f80b8'], "'Alegreya Sans SC'"],
   ['lavagna', 'Lavagna', 'gesso, quadretti, a mano', ['#2d4a3c', '#f2f1ea', '#f1d36b'], "'Cabin Sketch'"],
   ['deco', 'Art déco', 'nero e oro, simmetria', ['#161c19', '#efe6d0', '#c9a24a'], "'Poiret One'"],
+  ['giornale', "Giornale d'epoca", 'prima pagina, filetti doppi', ['#f1ede2', '#1e1c19', '#b0302a'], "'Playfair Display'"],
+  ['terminale', 'Terminale retrò', 'fosfori verdi, cursore', ['#0f1d14', '#7cf08a', '#f2d36b'], "'VT323'"],
+  ['origami', 'Origami', 'angoli piegati, carta colorata', ['#fbf3f1', '#3d3a5c', '#e2766c'], "'Quicksand'"],
+  ['vetrata', 'Vetrata', 'piombo e colori pieni', ['#f5efe2', '#1b1d33', '#3346b0'], "'Cinzel'"],
+  ['scandinavo', 'Scandinavo', 'legno chiaro, morbido', ['#f8f5ef', '#3e4450', '#6b9c87'], "'Nunito'"],
+  ['fumetto', 'Fumetto', 'contorni neri, retino', ['#fdf8df', '#1a1a1a', '#e2342b'], "'Bangers'"],
 ];
 export function impostaStile(s) {
   sessione.stile = s;
