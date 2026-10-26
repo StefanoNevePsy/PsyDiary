@@ -82,3 +82,7 @@ import { mount } from 'svelte';
 import App from './App.svelte';
 
 mount(App, { target: document.getElementById('app') });
+
+// chiede al browser di non cancellare da solo i dati del sito (chiave, sessione, note),
+// per esempio quando il disco è quasi pieno; si richiede a ogni avvio finché non è concesso
+navigator.storage?.persisted?.().then((si) => si || navigator.storage.persist()).catch(() => {});
