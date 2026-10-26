@@ -1,0 +1,208 @@
+/*
+ * PsyDiary · stili alternativi al Taccuino.
+ * Non solo colori: ogni stile cambia caratteri, forme, bordi, texture e il modo
+ * in cui stanno i blocchi. Si attivano con <html data-stile="…"> e convivono con
+ * chiaro/scuro (data-tema) come il Taccuino.
+ */
+
+/* ======================================================================
+   1. ARCHIVIO D'ATELIER — dossier di studio di architettura
+   cartellini con bordi netti, maiuscolo condensato, rosso ossido, timbri
+   ====================================================================== */
+:root[data-stile='archivio'] {
+  --f-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --f-testo: 'Source Serif 4', Georgia, serif;
+  --f-mano: 'Big Shoulders Display', sans-serif;
+  --r: 0px; --r-grande: 0px; --r-piccolo: 0px;
+  --carta: oklch(0.955 0.012 85); --carta-2: oklch(0.935 0.014 85); --carta-3: oklch(0.9 0.016 85);
+  --inchiostro: oklch(0.2 0.006 60); --inchiostro-2: oklch(0.42 0.008 60); --inchiostro-3: oklch(0.58 0.008 60);
+  --matita: oklch(0.2 0.006 60 / 0.28); --matita-forte: oklch(0.2 0.006 60 / 0.75);
+  --spot: oklch(0.52 0.15 33); --spot-testo: oklch(0.48 0.15 33); --spot-tenue: oklch(0.52 0.15 33 / 0.1); --spot-retino: oklch(0.52 0.15 33 / 0.4);
+  --su-inchiostro: var(--carta);
+  --ombra: 4px 4px 0 oklch(0.2 0.006 60 / 0.9);
+  --grana-opacita: 0.25;
+}
+:root[data-stile='archivio'][data-tema='scuro'] {
+  --carta: oklch(0.17 0.004 60); --carta-2: oklch(0.21 0.005 60); --carta-3: oklch(0.26 0.006 60);
+  --inchiostro: oklch(0.92 0.012 85); --inchiostro-2: oklch(0.75 0.01 85); --inchiostro-3: oklch(0.58 0.008 85);
+  --matita: oklch(0.92 0.012 85 / 0.22); --matita-forte: oklch(0.92 0.012 85 / 0.6);
+  --spot: oklch(0.66 0.15 35); --spot-testo: oklch(0.7 0.14 35); --spot-tenue: oklch(0.66 0.15 35 / 0.16);
+  --su-inchiostro: oklch(0.17 0.004 60); --ombra: 4px 4px 0 oklch(0 0 0 / 0.6); color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-stile='archivio']:not([data-tema='chiaro']) {
+    --carta: oklch(0.17 0.004 60); --carta-2: oklch(0.21 0.005 60); --carta-3: oklch(0.26 0.006 60);
+    --inchiostro: oklch(0.92 0.012 85); --inchiostro-2: oklch(0.75 0.01 85); --inchiostro-3: oklch(0.58 0.008 85);
+    --matita: oklch(0.92 0.012 85 / 0.22); --matita-forte: oklch(0.92 0.012 85 / 0.6);
+    --spot: oklch(0.66 0.15 35); --spot-testo: oklch(0.7 0.14 35); --spot-tenue: oklch(0.66 0.15 35 / 0.16);
+    --su-inchiostro: oklch(0.17 0.004 60); --ombra: 4px 4px 0 oklch(0 0 0 / 0.6); color-scheme: dark;
+  }
+}
+[data-stile='archivio'] body { font-stretch: 100%; font-size: 15.5px; }
+[data-stile='archivio'] .display { font-weight: 800; text-transform: uppercase; letter-spacing: 0.01em; line-height: 0.92; }
+[data-stile='archivio'] .mano { font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.62em; border: 2px solid currentColor; padding: 1px 6px; transform: rotate(-3deg); display: inline-block; width: fit-content; max-width: 100%; }
+[data-stile='archivio'] .eti { font-family: var(--f-display); font-size: 13px; font-weight: 700; letter-spacing: 0.16em; }
+[data-stile='archivio'] .btn { border-width: 1.5px; border-color: var(--inchiostro); font-family: var(--f-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+[data-stile='archivio'] .btn.pieno:hover { box-shadow: 3px 3px 0 var(--spot); transform: translate(-1px, -1px); }
+[data-stile='archivio'] .barra { border-bottom: 2px solid var(--inchiostro) !important; }
+[data-stile='archivio'] .retino::before { background-image: repeating-linear-gradient(135deg, var(--spot-retino) 0 1px, transparent 1px 7px) !important; }
+
+/* ======================================================================
+   2. ERBARIO — quaderno di botanica
+   salvia, seppia, ocra; corsivo calligrafico; etichette legate con lo spago
+   ====================================================================== */
+:root[data-stile='erbario'] {
+  --f-display: 'Cormorant Garamond', Garamond, serif;
+  --f-testo: 'Lora', Georgia, serif;
+  --r: 14px; --r-grande: 22px; --r-piccolo: 8px;
+  --carta: oklch(0.955 0.018 135); --carta-2: oklch(0.935 0.024 132); --carta-3: oklch(0.905 0.03 130);
+  --inchiostro: oklch(0.3 0.04 55); --inchiostro-2: oklch(0.45 0.035 60); --inchiostro-3: oklch(0.6 0.03 65);
+  --matita: oklch(0.45 0.05 130 / 0.3); --matita-forte: oklch(0.4 0.05 130 / 0.6);
+  --spot: oklch(0.62 0.12 75); --spot-testo: oklch(0.5 0.11 70); --spot-tenue: oklch(0.62 0.12 75 / 0.14); --spot-retino: oklch(0.5 0.08 135 / 0.35);
+  --su-inchiostro: var(--carta);
+  --ombra: 0 1px 0 var(--matita), 0 18px 34px -24px oklch(0.3 0.05 130 / 0.45);
+  --grana-opacita: 0.3;
+}
+:root[data-stile='erbario'][data-tema='scuro'] {
+  --carta: oklch(0.2 0.02 140); --carta-2: oklch(0.24 0.024 140); --carta-3: oklch(0.29 0.028 140);
+  --inchiostro: oklch(0.92 0.025 95); --inchiostro-2: oklch(0.78 0.03 95); --inchiostro-3: oklch(0.62 0.03 100);
+  --matita: oklch(0.85 0.04 130 / 0.22); --matita-forte: oklch(0.85 0.04 130 / 0.45);
+  --spot: oklch(0.76 0.12 80); --spot-testo: oklch(0.8 0.11 82); --spot-tenue: oklch(0.76 0.12 80 / 0.16);
+  --su-inchiostro: oklch(0.2 0.02 140); color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-stile='erbario']:not([data-tema='chiaro']) {
+    --carta: oklch(0.2 0.02 140); --carta-2: oklch(0.24 0.024 140); --carta-3: oklch(0.29 0.028 140);
+    --inchiostro: oklch(0.92 0.025 95); --inchiostro-2: oklch(0.78 0.03 95); --inchiostro-3: oklch(0.62 0.03 100);
+    --matita: oklch(0.85 0.04 130 / 0.22); --matita-forte: oklch(0.85 0.04 130 / 0.45);
+    --spot: oklch(0.76 0.12 80); --spot-testo: oklch(0.8 0.11 82); --spot-tenue: oklch(0.76 0.12 80 / 0.16);
+    --su-inchiostro: oklch(0.2 0.02 140); color-scheme: dark;
+  }
+}
+[data-stile='erbario'] body { font-stretch: 100%; font-size: 15.5px; }
+[data-stile='erbario'] .display { font-style: italic; font-weight: 500; letter-spacing: 0; }
+[data-stile='erbario'] .eti { font-family: var(--f-display); font-style: italic; text-transform: none; letter-spacing: 0.02em; font-size: 15px; font-weight: 600; }
+[data-stile='erbario'] .btn { border-style: dashed; }
+[data-stile='erbario'] .btn.pieno { border-style: solid; }
+[data-stile='erbario'] .retino::before { background-image: radial-gradient(ellipse 3px 1.5px, var(--spot-retino) 60%, transparent 70%) !important; background-size: 11px 9px !important; }
+
+/* ======================================================================
+   3. BLU DI PRUSSIA — cianotipia
+   fondo blu profondo, testo bianco latte, giallo cromo, grana d'emulsione
+   (scuro di natura: la variante chiara è una cianotipia sbiadita)
+   ====================================================================== */
+:root[data-stile='cianotipia'] {
+  --f-display: 'Playfair Display', Didot, serif;
+  --f-testo: 'Archivo Variable', system-ui, sans-serif;
+  --r: 4px; --r-grande: 6px; --r-piccolo: 2px;
+  --carta: oklch(0.93 0.025 245); --carta-2: oklch(0.9 0.035 245); --carta-3: oklch(0.86 0.045 245);
+  --inchiostro: oklch(0.3 0.11 255); --inchiostro-2: oklch(0.42 0.09 255); --inchiostro-3: oklch(0.56 0.07 255);
+  --matita: oklch(0.35 0.1 255 / 0.25); --matita-forte: oklch(0.35 0.1 255 / 0.55);
+  --spot: oklch(0.62 0.15 85); --spot-testo: oklch(0.5 0.13 80); --spot-tenue: oklch(0.8 0.15 90 / 0.25); --spot-retino: oklch(0.35 0.1 255 / 0.35);
+  --su-inchiostro: var(--carta);
+  --ombra: 0 1px 0 var(--matita), 0 24px 40px -28px oklch(0.25 0.12 255 / 0.6);
+}
+:root[data-stile='cianotipia'][data-tema='scuro'] {
+  --carta: oklch(0.29 0.12 258); --carta-2: oklch(0.33 0.13 258); --carta-3: oklch(0.38 0.13 258);
+  --inchiostro: oklch(0.96 0.015 240); --inchiostro-2: oklch(0.84 0.04 240); --inchiostro-3: oklch(0.7 0.06 245);
+  --matita: oklch(0.96 0.015 240 / 0.22); --matita-forte: oklch(0.96 0.015 240 / 0.5);
+  --spot: oklch(0.86 0.16 95); --spot-testo: oklch(0.88 0.15 95); --spot-tenue: oklch(0.86 0.16 95 / 0.18); --spot-retino: oklch(0.96 0.015 240 / 0.3);
+  --su-inchiostro: oklch(0.29 0.12 258); --ombra: 0 24px 48px -28px oklch(0.1 0.1 260 / 0.8);
+  --grana-fondo: screen; --grana-opacita: 0.3; color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-stile='cianotipia']:not([data-tema='chiaro']) {
+    --carta: oklch(0.29 0.12 258); --carta-2: oklch(0.33 0.13 258); --carta-3: oklch(0.38 0.13 258);
+    --inchiostro: oklch(0.96 0.015 240); --inchiostro-2: oklch(0.84 0.04 240); --inchiostro-3: oklch(0.7 0.06 245);
+    --matita: oklch(0.96 0.015 240 / 0.22); --matita-forte: oklch(0.96 0.015 240 / 0.5);
+    --spot: oklch(0.86 0.16 95); --spot-testo: oklch(0.88 0.15 95); --spot-tenue: oklch(0.86 0.16 95 / 0.18); --spot-retino: oklch(0.96 0.015 240 / 0.3);
+    --su-inchiostro: oklch(0.29 0.12 258); --ombra: 0 24px 48px -28px oklch(0.1 0.1 260 / 0.8);
+    --grana-fondo: screen; --grana-opacita: 0.3; color-scheme: dark;
+  }
+}
+[data-stile='cianotipia'] .display { font-weight: 500; letter-spacing: -0.02em; }
+[data-stile='cianotipia'] .eti { letter-spacing: 0.22em; font-weight: 500; }
+[data-stile='cianotipia'] .btn { border-radius: 2px; }
+/* segni bianchi, come le piante impresse sulla carta sensibile */
+[data-stile='cianotipia'] .retino::before { background-image: radial-gradient(circle at 30% 30%, var(--spot-retino) 1px, transparent 1.6px), radial-gradient(circle at 70% 60%, var(--spot-retino) 0.7px, transparent 1.2px) !important; background-size: 13px 13px, 7px 7px !important; }
+
+/* ======================================================================
+   4. RIVISTA SVIZZERA — Stile tipografico internazionale
+   griglia a vista, grotesk pesante, bianco nero e un solo rosso; niente texture
+   ====================================================================== */
+:root[data-stile='svizzera'] {
+  --f-display: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
+  --f-testo: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
+  --f-mano: 'Inter Tight', sans-serif;
+  --r: 0px; --r-grande: 0px; --r-piccolo: 0px;
+  --carta: oklch(0.985 0 0); --carta-2: oklch(0.965 0 0); --carta-3: oklch(0.93 0 0);
+  --inchiostro: oklch(0.14 0 0); --inchiostro-2: oklch(0.38 0 0); --inchiostro-3: oklch(0.55 0 0);
+  --matita: oklch(0.14 0 0 / 0.16); --matita-forte: oklch(0.14 0 0 / 0.9);
+  --spot: oklch(0.58 0.22 28); --spot-testo: oklch(0.52 0.21 28); --spot-tenue: oklch(0.58 0.22 28 / 0.1); --spot-retino: oklch(0.58 0.22 28 / 0.9);
+  --su-inchiostro: var(--carta); --ombra: none; --grana-opacita: 0;
+}
+:root[data-stile='svizzera'][data-tema='scuro'] {
+  --carta: oklch(0.13 0 0); --carta-2: oklch(0.17 0 0); --carta-3: oklch(0.22 0 0);
+  --inchiostro: oklch(0.97 0 0); --inchiostro-2: oklch(0.75 0 0); --inchiostro-3: oklch(0.58 0 0);
+  --matita: oklch(0.97 0 0 / 0.16); --matita-forte: oklch(0.97 0 0 / 0.85);
+  --spot: oklch(0.65 0.22 28); --spot-testo: oklch(0.7 0.2 28); --spot-tenue: oklch(0.65 0.22 28 / 0.16);
+  --su-inchiostro: oklch(0.13 0 0); color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-stile='svizzera']:not([data-tema='chiaro']) {
+    --carta: oklch(0.13 0 0); --carta-2: oklch(0.17 0 0); --carta-3: oklch(0.22 0 0);
+    --inchiostro: oklch(0.97 0 0); --inchiostro-2: oklch(0.75 0 0); --inchiostro-3: oklch(0.58 0 0);
+    --matita: oklch(0.97 0 0 / 0.16); --matita-forte: oklch(0.97 0 0 / 0.85);
+    --spot: oklch(0.65 0.22 28); --spot-testo: oklch(0.7 0.2 28); --spot-tenue: oklch(0.65 0.22 28 / 0.16);
+    --su-inchiostro: oklch(0.13 0 0); color-scheme: dark;
+  }
+}
+[data-stile='svizzera'] body { font-stretch: 100%; letter-spacing: -0.005em; }
+[data-stile='svizzera'] .display { font-weight: 800; letter-spacing: -0.045em; line-height: 0.95; }
+[data-stile='svizzera'] .mano { font-weight: 700; font-size: 0.55em; letter-spacing: 0; color: var(--spot); }
+[data-stile='svizzera'] .eti { font-weight: 700; letter-spacing: 0.02em; text-transform: none; font-size: 12.5px; color: var(--inchiostro); }
+[data-stile='svizzera'] .btn { border: 0; border-top: 2px solid var(--inchiostro); padding-inline: 4px; background: transparent; font-weight: 700; }
+[data-stile='svizzera'] .btn.pieno { background: var(--spot); color: #fff; border-top-color: var(--spot); padding-inline: 16px; }
+[data-stile='svizzera'] .btn.nudo { border-top-color: transparent; }
+[data-stile='svizzera'] .barra { border-bottom: 3px solid var(--inchiostro) !important; background: var(--carta) !important; }
+[data-stile='svizzera'] .retino::before { display: none !important; }
+[data-stile='svizzera'] .retino { border-left: 0 !important; box-shadow: inset 0 3px 0 var(--spot); }
+
+/* ======================================================================
+   5. STUDIO TERRACOTTA — ceramica smaltata
+   argilla, marrone bruciato, oliva; serif morbido, forme arrotondate e calde
+   ====================================================================== */
+:root[data-stile='terracotta'] {
+  --f-display: 'Fraunces', Georgia, serif;
+  --f-testo: 'Nunito Sans', system-ui, sans-serif;
+  --r: 16px; --r-grande: 28px; --r-piccolo: 10px;
+  --carta: oklch(0.94 0.03 60); --carta-2: oklch(0.915 0.04 55); --carta-3: oklch(0.88 0.05 52);
+  --inchiostro: oklch(0.32 0.06 40); --inchiostro-2: oklch(0.46 0.055 45); --inchiostro-3: oklch(0.6 0.045 50);
+  --matita: oklch(0.45 0.07 40 / 0.22); --matita-forte: oklch(0.42 0.07 40 / 0.5);
+  --spot: oklch(0.55 0.1 120); --spot-testo: oklch(0.47 0.09 120); --spot-tenue: oklch(0.55 0.1 120 / 0.14); --spot-retino: oklch(0.6 0.13 45 / 0.35);
+  --su-inchiostro: var(--carta);
+  --ombra: 0 2px 0 oklch(0.45 0.07 40 / 0.12), 0 22px 40px -26px oklch(0.4 0.09 40 / 0.55);
+  --grana-opacita: 0.35;
+}
+:root[data-stile='terracotta'][data-tema='scuro'] {
+  --carta: oklch(0.22 0.03 40); --carta-2: oklch(0.26 0.035 40); --carta-3: oklch(0.31 0.04 40);
+  --inchiostro: oklch(0.93 0.03 70); --inchiostro-2: oklch(0.8 0.04 65); --inchiostro-3: oklch(0.64 0.04 60);
+  --matita: oklch(0.9 0.04 60 / 0.2); --matita-forte: oklch(0.9 0.04 60 / 0.42);
+  --spot: oklch(0.75 0.11 120); --spot-testo: oklch(0.78 0.1 118); --spot-tenue: oklch(0.75 0.11 120 / 0.16);
+  --su-inchiostro: oklch(0.22 0.03 40); color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-stile='terracotta']:not([data-tema='chiaro']) {
+    --carta: oklch(0.22 0.03 40); --carta-2: oklch(0.26 0.035 40); --carta-3: oklch(0.31 0.04 40);
+    --inchiostro: oklch(0.93 0.03 70); --inchiostro-2: oklch(0.8 0.04 65); --inchiostro-3: oklch(0.64 0.04 60);
+    --matita: oklch(0.9 0.04 60 / 0.2); --matita-forte: oklch(0.9 0.04 60 / 0.42);
+    --spot: oklch(0.75 0.11 120); --spot-testo: oklch(0.78 0.1 118); --spot-tenue: oklch(0.75 0.11 120 / 0.16);
+    --su-inchiostro: oklch(0.22 0.03 40); color-scheme: dark;
+  }
+}
+[data-stile='terracotta'] body { font-stretch: 100%; font-size: 15.5px; }
+[data-stile='terracotta'] .display { font-weight: 600; letter-spacing: -0.02em; font-variation-settings: 'SOFT' 100, 'WONK' 1; }
+[data-stile='terracotta'] .eti { letter-spacing: 0.06em; text-transform: none; font-weight: 800; font-size: 13px; }
+[data-stile='terracotta'] .btn { border-width: 1.5px; font-weight: 700; }
+[data-stile='terracotta'] .btn.pieno { box-shadow: inset 0 -3px 0 oklch(0 0 0 / 0.18); }
+[data-stile='terracotta'] .retino::before { background-image: radial-gradient(circle, var(--spot-retino) 2px, transparent 2.6px) !important; background-size: 14px 14px !important; }

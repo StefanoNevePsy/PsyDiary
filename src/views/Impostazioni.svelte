@@ -1,6 +1,6 @@
 <script>
   import { T, M, parole, scegliParole, SCELTE } from '../lib/parole.svelte.js';
-  import { dati, sessione, io, eAdmin, cambiaUtente, impostaTema, ricominciaDemo } from '../lib/dati.svelte.js';
+  import { dati, sessione, io, eAdmin, cambiaUtente, impostaTema, impostaStile, STILI, ricominciaDemo } from '../lib/dati.svelte.js';
   import Icona from '../components/Icona.svelte';
   import Accessi from '../components/Accessi.svelte';
   import EsportaTutto from '../components/EsportaTutto.svelte';
@@ -37,6 +37,14 @@
       {#each TEMI as [id, nome] (id)}
         <button role="radio" aria-checked={sessione.tema === id} class="tema t-{id}" onclick={() => impostaTema(id)}>
           <span class="campione" aria-hidden="true"></span>{nome}
+        </button>
+      {/each}
+    </div>
+    <h2 class="eti sotto-tit">Stile</h2>
+    <div class="stili" role="radiogroup" aria-label="Stile dell'app">
+      {#each STILI as [id, nome, desc] (id)}
+        <button role="radio" aria-checked={(sessione.stile || 'taccuino') === id} class="stile" data-anteprima={id} onclick={() => impostaStile(id)}>
+          <span class="st-nome">{nome}</span><span class="sotto piccolo">{desc}</span>
         </button>
       {/each}
     </div>
@@ -143,4 +151,14 @@
   dd { margin: 0; color: var(--inchiostro-2); }
   kbd { font: 600 12px var(--f-testo); border: 1px solid var(--matita-forte); border-bottom-width: 2px; border-radius: var(--r); padding: 1px 6px; }
   @media (max-width: 720px) { .impostazioni { padding: var(--s-4) var(--s-4) var(--s-7); } h1 { font-size: var(--t-lg); } .tasti { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+  .stili { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--s-2); }
+  .stile { display: grid; gap: 2px; text-align: left; padding: var(--s-3) var(--s-4); min-height: 64px; border: 1px solid var(--matita-forte); border-radius: var(--r); background: transparent; cursor: pointer; }
+  .stile[aria-checked='true'] { border-color: var(--spot); box-shadow: inset 0 0 0 1px var(--spot); }
+  .st-nome { font-weight: 700; }
+  .stile[data-anteprima='archivio'] .st-nome { font-family: 'Big Shoulders Display'; font-weight: 800; text-transform: uppercase; font-size: 18px; }
+  .stile[data-anteprima='erbario'] .st-nome { font-family: 'Cormorant Garamond'; font-style: italic; font-size: 20px; font-weight: 600; }
+  .stile[data-anteprima='cianotipia'] .st-nome { font-family: 'Playfair Display'; font-size: 18px; color: oklch(0.4 0.13 258); }
+  .stile[data-anteprima='svizzera'] .st-nome { font-family: 'Inter Tight'; font-weight: 800; letter-spacing: -0.03em; font-size: 18px; }
+  .stile[data-anteprima='terracotta'] .st-nome { font-family: 'Fraunces'; font-weight: 600; font-size: 18px; }
+  .stile[data-anteprima='taccuino'] .st-nome { font-family: 'Gloock'; font-weight: 400; font-size: 19px; }
 </style>

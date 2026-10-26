@@ -15,7 +15,7 @@ export const PERSONE_INIZIALI = [
   { id: 'marco', nome: 'Marco', ruolo: 'tirocinante', ragazzi: [] },
 ];
 const OSPITE = { id: '?', nome: '?', ruolo: 'tirocinante', ragazzi: [] };
-export const sessione = $state({ utenteId: 'stefano', tema: 'auto' });
+export const sessione = $state({ utenteId: 'stefano', tema: 'auto', stile: (() => { try { return localStorage.getItem('psy:stile') || 'taccuino'; } catch (e) { return 'taccuino'; } })() });
 // Con il custode, chi sei lo dice lui (sync.svelte.js scrive qui)
 // pazienti: rid → { proprietario, condivisi, tutti, mio, daPrima?, locale? } dei
 // pazienti di cui questo account vede la scheda (null: custode che non li gestisce)
@@ -35,6 +35,19 @@ export const ganci = { alCambio: null };
 export function cambiaUtente(id) {
   sessione.utenteId = id;
   try { localStorage.setItem('psy:utente', id); } catch (e) { /* niente */ }
+}
+export const STILI = [
+  ['taccuino', 'Taccuino', 'carta, inchiostro e matita rossa'],
+  ['archivio', "Archivio d'atelier", 'cartellini netti, maiuscolo condensato, timbri'],
+  ['erbario', 'Erbario', 'quaderno di botanica, corsivo calligrafico'],
+  ['cianotipia', 'Blu di Prussia', 'cianotipia: blu profondo e giallo cromo'],
+  ['svizzera', 'Rivista svizzera', 'griglia, grotesk, un solo rosso'],
+  ['terracotta', 'Studio terracotta', 'argilla, oliva, forme morbide'],
+];
+export function impostaStile(s) {
+  sessione.stile = s;
+  if (!s || s === 'taccuino') delete document.documentElement.dataset.stile; else document.documentElement.dataset.stile = s;
+  try { if (!s || s === 'taccuino') localStorage.removeItem('psy:stile'); else localStorage.setItem('psy:stile', s); } catch (e) { /* niente */ }
 }
 export function impostaTema(t) {
   sessione.tema = t;
