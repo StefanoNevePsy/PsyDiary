@@ -42,9 +42,10 @@
     </div>
     <h2 class="eti sotto-tit">Stile</h2>
     <div class="stili" role="radiogroup" aria-label="Stile dell'app">
-      {#each STILI as [id, nome, desc] (id)}
-        <button role="radio" aria-checked={(sessione.stile || 'taccuino') === id} class="stile" data-anteprima={id} onclick={() => impostaStile(id)}>
-          <span class="st-nome">{nome}</span><span class="sotto piccolo">{desc}</span>
+      {#each STILI as [id, nome, desc, [c, i, sp], font] (id)}
+        <button role="radio" aria-checked={(sessione.stile || 'taccuino') === id} class="stile" title={nome + ': ' + desc} onclick={() => impostaStile(id)}>
+          <span class="campione" style:background={c} style:color={i} style:font-family={font}>Aa<i style:background={sp}></i></span>
+          <span class="st-nome">{nome}</span>
         </button>
       {/each}
     </div>
@@ -151,19 +152,10 @@
   dd { margin: 0; color: var(--inchiostro-2); }
   kbd { font: 600 12px var(--f-testo); border: 1px solid var(--matita-forte); border-bottom-width: 2px; border-radius: var(--r); padding: 1px 6px; }
   @media (max-width: 720px) { .impostazioni { padding: var(--s-4) var(--s-4) var(--s-7); } h1 { font-size: var(--t-lg); } .tasti { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
-  .stili { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--s-2); }
-  .stile { display: grid; gap: 2px; text-align: left; padding: var(--s-3) var(--s-4); min-height: 64px; border: 1px solid var(--matita-forte); border-radius: var(--r); background: transparent; cursor: pointer; }
-  .stile[aria-checked='true'] { border-color: var(--spot); box-shadow: inset 0 0 0 1px var(--spot); }
-  .st-nome { font-weight: 700; }
-  .stile[data-anteprima='archivio'] .st-nome { font-family: 'Big Shoulders Display'; font-weight: 800; text-transform: uppercase; font-size: 18px; }
-  .stile[data-anteprima='erbario'] .st-nome { font-family: 'Cormorant Garamond'; font-style: italic; font-size: 20px; font-weight: 600; }
-  .stile[data-anteprima='cianotipia'] .st-nome { font-family: 'Playfair Display'; font-size: 18px; color: oklch(0.4 0.13 258); }
-  .stile[data-anteprima='svizzera'] .st-nome { font-family: 'Inter Tight'; font-weight: 800; letter-spacing: -0.03em; font-size: 18px; }
-  .stile[data-anteprima='terracotta'] .st-nome { font-family: 'Fraunces'; font-weight: 600; font-size: 18px; }
-  .stile[data-anteprima='taccuino'] .st-nome { font-family: 'Gloock'; font-weight: 400; font-size: 19px; }
-  .stile[data-anteprima='macchina'] .st-nome { font-family: 'Courier Prime'; font-weight: 700; text-transform: uppercase; }
-  .stile[data-anteprima='bauhaus'] .st-nome { font-family: 'Jost'; font-weight: 600; font-size: 18px; }
-  .stile[data-anteprima='notturno'] .st-nome { font-family: 'Literata'; font-size: 18px; font-weight: 400; }
-  .stile[data-anteprima='riso'] .st-nome { font-family: 'Anton'; text-transform: uppercase; font-size: 19px; font-weight: 400; color: oklch(0.6 0.22 355); text-shadow: 2px 1px 0 oklch(0.72 0.14 195 / 0.7); }
-  .stile[data-anteprima='ufficio70'] .st-nome { font-family: 'Rubik'; font-weight: 600; font-size: 18px; color: oklch(0.55 0.15 50); }
+  .stili { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--s-2); max-width: 760px; }
+  .stile { display: grid; gap: 6px; justify-items: start; padding: 6px; border: 1px solid var(--matita); border-radius: var(--r); background: transparent; cursor: pointer; text-align: left; }
+  .stile[aria-checked='true'] { border-color: var(--spot); box-shadow: inset 0 0 0 1.5px var(--spot); }
+  .campione { position: relative; display: grid; place-items: center; width: 100%; height: 52px; border-radius: calc(var(--r) - 2px); font-size: 24px; line-height: 1; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.08); }
+  .campione i { position: absolute; right: 7px; bottom: 7px; width: 10px; height: 10px; border-radius: 50%; }
+  .st-nome { font-size: 12.5px; font-weight: 600; line-height: 1.2; padding: 0 2px; }
 </style>

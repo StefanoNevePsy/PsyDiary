@@ -37,17 +37,23 @@ export function cambiaUtente(id) {
   try { localStorage.setItem('psy:utente', id); } catch (e) { /* niente */ }
 }
 export const STILI = [
-  ['taccuino', 'Taccuino', 'carta, inchiostro e matita rossa'],
-  ['archivio', "Archivio d'atelier", 'cartellini netti, maiuscolo condensato, timbri'],
-  ['erbario', 'Erbario', 'quaderno di botanica, corsivo calligrafico'],
-  ['cianotipia', 'Blu di Prussia', 'cianotipia: blu profondo e giallo cromo'],
-  ['svizzera', 'Rivista svizzera', 'griglia, grotesk, un solo rosso'],
-  ['terracotta', 'Studio terracotta', 'argilla, oliva, forme morbide'],
-  ['macchina', 'Macchina da scrivere', 'monospazio, carta velina, nastro rosso'],
-  ['bauhaus', 'Bauhaus', 'cerchi, quadrati, triangoli e primari'],
-  ['notturno', 'Notturno da lettura', 'serif grande, contrasto morbido, niente decori'],
-  ['riso', 'Risografia', 'rosa e verde acqua sfalsati, grana di stampa'],
-  ['ufficio70', 'Ufficio anni \'70', 'beige, arancio bruciato, cartelline sospese'],
+  ['taccuino', 'Taccuino', 'carta, inchiostro e matita rossa', ['#f3ece0', '#1f2638', '#c3502f'], "'Gloock'"],
+  ['archivio', "Archivio d'atelier", 'cartellini netti e timbri', ['#f1ebe0', '#2a2622', '#b0432b'], "'Big Shoulders Display'"],
+  ['erbario', 'Erbario', 'quaderno di botanica', ['#e9efe3', '#4a3628', '#b98b2e'], "'Cormorant Garamond'"],
+  ['cianotipia', 'Blu di Prussia', 'cianotipia blu e giallo', ['#16336f', '#eef3fb', '#f1d24a'], "'Playfair Display'"],
+  ['svizzera', 'Rivista svizzera', 'griglia e un solo rosso', ['#fafafa', '#141414', '#e0262b'], "'Inter Tight'"],
+  ['terracotta', 'Studio terracotta', 'argilla e oliva', ['#f1e1cf', '#5a3423', '#6f8a35'], "'Fraunces'"],
+  ['macchina', 'Macchina da scrivere', 'monospazio e nastro rosso', ['#e8e6e0', '#24272f', '#c8302d'], "'Courier Prime'"],
+  ['bauhaus', 'Bauhaus', 'forme e primari', ['#f4efe0', '#1d1e24', '#2f5fd0'], "'Jost'"],
+  ['notturno', 'Notturno da lettura', 'serif grande, morbido', ['#221d18', '#d7c9b0', '#c58a5b'], "'Literata'"],
+  ['riso', 'Risografia', 'rosa e verde acqua sfalsati', ['#f7f4ec', '#36305e', '#ec3f8f'], "'Anton'"],
+  ['ufficio70', "Ufficio anni '70", 'beige e arancio bruciato', ['#efdfc0', '#4a3423', '#cf6417'], "'Rubik'"],
+  ['miniato', 'Manoscritto miniato', 'capilettera, rosso e oro', ['#f2e6cf', '#4c3523', '#b8352a'], "'UnifrakturMaguntia'"],
+  ['brutale', 'Brutalismo web', 'bordi neri, ombre dure', ['#ffffff', '#000000', '#3a3fe0'], "'Archivo Black'"],
+  ['wabi', 'Wabi-sabi', 'vuoto, carta di riso, un sigillo', ['#f6f3ec', '#2d2924', '#c8392b'], "'Shippori Mincho'"],
+  ['carta-topo', 'Cartografia', 'curve di livello, verde e azzurro', ['#eff3e3', '#2e4a40', '#3f80b8'], "'Alegreya Sans SC'"],
+  ['lavagna', 'Lavagna', 'gesso, quadretti, a mano', ['#2d4a3c', '#f2f1ea', '#f1d36b'], "'Cabin Sketch'"],
+  ['deco', 'Art déco', 'nero e oro, simmetria', ['#161c19', '#efe6d0', '#c9a24a'], "'Poiret One'"],
 ];
 export function impostaStile(s) {
   sessione.stile = s;
