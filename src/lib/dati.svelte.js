@@ -60,6 +60,11 @@ export const STILI = [
   ['vetrata', 'Vetrata', 'piombo e colori pieni', ['#f5efe2', '#1b1d33', '#3346b0'], "'Cinzel'"],
   ['scandinavo', 'Scandinavo', 'legno chiaro, morbido', ['#f8f5ef', '#3e4450', '#6b9c87'], "'Nunito'"],
   ['fumetto', 'Fumetto', 'contorni neri, retino', ['#fdf8df', '#1a1a1a', '#e2342b'], "'Bangers'"],
+  ['polaroid', 'Polaroid', 'cornici bianche, didascalie a mano', ['#ece6dd', '#3a3530', '#d0673e'], "'Caveat'"],
+  ['pop', 'Pop art', 'primari pieni, retino grande', ['#f8f3df', '#1a1a1a', '#e3262f'], "'Bungee'"],
+  ['acquerello', 'Acquerello', 'macchie sfumate, bordi morbidi', ['#f8f6f0', '#3a4568', '#5b86c9'], "'Kalam'"],
+  ['tipografia', 'Caratteri mobili', 'legno, inchiostro sfalsato', ['#ece2cf', '#3b2e24', '#c2412f'], "'Alfa Slab One'"],
+  ['liberty', 'Liberty', 'linee curve, salvia e oro', ['#f0efe0', '#2e4636', '#bf9a4a'], "'Federo'"],
 ];
 export function impostaStile(s) {
   sessione.stile = s;
