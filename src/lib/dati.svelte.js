@@ -43,6 +43,11 @@ export const STILI = [
   ['cianotipia', 'Blu di Prussia', 'cianotipia: blu profondo e giallo cromo'],
   ['svizzera', 'Rivista svizzera', 'griglia, grotesk, un solo rosso'],
   ['terracotta', 'Studio terracotta', 'argilla, oliva, forme morbide'],
+  ['macchina', 'Macchina da scrivere', 'monospazio, carta velina, nastro rosso'],
+  ['bauhaus', 'Bauhaus', 'cerchi, quadrati, triangoli e primari'],
+  ['notturno', 'Notturno da lettura', 'serif grande, contrasto morbido, niente decori'],
+  ['riso', 'Risografia', 'rosa e verde acqua sfalsati, grana di stampa'],
+  ['ufficio70', 'Ufficio anni \'70', 'beige, arancio bruciato, cartelline sospese'],
 ];
 export function impostaStile(s) {
   sessione.stile = s;

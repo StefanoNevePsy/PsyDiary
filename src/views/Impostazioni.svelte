@@ -161,4 +161,9 @@
   .stile[data-anteprima='svizzera'] .st-nome { font-family: 'Inter Tight'; font-weight: 800; letter-spacing: -0.03em; font-size: 18px; }
   .stile[data-anteprima='terracotta'] .st-nome { font-family: 'Fraunces'; font-weight: 600; font-size: 18px; }
   .stile[data-anteprima='taccuino'] .st-nome { font-family: 'Gloock'; font-weight: 400; font-size: 19px; }
+  .stile[data-anteprima='macchina'] .st-nome { font-family: 'Courier Prime'; font-weight: 700; text-transform: uppercase; }
+  .stile[data-anteprima='bauhaus'] .st-nome { font-family: 'Jost'; font-weight: 600; font-size: 18px; }
+  .stile[data-anteprima='notturno'] .st-nome { font-family: 'Literata'; font-size: 18px; font-weight: 400; }
+  .stile[data-anteprima='riso'] .st-nome { font-family: 'Anton'; text-transform: uppercase; font-size: 19px; font-weight: 400; color: oklch(0.6 0.22 355); text-shadow: 2px 1px 0 oklch(0.72 0.14 195 / 0.7); }
+  .stile[data-anteprima='ufficio70'] .st-nome { font-family: 'Rubik'; font-weight: 600; font-size: 18px; color: oklch(0.55 0.15 50); }
 </style>
