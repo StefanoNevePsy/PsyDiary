@@ -521,3 +521,8 @@
 [data-stile='pop'] .barra nav, [data-stile='tipografia'] .barra nav { gap: var(--s-4) !important; white-space: nowrap; }
 [data-stile='pop'] .barra .cerca span, [data-stile='tipografia'] .barra .cerca span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 [data-stile='pop'] .barra .btn, [data-stile='tipografia'] .barra .btn { font-size: 12px; }
+
+/* etichette nel margine della seduta: negli stili con riquadro o maiuscole devono stare nella colonna */
+:is([data-stile='pop'], [data-stile='brutale'], [data-stile='fumetto'], [data-stile='archivio'], [data-stile='tipografia'], [data-stile='deco'], [data-stile='riso']) .margine { font-size: 11.5px !important; letter-spacing: 0.01em !important; padding: 3px 4px !important; line-height: 1.15 !important; hyphens: none !important; }
+:is([data-stile='archivio'], [data-stile='riso'], [data-stile='fumetto']) .margine { font-size: 14.5px !important; }
+[data-stile='deco'] .margine { font-size: 12.5px !important; letter-spacing: 0.06em !important; }

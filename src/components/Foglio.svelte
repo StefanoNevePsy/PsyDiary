@@ -328,9 +328,9 @@
 <style>
   .foglio {
     position: relative; background: var(--carta-2); box-shadow: var(--ombra); border-radius: var(--r-grande);
-    padding: var(--s-5) var(--s-6) var(--s-5) 88px; display: grid; gap: var(--s-5); align-content: start;
+    padding: var(--s-5) var(--s-6) var(--s-5) 110px; display: grid; gap: var(--s-5); align-content: start;
   }
-  .foglio::before { content: ''; position: absolute; left: 68px; top: 0; bottom: 0; width: 1.5px; background: var(--spot); opacity: 0.55; }
+  .foglio::before { content: ''; position: absolute; left: 86px; top: 0; bottom: 0; width: 1.5px; background: var(--spot); opacity: 0.55; }
   header { display: grid; gap: var(--s-2); }
   .serie-riga { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
   .serie-riga .mano { font-size: 18px; }
@@ -356,8 +356,10 @@
   .sez { position: relative; display: grid; gap: var(--s-2); }
   .sez h3 { display: flex; align-items: baseline; }
   .margine {
-    position: absolute; left: -84px; width: 64px; text-align: right; font-size: 17px;
-    transform: rotate(-5deg); transform-origin: right; line-height: 1;
+    /* sempre nella colonna a sinistra della riga rossa, con il bordo destro alla stessa distanza */
+    position: absolute; left: auto; right: calc(100% + 32px); width: 72px; max-width: 72px; box-sizing: border-box;
+    text-align: right; font-size: 17px; line-height: 1; overflow-wrap: break-word; hyphens: auto;
+    transform: rotate(-4deg); transform-origin: right center;
   }
   .piano { padding: var(--s-2) var(--s-3); border-radius: var(--r); }
   .autore { font-size: var(--t-xs); color: var(--inchiostro-3); font-style: italic; }
