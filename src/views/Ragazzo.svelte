@@ -85,6 +85,8 @@
   }
   const gestisce = $derived(puoGestire());
   const pin = $derived(inEvidenza(r));
+  import Cartella from '../components/Cartella.svelte';
+  import { notaVeloce, cartelleDi } from '../lib/rapido.js';
 </script>
 
 {#if r}
@@ -117,6 +119,7 @@
               <button type="button" class="btn nudo piccolo no-stampa" onclick={() => campo('evidenzaTolta', pin.sedutaId + ':' + pin.testo)}>Togli dall'evidenza</button>
             </div>
           {/if}
+          {#if tutto && (gestisce || r.cartella)}<p class="in-cartella"><Cartella valore={r.cartella || ''} proposte={cartelleDi(dati.ragazzi)} modificabile={gestisce} alCambio={(v) => campo('cartella', v)} /></p>{/if}
           {#if tutto && (gestisce || r.etichette?.length)}<p class="etich"><Etichette valori={r.etichette || []} modificabile={gestisce} alCambio={(x) => campo('etichette', x)} /></p>{/if}
           <p class="appartiene">
             {#each gruppi as g (g.id)}<a href={'#/gruppo/' + g.id}>{g.nome}</a>{/each}
@@ -143,14 +146,18 @@
 
     <div class="corpo" class:pieno={!tutto}>
       <div class="principale">
+        {#if scheda === 'diario' && tutto}
+          <button type="button" class="invito no-stampa" onclick={() => notaVeloce({ ragazzoId: id })}><Icona nome="matita" /> <span>Scrivi una nota su {r.nome}…</span></button>
+        {/if}
         {#if scheda === 'diario' || !tutto}
           <DiarioElenco {voci} bind:filtro tipi={tutto ? undefined : ['gruppo', 'nota']} titolo={'Diario di ' + nomeCompleto(r)} nomeFile={'Diario ' + nomeCompleto(r)} />
         {:else if scheda === 'anagrafica'}
           <form class="anagrafica" onsubmit={(e) => e.preventDefault()}>
             {#if !gestisce}<p class="avviso sotto"><Icona nome="lucchetto" /> L'anagrafica la modificano gli operatori; tu puoi leggerla.</p>{/if}
-            {#each SEZIONI as sez (sez.titolo)}
+            {#each SEZIONI as sez, si (sez.titolo)}
+              <details class="sez-anag" open={si === 0 || sez.campi.some(([k]) => String(r[k] ?? '').trim())}>
+              <summary class="eti">{sez.titolo}{#if !sez.campi.some(([k]) => String(r[k] ?? '').trim())}<span class="vuota"> · da compilare</span>{/if}</summary>
               <fieldset disabled={!gestisce}>
-                <legend class="eti">{sez.titolo}</legend>
                 {#if sez.nota}<p class="sotto piccolo nota-sez">{sez.nota}</p>{/if}
                 <div class="griglia">
                   {#each sez.campi as [k, nome, tipo, opzioni, larga, aiuto] (k)}
@@ -169,6 +176,7 @@
                   {/each}
                 </div>
               </fieldset>
+              </details>
             {/each}
             <fieldset disabled={!gestisce}>
               <legend class="eti">Famiglia</legend>
@@ -230,7 +238,7 @@
       {#if tutto}
         <aside class="lato no-stampa">
           <div class="azioni">
-            <button class="btn pieno" onclick={() => apriCrea({ tipo: 'nota', ragazzoId: id })}><Icona nome="matita" /> Nota su {r.nome}</button>
+            <button class="btn pieno" onclick={() => notaVeloce({ ragazzoId: id })}><Icona nome="matita" /> Nota su {r.nome}</button>
             <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'individuale', ragazzoId: id })}>Seduta individuale</button>
             <button class="btn piccolo" onclick={() => apriCrea({ tipo: 'genitori', ragazzoId: id })}>Incontro genitori</button>
           </div>
@@ -347,4 +355,11 @@
   }
   .evidenza { margin: var(--s-3) 0; padding: var(--s-3) var(--s-4); border: 1px dashed var(--spot); border-radius: var(--r); max-width: var(--misura); }
   .evidenza p { margin: 4px 0; font-size: var(--t-nota); white-space: pre-wrap; }
+  .invito { display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: 56px; margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); border: 1.5px dashed var(--matita-forte); border-radius: var(--r-grande); background: var(--carta-2); color: var(--inchiostro-2); font: inherit; font-size: var(--t-nota); text-align: left; cursor: text; }
+  .invito:hover { border-color: var(--spot); color: var(--inchiostro); }
+  .invito :global(.ico) { color: var(--spot-testo); }
+  .in-cartella { margin: 4px 0 0; }
+  .sez-anag { border-top: 1px solid var(--matita); padding: var(--s-2) 0; }
+  .sez-anag > summary { cursor: pointer; padding: var(--s-3) 0; min-height: 44px; list-style-position: inside; }
+  .sez-anag > summary .vuota { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--inchiostro-3); }
 </style>

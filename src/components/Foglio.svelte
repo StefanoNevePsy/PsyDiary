@@ -172,12 +172,17 @@
     {#if laSerie}
       <div class="serie-riga no-stampa">
         <span class="mano">↻</span><span class="sotto piccolo">{descrivi(laSerie)}</span>
-        {#if puoGestire()}
-          <button type="button" class="link" onclick={iniziaSposta}>sposta</button>
-          <button type="button" class="link" onclick={annulla}>salta</button>
-          <button type="button" class="link" onclick={() => (gestisci = true)}>tutta la serie…</button>
-        {/if}
       </div>
+    {/if}
+    {#if puoGestire() && !s.annullata}
+      <details class="menu-seduta no-stampa">
+        <summary aria-label="Altre azioni sulla seduta" title="Altre azioni">⋯</summary>
+        <div class="menu-voci">
+          {#if laSerie}<button type="button" onclick={(e) => { e.currentTarget.closest('details').open = false; iniziaSposta(); }}>Sposta questa seduta</button>{/if}
+          <button type="button" onclick={(e) => { e.currentTarget.closest('details').open = false; annulla(); }}>{laSerie ? 'Salta (non svolta)' : 'Non svolta'}</button>
+          {#if laSerie}<button type="button" onclick={(e) => { e.currentTarget.closest('details').open = false; gestisci = true; }}>Tutta la serie…</button>{/if}
+        </div>
+      </details>
     {/if}
     {#if spostando}
       <form class="sposta no-stampa" onsubmit={sposta}>
@@ -316,7 +321,6 @@
 
   <footer>
     <span class="sotto piccolo" aria-live="polite">{stato}</span>
-    {#if puoGestire() && !s.annullata}<button class="btn nudo piccolo" onclick={annulla}>Non svolta</button>{/if}
   </footer>
 </article>
 {#if gestisci && laSerie}<SerieDialogo se={laSerie} chiudi={() => (gestisci = false)} />{/if}
@@ -384,4 +388,11 @@
   .durata .input { width: 5.5em; }
   .evid { display: grid; gap: 4px; margin-top: var(--s-3); }
   .evid textarea { resize: vertical; min-height: 40px; border-left: 0; background: var(--spot-tenue); }
+  header { position: relative; }
+  .menu-seduta { position: absolute; top: 0; right: 0; z-index: 5; }
+  .menu-seduta summary { list-style: none; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--matita-forte); border-radius: 999px; cursor: pointer; font-size: 20px; line-height: 1; }
+  .menu-seduta summary::-webkit-details-marker { display: none; }
+  .menu-voci { position: absolute; right: 0; top: 50px; min-width: 220px; display: grid; padding: 4px; background: var(--carta); border: 1px solid var(--matita-forte); border-radius: var(--r); box-shadow: var(--ombra); }
+  .menu-voci button { border: 0; background: none; font: inherit; text-align: left; padding: 10px 12px; min-height: 44px; border-radius: var(--r-piccolo); cursor: pointer; }
+  .menu-voci button:hover { background: var(--carta-3); }
 </style>

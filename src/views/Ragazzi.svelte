@@ -9,6 +9,11 @@
   import Icona from '../components/Icona.svelte';
   import Etichette from '../components/Etichette.svelte';
   import { tinta } from '../lib/etichette.js';
+  import FiltroCartelle from '../components/FiltroCartelle.svelte';
+  import { notaVeloce, cartelleDi } from '../lib/rapido.js';
+  let cartella = $state((() => { try { return localStorage.getItem('psy:ragazzi-cartella') || ''; } catch (e) { return ''; } })());
+  $effect(() => { try { localStorage.setItem('psy:ragazzi-cartella', cartella); } catch (e) { /* niente */ } });
+  const nellaCartella = (r, c) => (c === '~' ? !String(r.cartella || '').trim() : String(r.cartella || '').trim() === c);
 
   let q = $state('');
   let conclusi = $state(false);
@@ -23,6 +28,7 @@
       .filter((r) => (conclusi ? r.stato === 'concluso' : r.stato !== 'concluso') && !nascosto(r))
       .filter((r) => !q.trim() || (nomeCompleto(r) + ' ' + (r.scuola || '') + ' ' + (r.classe || '') + ' ' + (r.etichette || []).join(' ')).toLowerCase().includes(q.trim().toLowerCase()))
       .filter((r) => scelte.every((t) => (r.etichette || []).includes(t)))
+      .filter((r) => !cartella || nellaCartella(r, cartella))
       .sort((a, b) => (a.cognome || a.nome).localeCompare(b.cognome || b.nome, 'it')),
   );
   function ultima(rid) {
@@ -61,6 +67,7 @@
     </div>
   </header>
 
+  <FiltroCartelle cartelle={cartelleDi(dati.ragazzi)} bind:scelta={cartella} conta={(c) => dati.ragazzi.filter((r) => r.stato !== 'concluso' && !nascosto(r) && nellaCartella(r, c)).length} />
   {#if etichetteInUso.length}
     <div class="filtro-et" role="group" aria-label="Filtra per etichetta">
       {#each etichetteInUso as [t, n] (t)}
@@ -71,7 +78,7 @@
   {/if}
 
   <ol class="elenco">
-    <li class="intesta eti" aria-hidden="true"><span>Nome</span><span>Scuola</span><span>Gruppi</span><span>Ultima nota</span><span>Prossima volta</span></li>
+    <li class="intesta eti" aria-hidden="true"><span>Nome</span><span>Scuola</span><span>Gruppi</span><span>Ultima nota</span><span>Prossima volta</span><span></span></li>
     {#each elenco as r, i (r.id)}
       <li class="riga" class:nuova-lettera={i > 0 && lettera(elenco[i - 1]) !== lettera(r)}>
         {#if i === 0 || lettera(elenco[i - 1]) !== lettera(r)}<span class="lettera display" aria-hidden="true">{lettera(r)}</span>{/if}
@@ -91,6 +98,7 @@
         </span>
         <span class="sotto num">{ultima(r.id)}</span>
         <span class="num">{prossima(r)}</span>
+        {#if condiviso(r.id)}<button type="button" class="nota-rapida" onclick={() => notaVeloce({ ragazzoId: r.id })} aria-label={'Scrivi una nota su ' + (r.nome || '')} title="Scrivi una nota"><Icona nome="matita" /></button>{/if}
       </li>
     {:else}
       <li class="vuoto sotto">{q ? M('nessuno') + ' con questo nome.' : scelte.length ? 'Nessuno con queste etichette.' : 'Nessuno qui.'}</li>
@@ -116,7 +124,9 @@
   .fe .n { font-weight: 400; font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
   .cella-nome { display: grid; gap: 2px; min-width: 0; }
   .et-riga { padding-left: 50px; }
-  .intesta, .riga { display: grid; grid-template-columns: minmax(200px, 1.4fr) 1.3fr 1.2fr 0.8fr 0.8fr; gap: var(--s-4); align-items: baseline; }
+  .intesta, .riga { display: grid; grid-template-columns: minmax(200px, 1.4fr) 1.3fr 1.2fr 0.8fr 0.8fr 44px; gap: var(--s-4); align-items: baseline; }
+  .nota-rapida { align-self: center; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; color: var(--inchiostro); cursor: pointer; }
+  .nota-rapida:hover { background: var(--inchiostro); color: var(--su-inchiostro); }
   .intesta { padding: 0 0 var(--s-2); border-bottom: 1.5px solid var(--inchiostro); }
   .riga { position: relative; padding: 10px 0; border-bottom: 1px dashed var(--matita); }
   .riga.nuova-lettera { border-top: 1px solid var(--matita-forte); margin-top: -1px; }
@@ -142,6 +152,7 @@
     .riga > :nth-child(3) { grid-column: 1; }
     .riga > :nth-child(4) { display: none; }
     .riga > :nth-child(5) { grid-row: 1; grid-column: 2; }
+    .riga > .nota-rapida { grid-row: 2 / span 2; grid-column: 2; justify-self: end; }
   }
   @media (max-width: 720px) {
     .ragazzi { padding: var(--s-4) var(--s-4) var(--s-7); }

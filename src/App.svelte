@@ -32,6 +32,9 @@
   let errore = $state('');
   // sul telefono le sezioni che non stanno nella barra in basso sono in «Altro»
   let altro = $state(false);
+  // «Scrivi» sul telefono si rimpicciolisce mentre si scorre, per non coprire il testo
+  let scorre = $state(false), tScorre;
+  onMount(() => { const f = () => { scorre = true; clearTimeout(tScorre); tScorre = setTimeout(() => (scorre = false), 900); }; addEventListener('scroll', f, { passive: true }); return () => removeEventListener('scroll', f); });
   const SECONDARIE = ['sospesi', 'programmi', 'impostazioni'];
 
   onMount(() => {
@@ -141,7 +144,7 @@
     <a href="#/impostazioni" class:su={sezione === 'impostazioni'} onclick={() => (altro = false)}><Icona nome="ingranaggio" /><span>Impostazioni</span></a>
   </nav>
 {/if}
-<button class="scrivi-tel btn spot" onclick={() => apriCrea()} aria-label="Scrivi una nota"><Icona nome="piu" /> Scrivi</button>
+<button class="scrivi-tel btn spot" class:piccolo-fab={scorre} onclick={() => apriCrea()} aria-label="Scrivi una nota"><Icona nome="piu" /><span class="fab-t">Scrivi</span></button>
 
 {#if ui.cerca}<Cerca chiudi={() => (ui.cerca = false)} />{/if}
 {#if ui.crea}<Crea opz={ui.crea} chiudi={chiudiCrea} />{/if}
@@ -207,7 +210,9 @@
       text-decoration: none; color: var(--inchiostro-2); background: none; border: 0; cursor: pointer;
     }
     .sotto-nav .su { color: var(--spot-testo); }
-    .scrivi-tel { display: inline-flex; position: fixed; right: var(--s-4); bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 590; min-height: 48px; padding: 10px 18px; box-shadow: var(--ombra); }
+    .scrivi-tel.piccolo-fab { padding: 10px 12px; opacity: 0.85; }
+    .scrivi-tel.piccolo-fab .fab-t { display: none; }
+    .scrivi-tel { display: inline-flex; transition: padding var(--d-breve) var(--e-uscita), opacity var(--d-breve); position: fixed; right: var(--s-4); bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 590; min-height: 48px; padding: 10px 18px; box-shadow: var(--ombra); }
   }
   @media print { .barra, .sotto-nav, .scrivi-tel { display: none !important; } }
 </style>

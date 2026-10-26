@@ -133,6 +133,8 @@
     if (!confirm(g.archiviato ? 'Riattivare il gruppo?' : 'Archiviare il gruppo? Lo storico resta; le sedute future spariscono dal calendario.')) return;
     campo('archiviato', !g.archiviato);
   }
+  import Cartella from '../components/Cartella.svelte';
+  import { notaVeloce, cartelleDi } from '../lib/rapido.js';
 </script>
 
 {#if g}
@@ -153,6 +155,7 @@
       {/if}
       <h1 class="display">{g.nome}</h1>
       <Condivisione {g} />
+      {#if gestisce || g.cartella}<p class="in-cartella"><Cartella valore={g.cartella || ''} proposte={cartelleDi(dati.gruppi)} modificabile={gestisce} alCambio={(v) => campo('cartella', v)} /></p>{/if}
       {#if g.tema}<p class="tema mano">{g.tema}</p>{/if}
       <p class="membri">
         {#if classe && g.alunni?.length}<span class="sotto">{conteggio(g.alunni)}</span>{/if}
@@ -167,6 +170,7 @@
     <div class="corpo">
       <div class="principale">
         {#if !impostazioni}
+          <button type="button" class="invito no-stampa" onclick={() => notaVeloce({ gruppoId: id })}><Icona nome="matita" /> <span>Scrivi una nota {classe ? 'sulla classe' : 'sul gruppo'}…</span></button>
           {#if prossime.length}
             <section class="prossime no-stampa" aria-label="Prossime sedute">
               {#each prossime as s (s.id)}
@@ -247,7 +251,7 @@
 
       <aside class="lato no-stampa">
         <div class="azioni">
-          <button class="btn pieno" onclick={() => apriCrea({ tipo: 'nota', gruppoId: id })}><Icona nome="matita" /> {classe ? 'Nota sulla classe' : 'Nota sul gruppo'}</button>
+          <button class="btn pieno" onclick={() => notaVeloce({ gruppoId: id })}><Icona nome="matita" /> {classe ? 'Nota sulla classe' : 'Nota sul gruppo'}</button>
         </div>
         <Assegnazioni o={g} tipo={classe ? 'classe' : 'gruppo'} {gestisce} alCambio={(x) => campo('programmi', x)} />
         <div class="box retino">
@@ -332,4 +336,8 @@
     .prossima:not(:first-child) { display: none; }
     .griglia, .griglia.tre { grid-template-columns: 1fr; }
   }
+  .invito { display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: 56px; margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); border: 1.5px dashed var(--matita-forte); border-radius: var(--r-grande); background: var(--carta-2); color: var(--inchiostro-2); font: inherit; font-size: var(--t-nota); text-align: left; cursor: text; }
+  .invito:hover { border-color: var(--spot); color: var(--inchiostro); }
+  .invito :global(.ico) { color: var(--spot-testo); }
+  .in-cartella { margin: 4px 0 0; }
 </style>

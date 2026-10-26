@@ -15,7 +15,10 @@
   $effect(() => { try { localStorage.setItem('psy:gruppi-quali', quali); } catch (e) { /* niente */ } });
   const attivi = $derived(gruppiVisibili().filter((g) => !!g.archiviato === archiviati));
   const conta = $derived({ tutti: attivi.length, terapeutico: attivi.filter((g) => tipoGruppo(g) === 'terapeutico').length, classe: attivi.filter((g) => tipoGruppo(g) === 'classe').length });
-  const elenco = $derived(quali === 'tutti' ? attivi : attivi.filter((g) => tipoGruppo(g) === quali));
+  let cartella = $state((() => { try { return localStorage.getItem('psy:gruppi-cartella') || ''; } catch (e) { return ''; } })());
+  $effect(() => { try { localStorage.setItem('psy:gruppi-cartella', cartella); } catch (e) { /* niente */ } });
+  const inCartella = (g, c) => (c === '~' ? !String(g.cartella || '').trim() : String(g.cartella || '').trim() === c);
+  const elenco = $derived((quali === 'tutti' ? attivi : attivi.filter((g) => tipoGruppo(g) === quali)).filter((g) => !cartella || inCartella(g, cartella)));
   const riservato = (g) => { const a = accessoGruppo(g.id); return !a.tutti && !a.daPrima; };
   const GIORNI = ['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'];
   const prossima = (g) => sedutePeriodo(O, piu(O, 30)).find((s) => s.gruppoId === g.id);
@@ -24,6 +27,8 @@
     const g = await creaGruppo({ tipo, nome: tipo === 'classe' ? 'Nuova classe' : 'Nuovo gruppo', tema: '', obiettivi: '', membri: [] });
     vai('gruppo/' + g.id + '?impostazioni=1');
   }
+  import FiltroCartelle from '../components/FiltroCartelle.svelte';
+  import { notaVeloce, cartelleDi } from '../lib/rapido.js';
 </script>
 
 <section class="gruppi">
@@ -42,10 +47,13 @@
       <button role="tab" aria-selected={quali === k} onclick={() => (quali = k)}>{nome} <small>{conta[k]}</small></button>
     {/each}
   </div>
+  <FiltroCartelle cartelle={cartelleDi(attivi)} bind:scelta={cartella} conta={(c) => attivi.filter((g) => inCartella(g, c)).length} />
   <div class="carte">
     {#each elenco as g, i (g.id)}
       {@const p = prossima(g)}
       {@const n = daScrivere(g)}
+      <div class="carta-box">
+      <button type="button" class="nota-rapida" onclick={() => notaVeloce({ gruppoId: g.id })} aria-label={'Scrivi una nota su ' + g.nome} title="Scrivi una nota"><Icona nome="matita" /></button>
       <a class="carta" href={'#/gruppo/' + g.id}>
         {#if g.copertina}<span class="copertina"><Immagine id={g.copertina} forma="foglio" tinta={i % 2 ? 'spot' : 'inchiostro'} seme={g.id} /></span>{/if}
         <span class="numero display" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
@@ -58,6 +66,7 @@
           {#if n}<span class="spot">{n} da scrivere</span>{/if}
         </span>
       </a>
+      </div>
     {:else}
       <p class="sotto">{quali === 'classe' ? 'Nessuna classe' : 'Nessun gruppo'} {archiviati ? (quali === 'classe' ? 'archiviata' : 'archiviato') : (quali === 'classe' ? 'attiva' : 'attivo')}.</p>
     {/each}
@@ -92,4 +101,8 @@
   .piede { display: grid; gap: 4px; margin-top: var(--s-2); padding-top: var(--s-3); border-top: 1px dashed var(--matita); font-size: var(--t-sm); }
   .spot { color: var(--spot-testo); font-weight: 600; }
   @media (max-width: 720px) { .gruppi { padding: var(--s-4) var(--s-4) var(--s-7); } h1 { font-size: var(--t-lg); } .carte { grid-template-columns: 1fr; } }
+  .carta-box { position: relative; display: grid; }
+  .carta-box > .carta { height: 100%; }
+  .nota-rapida { position: absolute; top: 10px; right: 10px; z-index: 2; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--matita-forte); border-radius: 999px; background: var(--carta); color: var(--inchiostro); cursor: pointer; }
+  .nota-rapida:hover { background: var(--inchiostro); color: var(--su-inchiostro); }
 </style>
