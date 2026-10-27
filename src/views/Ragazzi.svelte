@@ -10,7 +10,10 @@
   import Etichette from '../components/Etichette.svelte';
   import { tinta } from '../lib/etichette.js';
   import FiltroCartelle from '../components/FiltroCartelle.svelte';
-  import { notaVeloce, cartelleDi } from '../lib/rapido.js';
+  import { notaVeloce, cartelleDi, spostaInCartella, rinominaCartella } from '../lib/rapido.js';
+  const gestisce = $derived(puoGestire());
+  const sposta = (ids, c) => spostaInCartella('ragazzi', dati.ragazzi.filter((r) => ids.includes(r.id)), c);
+  let trascinato = $state(null);
   let cartella = $state((() => { try { return localStorage.getItem('psy:ragazzi-cartella') || ''; } catch (e) { return ''; } })());
   $effect(() => { try { localStorage.setItem('psy:ragazzi-cartella', cartella); } catch (e) { /* niente */ } });
   const nellaCartella = (r, c) => (c === '~' ? !String(r.cartella || '').trim() : String(r.cartella || '').trim() === c);
@@ -67,7 +70,8 @@
     </div>
   </header>
 
-  <FiltroCartelle cartelle={cartelleDi(dati.ragazzi)} bind:scelta={cartella} conta={(c) => dati.ragazzi.filter((r) => r.stato !== 'concluso' && !nascosto(r) && nellaCartella(r, c)).length} />
+  <FiltroCartelle tipo="ragazzi" cartelle={cartelleDi(dati.ragazzi)} bind:scelta={cartella} conta={(c) => dati.ragazzi.filter((r) => (conclusi ? r.stato === 'concluso' : r.stato !== 'concluso') && !nascosto(r) && nellaCartella(r, c)).length}
+    {gestisce} {sposta} rinomina={(v, n) => rinominaCartella('ragazzi', v, n)} />
   {#if etichetteInUso.length}
     <div class="filtro-et" role="group" aria-label="Filtra per etichetta">
       {#each etichetteInUso as [t, n] (t)}
@@ -80,7 +84,9 @@
   <ol class="elenco">
     <li class="intesta eti" aria-hidden="true"><span>Nome</span><span>Scuola</span><span>Gruppi</span><span>Ultima nota</span><span>Prossima volta</span><span></span></li>
     {#each elenco as r, i (r.id)}
-      <li class="riga" class:nuova-lettera={i > 0 && lettera(elenco[i - 1]) !== lettera(r)}>
+      <li class="riga" class:nuova-lettera={i > 0 && lettera(elenco[i - 1]) !== lettera(r)} class:trascinato={trascinato === r.id} draggable={gestisce ? 'true' : undefined}
+        ondragstart={(e) => { e.dataTransfer.setData('application/x-psy', r.id); e.dataTransfer.effectAllowed = 'move'; trascinato = r.id; }}
+        ondragend={() => (trascinato = null)}>
         {#if i === 0 || lettera(elenco[i - 1]) !== lettera(r)}<span class="lettera display" aria-hidden="true">{lettera(r)}</span>{/if}
         <span class="cella-nome">
         <a class="nome" href={'#/ragazzo/' + r.id}>
@@ -124,6 +130,9 @@
   .fe .n { font-weight: 400; font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
   .cella-nome { display: grid; gap: 2px; min-width: 0; }
   .et-riga { padding-left: 50px; }
+  .riga.trascinato { opacity: 0.45; }
+  .riga[draggable='true'] { cursor: grab; }
+  .riga[draggable='true'] a, .riga[draggable='true'] button { cursor: pointer; }
   .intesta, .riga { display: grid; grid-template-columns: minmax(200px, 1.4fr) 1.3fr 1.2fr 0.8fr 0.8fr 44px; gap: var(--s-4); align-items: baseline; }
   .nota-rapida { align-self: center; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--matita-forte); border-radius: 999px; background: transparent; color: var(--inchiostro); cursor: pointer; }
   .nota-rapida:hover { background: var(--inchiostro); color: var(--su-inchiostro); }

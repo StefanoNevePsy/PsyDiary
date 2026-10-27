@@ -28,7 +28,22 @@
     vai('gruppo/' + g.id + '?impostazioni=1');
   }
   import FiltroCartelle from '../components/FiltroCartelle.svelte';
-  import { notaVeloce, cartelleDi } from '../lib/rapido.js';
+  import { notaVeloce, cartelleDi, spostaInCartella, rinominaCartella, annoScolastico } from '../lib/rapido.js';
+  import { dati, salva } from '../lib/dati.svelte.js';
+  const gestisce = $derived(puoGestire());
+  const sposta = (ids, c) => spostaInCartella('gruppi', dati.gruppi.filter((g) => ids.includes(g.id)), c);
+  // archivia (o riattiva) in un colpo tutti quelli della cartella, per esempio a fine anno
+  const azioneCartella = $derived({
+    nome: archiviati ? 'Riattiva tutto il contenuto' : 'Archivia tutto il contenuto',
+    fai: async (c) => {
+      const qui = attivi.filter((g) => inCartella(g, c));
+      if (!confirm(archiviati ? `Riattivare ${qui.length} tra gruppi e classi della cartella «${c}»?` : `Archiviare ${qui.length} tra gruppi e classi della cartella «${c}»? Lo storico resta; le sedute future spariscono dal calendario. Si possono riattivare da «Archiviati».`)) return;
+      for (const g of qui) await salva('gruppi', { ...g, archiviato: !archiviati });
+    },
+  });
+  // l'anno scolastico si mostra sempre per le classi, e per tutti tra gli archiviati
+  const conAnno = (g) => tipoGruppo(g) === 'classe' || archiviati;
+  let trascinato = $state(null);
 </script>
 
 <section class="gruppi">
@@ -47,19 +62,23 @@
       <button role="tab" aria-selected={quali === k} onclick={() => (quali = k)}>{nome} <small>{conta[k]}</small></button>
     {/each}
   </div>
-  <FiltroCartelle cartelle={cartelleDi(attivi)} bind:scelta={cartella} conta={(c) => attivi.filter((g) => inCartella(g, c)).length} />
+  <FiltroCartelle tipo="gruppi" cartelle={cartelleDi(attivi)} bind:scelta={cartella} conta={(c) => attivi.filter((g) => inCartella(g, c)).length}
+    {gestisce} {sposta} rinomina={(v, n) => rinominaCartella('gruppi', v, n)} azione={azioneCartella} />
   <div class="carte">
     {#each elenco as g, i (g.id)}
       {@const p = prossima(g)}
       {@const n = daScrivere(g)}
-      <div class="carta-box">
+      <div class="carta-box" class:trascinato={trascinato === g.id} draggable={gestisce ? 'true' : undefined}
+        ondragstart={(e) => { e.dataTransfer.setData('application/x-psy', g.id); e.dataTransfer.effectAllowed = 'move'; trascinato = g.id; }}
+        ondragend={() => (trascinato = null)}>
       <button type="button" class="nota-rapida" onclick={() => notaVeloce({ gruppoId: g.id })} aria-label={'Scrivi una nota su ' + g.nome} title="Scrivi una nota"><Icona nome="matita" /></button>
       <a class="carta" href={'#/gruppo/' + g.id}>
         {#if g.copertina}<span class="copertina"><Immagine id={g.copertina} forma="foglio" tinta={i % 2 ? 'spot' : 'inchiostro'} seme={g.id} /></span>{/if}
         <span class="numero display" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-        <span class="eti">{tipoGruppo(g) === 'classe' ? 'classe · ' : ''}{serieInCorso({ gruppoId: g.id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}{#if riservato(g)}<span class="ris" title="Riservato: lo vede solo chi hai scelto"><Icona nome="lucchetto" /></span>{/if}</span>
+        <span class="eti">{tipoGruppo(g) === 'classe' ? 'classe · ' : ''}{serieInCorso({ gruppoId: g.id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}{#if conAnno(g) && annoScolastico(g)}{' · a.s. ' + annoScolastico(g)}{/if}{#if riservato(g)}<span class="ris" title="Riservato: lo vede solo chi hai scelto"><Icona nome="lucchetto" /></span>{/if}</span>
         <span class="nome display">{g.nome}</span>
         {#if g.tema}<span class="tema mano">{g.tema}</span>{/if}
+        {#if g.cartella && !cartella}<span class="in-c sotto"><Icona nome="cartella" />{g.cartella}</span>{/if}
         <span class="membri sotto">{membriAl(g, O).map((r) => nomeBreve(ragazzo(r))).join(', ') || (tipoGruppo(g) === 'classe' ? 'nessun alunno' : 'nessun membro')}</span>
         <span class="piede">
           {#if p}<span><span class="eti">Prossima</span> {relativa(p.data)}{p.argomento ? ': ' + anteprima(p.argomento, 50) : ''}</span>{/if}
@@ -95,6 +114,7 @@
   .copertina { display: block; height: 150px; margin: calc(-1 * var(--s-5)) calc(-1 * var(--s-5)) var(--s-2); }
   .copertina + .numero { top: 162px; }
   .numero { position: absolute; right: 14px; top: 2px; font-size: 64px; line-height: 1; color: transparent; -webkit-text-stroke: 1px var(--matita-forte); }
+  .carta > .eti { padding-right: 72px; }
   .nome { font-size: var(--t-lg); line-height: 1.05; padding-right: 60px; }
   .tema { font-size: 22px; transform: rotate(-2deg); transform-origin: left; width: max-content; }
   .membri { font-size: var(--t-sm); }
@@ -103,6 +123,10 @@
   @media (max-width: 720px) { .gruppi { padding: var(--s-4) var(--s-4) var(--s-7); } h1 { font-size: var(--t-lg); } .carte { grid-template-columns: 1fr; } }
   .carta-box { position: relative; display: grid; }
   .carta-box > .carta { height: 100%; }
+  .carta-box.trascinato { opacity: 0.45; }
+  .carta-box[draggable='true'] .carta { -webkit-user-drag: element; }
+  .in-c { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-xs); font-weight: 600; }
+  .in-c :global(.ico) { width: 12px; height: 12px; }
   .nota-rapida { position: absolute; top: 10px; right: 10px; z-index: 2; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--matita-forte); border-radius: 999px; background: var(--carta); color: var(--inchiostro); cursor: pointer; }
   .nota-rapida:hover { background: var(--inchiostro); color: var(--su-inchiostro); }
 </style>

@@ -13,7 +13,7 @@
 
 {#if modificabile}
   <span class="cartella">
-    <Icona nome="documento" />
+    <Icona nome="cartella" />
     {#if scrivendo}
       <span class="cartella-nuova"><input class="input" bind:value={nuova} placeholder="Nome della cartella" maxlength="40"
         onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); conferma(); } if (e.key === 'Escape') scrivendo = false; }} onblur={conferma} /></span>
@@ -27,7 +27,7 @@
     {/if}
   </span>
 {:else if valore}
-  <span class="cartella"><Icona nome="documento" /> {valore}</span>
+  <span class="cartella"><Icona nome="cartella" /> {valore}</span>
 {/if}
 
 <style>

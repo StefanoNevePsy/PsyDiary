@@ -134,14 +134,14 @@
     campo('archiviato', !g.archiviato);
   }
   import Cartella from '../components/Cartella.svelte';
-  import { notaVeloce, cartelleDi } from '../lib/rapido.js';
+  import { notaVeloce, cartelleDi, annoScolastico } from '../lib/rapido.js';
 </script>
 
 {#if g}
   <div class="gruppo">
     <header class="testa">
       <a class="torna no-stampa" href="#/gruppi"><Icona nome="sinistra" /> Gruppi</a>
-      <p class="eti">{classe ? 'classe · ' : ''}{serieInCorso({ gruppoId: id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}{g.archiviato ? ' · archiviato' : ''}</p>
+      <p class="eti">{classe ? 'classe · ' : ''}{serieInCorso({ gruppoId: id }).map((x) => descrivi(x)).join(' · ') || 'senza giorno fisso'}{classe && annoScolastico(g) ? ' · a.s. ' + annoScolastico(g) : ''}{g.archiviato ? ' · archiviato' : ''}</p>
       {#if g.copertina || gestisce}
         <div class="copertina" class:vuota={!g.copertina}>
           {#if g.copertina}<Immagine id={g.copertina} forma="foglio" seme={g.id} alt={'Immagine del ' + g.nome} onclick={() => (ui.visore = g.copertina)} />{/if}
