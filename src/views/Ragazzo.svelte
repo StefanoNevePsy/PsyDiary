@@ -11,6 +11,8 @@
   import Assegnazioni from '../components/Assegnazioni.svelte';
   import { RAPIDI, suggerimentiRuoli } from '../lib/famiglia.js';
   import { SEZIONI } from '../lib/anagrafica.js';
+  import DiagnosiElenco from '../components/DiagnosiElenco.svelte';
+  import { diagnosiDi, riepilogoDiagnosi } from '../lib/diagnosi.js';
   // Il ragazzo: diario, anagrafica a campi, colloqui di conoscenza, idee in sospeso.
   // Chi non ha il ragazzo condiviso vede solo quello che accade nei gruppi.
   import {
@@ -49,6 +51,8 @@
 
   // scheda: si salva al volo
   let timer = null;
+  // le diagnosi stanno in un elenco; il campo di testo resta il riepilogo per ricerca ed esportazioni
+  function diagnosi(elenco) { r.diagnosiElenco = elenco; campo('diagnosi', riepilogoDiagnosi(elenco)); }
   function campo(k, v) {
     r[k] = v;
     clearTimeout(timer);
@@ -161,6 +165,9 @@
                 {#if sez.nota}<p class="sotto piccolo nota-sez">{sez.nota}</p>{/if}
                 <div class="griglia">
                   {#each sez.campi as [k, nome, tipo, opzioni, larga, aiuto] (k)}
+                    {#if tipo === 'diagnosi'}
+                    <div class="larga"><DiagnosiElenco elenco={diagnosiDi(r)} modificabile={gestisce} alCambio={diagnosi} /></div>
+                    {:else}
                     <label class="campo" class:larga>
                       <span>{nome}</span>
                       {#if tipo === 'select'}
@@ -173,6 +180,7 @@
                         <input class="input" type={tipo || 'text'} value={r[k] || ''} oninput={(e) => campo(k, e.currentTarget.value)} />
                       {/if}
                     </label>
+                    {/if}
                   {/each}
                 </div>
               </fieldset>

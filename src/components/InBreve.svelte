@@ -6,6 +6,7 @@
   import Genogramma from './geno/Genogramma.svelte';
   import Icona from './Icona.svelte';
   import { PROFILO } from '../lib/anagrafica.js';
+  import { diagnosiDi } from '../lib/diagnosi.js';
   import { onMount } from 'svelte';
 
   let { r, apriAnagrafica } = $props();
@@ -26,6 +27,7 @@
   const vuoto = $derived(!profilo.length && !r.diagnosi && !r.certificazioni && !r.servizi && !familiari.length && !r.noteFamiglia && !geno);
   let dialogo = $state(), grande = $state(false);
   function apri() { grande = true; queueMicrotask(() => dialogo?.showModal()); }
+  const diagnosi = $derived(diagnosiDi(r).filter((d) => String(d.testo || '').trim() || String(d.codice || '').trim()));
   const primaRiga = (t) => String(t || '').split('\n')[0];
   // aperto su PC, chiuso (si apre toccandolo) sul telefono
   let aperto = $state(true);
@@ -46,7 +48,7 @@
     <div class="colonne">
       {#if r.diagnosi || (r.certificazioni && r.certificazioni !== 'nessuna') || r.servizi}
       <dl class="clinica">
-        {#if r.diagnosi}<div><dt class="eti">Diagnosi o ipotesi</dt><dd>{r.diagnosi}</dd></div>{/if}
+        {#if diagnosi.length}<div><dt class="eti">Diagnosi o ipotesi</dt><dd class="diag">{#each diagnosi as d, i (i)}<span>{d.testo || 'Diagnosi'}{#if d.codice}<code>{d.codice}</code>{/if}</span>{/each}</dd></div>{/if}
         {#if r.certificazioni && r.certificazioni !== 'nessuna'}<div><dt class="eti">Certificazione</dt><dd>{CERT[r.certificazioni] || r.certificazioni}</dd></div>{/if}
         {#if r.servizi}<div><dt class="eti">Servizi</dt><dd>{r.servizi}</dd></div>{/if}
       </dl>
@@ -93,6 +95,8 @@
   .profilo dd { white-space: pre-line; }
   .profilo:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
   dt { font-size: 10.5px; }
+  .diag { display: grid; gap: 2px; -webkit-line-clamp: 4; }
+  .diag code { margin-left: 6px; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--inchiostro-2); font-variant-numeric: tabular-nums; }
   dd { margin: 0; font-size: var(--t-sm); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .famiglia .eti { margin: 0 0 4px; font-size: 10.5px; }
   .famiglia ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: var(--t-sm); }

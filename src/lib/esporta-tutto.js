@@ -11,6 +11,7 @@
 //   aula/                   le note sull'aula in generale
 // Funzioni pure (niente rete, niente DOM): testate in tools/test-esporta.mjs.
 import { SEZIONI } from './anagrafica.js';
+import { diagnosiDi } from './diagnosi.js';
 import { aTesto } from './programmi.js';
 
 export const FORMATO = 'psydiary-esportazione';
@@ -186,7 +187,7 @@ export function componi(dati, file = new Map(), opz = {}) {
 
   // ---- pazienti ----
   const noti = new Set(SEZIONI.flatMap((s) => s.campi.map((c) => c[0])));
-  const SPECIALI = new Set(['id', 'genitori', 'allegati', 'foto', 'noteFamiglia', 'noteStabili', 'etichette', 'accesso', 'creato', 'modificato', 'tipo']);
+  const SPECIALI = new Set(['id', 'diagnosiElenco', 'genitori', 'allegati', 'foto', 'noteFamiglia', 'noteStabili', 'etichette', 'accesso', 'creato', 'modificato', 'tipo']);
   for (const r of pazienti) {
     const chiave = 'r:' + r.id, dir = cartelle.get(chiave);
     const valore = (c, v) => (c[2] === 'select' ? (c[3] || []).find((o) => o[0] === v)?.[1] ?? v : c[2] === 'date' ? dataIt(v) : v);
@@ -274,6 +275,8 @@ export function componi(dati, file = new Map(), opz = {}) {
   // ---- tabelle ----
   const campiPaz = ['id', ...SEZIONI.flatMap((s) => s.campi.map((c) => c[0])).filter((k) => k !== 'id'), 'etichette', 'noteFamiglia', 'noteStabili', 'creato', 'modificato'];
   testo('tabelle/pazienti.csv', csv(campiPaz, pazienti.map((r) => ({ ...r, etichette: (r.etichette || []).join(', ') }))));
+  testo('tabelle/diagnosi.csv', csv(['paziente_id', 'paziente', 'ordine', 'diagnosi', 'codice'],
+    pazienti.flatMap((r) => diagnosiDi(r).map((d, i) => ({ paziente_id: r.id, paziente: nomeCompleto(r), ordine: i + 1, diagnosi: d.testo || '', codice: d.codice || '' })))));
   testo('tabelle/familiari.csv', csv(['paziente_id', 'paziente', 'relazione', 'nome', 'telefono', 'email'],
     pazienti.flatMap((r) => (r.genitori || []).map((g) => ({ paziente_id: r.id, paziente: nomeCompleto(r), ...g })))));
   testo('tabelle/gruppi.csv', csv(['id', 'tipo', 'nome', 'tema', 'obiettivi', 'archiviato', 'creato', 'modificato'],

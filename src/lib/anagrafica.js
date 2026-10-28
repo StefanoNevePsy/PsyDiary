@@ -21,7 +21,7 @@ export const SEZIONI = [
     ['attenzioni', 'Attenzioni', 'area', null, false, 'cosa evitare, segnali di disagio, allergie'],
   ] },
   { titolo: 'Invio e servizi', campi: [
-    ['invio', 'Inviato da'], ['diagnosi', 'Diagnosi o ipotesi'], ['servizi', 'Altri servizi coinvolti'], ['pediatra', 'Pediatra o medico'],
+    ['invio', 'Inviato da'], ['diagnosi', 'Diagnosi o ipotesi', 'diagnosi', null, true], ['servizi', 'Altri servizi coinvolti'], ['pediatra', 'Pediatra o medico'],
     ['motivoInvio', "Motivo dell'invio", 'area', null, true],
     ['inizio', 'In carico dal', 'date'], ['stato', 'Percorso', 'select', [['attivo', 'in corso'], ['concluso', 'concluso']]],
   ] },
