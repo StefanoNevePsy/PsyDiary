@@ -3,7 +3,7 @@ import * as A from './archivio.js';
 import { oggi, piu, giornoSettimana, daIso } from './date.js';
 import { tagDi, menzioniDi, semplice, daFare } from './testo.js';
 import { REALE } from './centro/config.js';
-import { occorrenze } from './serie.js';
+import { occorrenze, ripetiSpostato } from './serie.js';
 
 export const dati = $state({ pronto: false, ragazzi: [], gruppi: [], sedute: [], note: [], sospesi: [], persone: [], serie: [], programmi: [] });
 
@@ -364,6 +364,50 @@ export async function togliEccezione(se, data) {
   const e = { ...(s.eccezioni || {}) };
   delete e[data];
   return salva('serie', { ...s, eccezioni: e });
+}
+/**
+ * Sposta questa seduta e tutte le successive della serie: la serie si chiude il giorno prima,
+ * e ne riparte una dalla nuova data con lo stesso ritmo (ogni due settimane riparte da lì).
+ * Le sedute già salvate prima restano dove sono; quelle successive non ancora scritte scorrono con lo stesso scarto.
+ */
+export async function spostaSerieDa(s, data, oraNuova, durataNuova) {
+  const se = serieDiSeduta(s);
+  if (!se) return spostaSeduta(s, data, oraNuova, durataNuova);
+  const vecchia = $state.snapshot(se);
+  const scarto = Math.round((daIso(data) - daIso(s.data)) / 86400000);
+  const durata = Math.max(5, Math.min(600, +durataNuova || s.durata || vecchia.durata || 60));
+  const ora = oraNuova || s.ora || vecchia.ora;
+  const ecc = vecchia.eccezioni || {};
+  const nuovi = { ripeti: ripetiSpostato(vecchia.ripeti, s.data, data), ora, durata, dal: data, eccezioni: {} };
+  if (vecchia.volte) {
+    const fatte = occorrenze({ ...vecchia, eccezioni: null }, vecchia.dal, piu(s.data, -1)).length;
+    nuovi.volte = Math.max(1, vecchia.volte - fatte);
+  }
+  if (vecchia.al) nuovi.al = vecchia.al < data ? data : vecchia.al;
+  // la parte di prima: finisce il giorno prima della seduta spostata (se c'era qualcosa prima)
+  let nuova;
+  if (s.data > vecchia.dal) {
+    const prima = { ...vecchia, al: piu(s.data, -1), eccezioni: Object.fromEntries(Object.entries(ecc).filter(([k]) => k < s.data)) };
+    delete prima.volte;
+    await salva('serie', prima);
+    nuova = await creaSerie({ ...vecchia, volte: undefined, al: undefined, ...nuovi });
+  } else {
+    nuova = await salva('serie', { ...vecchia, volte: undefined, al: undefined, ...nuovi });
+  }
+  // le sedute salvate da qui in poi: quelle ancora da fare scorrono, quelle già scritte restano
+  let questa = null;
+  const soggettoV = soggettoSerie(vecchia);
+  for (const x of [...dati.sedute]) {
+    if (x.annullata || soggetto(x) !== soggettoV || x.data < s.data) continue;
+    if (x.serieId && x.serieId !== vecchia.id) continue;
+    const scritta = x.resoconto || Object.values(x.partecipanti || {}).some(Boolean);
+    if (x.id !== s.id && (scritta || x.data <= oggi())) continue;
+    const y = await salva('sedute', { ...$state.snapshot(x), data: piu(x.data, scarto), ...(x.id === s.id ? { ora, durata } : {}), serieId: nuova.id });
+    if (x.id === s.id) questa = y;
+  }
+  // la seduta aperta, se era solo sulla carta: ora è la prima della nuova serie
+  if (!questa) questa = seduta('v:' + nuova.id + ':' + data) || { ...s, data, ora, durata };
+  return questa;
 }
 /** Sposta una sola seduta (di una serie o no) a un altro giorno o orario. */
 export async function spostaSeduta(s, data, oraNuova, durataNuova) {

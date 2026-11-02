@@ -16,7 +16,7 @@
   import Immagine from './Immagine.svelte';
   import SerieDialogo from './SerieDialogo.svelte';
   import DalProgramma from './DalProgramma.svelte';
-  import { serieDiSeduta, eccezioneSerie, spostaSeduta } from '../lib/dati.svelte.js';
+  import { serieDiSeduta, eccezioneSerie, spostaSeduta, spostaSerieDa } from '../lib/dati.svelte.js';
   import { descrivi } from '../lib/serie.js';
 
   let { s: iniziale, alCambioId = () => {}, pagina = false } = $props();
@@ -127,13 +127,14 @@
   let nuovaOra = $state('');
   let nuovaDurata = $state(60);
   let gestisci = $state(false);
-  function iniziaSposta() { nuovaData = s.data; nuovaOra = s.ora; nuovaDurata = s.durata || 60; spostando = true; }
+  let quali = $state('questa');
+  function iniziaSposta() { nuovaData = s.data; nuovaOra = s.ora; nuovaDurata = s.durata || 60; quali = 'questa'; spostando = true; }
   async function sposta(e) {
     e.preventDefault();
     await scarica();
     const base = dati.sedute.find((x) => x.id === s.id) || s;
-    const vera = await spostaSeduta(base, nuovaData, nuovaOra, nuovaDurata);
-    Object.assign(s, { id: vera.id, data: vera.data, ora: vera.ora, durata: vera.durata, virtuale: false });
+    const vera = laSerie && quali === 'successive' ? await spostaSerieDa(base, nuovaData, nuovaOra, nuovaDurata) : await spostaSeduta(base, nuovaData, nuovaOra, nuovaDurata);
+    Object.assign(s, { id: vera.id, data: vera.data, ora: vera.ora, durata: vera.durata, virtuale: !!vera.virtuale });
     spostando = false;
     alCambioId(vera.id);
   }
@@ -186,12 +187,18 @@
     {/if}
     {#if spostando}
       <form class="sposta no-stampa" onsubmit={sposta}>
-        {#if laSerie}<span class="eti">Solo questa volta</span>{/if}
+        {#if laSerie}
+          <div class="quali" role="radiogroup" aria-label="Quali sedute spostare">
+            <label><input type="radio" bind:group={quali} value="questa" /> Solo questa</label>
+            <label><input type="radio" bind:group={quali} value="successive" /> Questa e le successive</label>
+          </div>
+        {/if}
         <CampoData bind:value={nuovaData} required etichetta="Data" />
         <CampoOra bind:value={nuovaOra} required etichetta="Ora di inizio" />
         <label class="durata"><input class="input" type="number" min="5" max="600" step="1" inputmode="numeric" bind:value={nuovaDurata} required aria-label="Durata in minuti" /><span class="sotto piccolo">min</span></label>
         <button class="btn pieno piccolo">Salva</button>
         <button type="button" class="btn nudo piccolo" onclick={() => (spostando = false)}>Annulla</button>
+        {#if laSerie && quali === 'successive'}<p class="sotto piccolo aiuto-sposta">Da questa seduta in poi la serie riparte dalla nuova data con lo stesso ritmo{laSerie.ripeti?.ogni > 1 ? ` (ogni ${laSerie.ripeti.ogni} settimane da lì)` : ''}. Le sedute di prima non cambiano.</p>{/if}
       </form>
     {/if}
     <p class="eti">
@@ -337,6 +344,9 @@
   .link { border: 0; background: none; padding: 0; font: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--spot-testo); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
   .sposta { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; padding: var(--s-2) var(--s-3); border: 1px dashed var(--matita-forte); border-radius: var(--r); }
   .sposta .input { width: auto; min-height: 34px; }
+  .quali { display: flex; flex-wrap: wrap; gap: 4px 14px; width: 100%; font-size: var(--t-sm); font-weight: 600; }
+  .quali label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .aiuto-sposta { width: 100%; margin: 0; }
   header .eti { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
   .segno { font-size: 19px; letter-spacing: 0; text-transform: none; }
   h2 { font-size: var(--t-xl); line-height: 1.02; }

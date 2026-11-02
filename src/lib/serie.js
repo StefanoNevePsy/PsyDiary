@@ -94,5 +94,17 @@ export function posizioneNelMese(data) {
   const ultimo = daIso(piu(data, 7)).getMonth() !== daIso(data).getMonth();
   return { settimana: g > 28 || (ultimo && g > 21) ? -1 : Math.ceil(g / 7), giorno: giornoSettimana(data) };
 }
+/**
+ * Il ritmo della serie quando una data si sposta "da qui in poi": i giorni della settimana
+ * scorrono come la data (martedì → giovedì), il mensile prende la posizione della nuova data.
+ * Con la nuova data come inizio, anche l'alternanza delle settimane riparte da lì.
+ */
+export function ripetiSpostato(ripeti, vecchia, nuova) {
+  const r = ripeti || {};
+  if (r.come === 'mese') return { ...r, ...posizioneNelMese(nuova) };
+  const delta = giornoSettimana(nuova) - giornoSettimana(vecchia);
+  const giorni = [...new Set((r.giorni || [giornoSettimana(vecchia)]).map((g) => ((g - 1 + delta + 7) % 7) + 1))].sort((a, b) => a - b);
+  return { ...r, giorni };
+}
 export const ETICHETTE_ORDINALI = ORDINALI;
 export { GIORNI as NOMI_GIORNI };

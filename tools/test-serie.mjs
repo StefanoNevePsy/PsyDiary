@@ -1,5 +1,5 @@
 // Test delle serie di appuntamenti (src/lib/serie.js)
-import { occorrenze, descrivi, ultima, posizioneNelMese, fine } from '../src/lib/serie.js';
+import { occorrenze, descrivi, ultima, posizioneNelMese, fine, ripetiSpostato } from '../src/lib/serie.js';
 let n = 0, f = 0;
 const ok = (c, m) => { n++; if (!c) f++; console.log((c ? 'ok  ' : 'NO  ') + m); };
 const sett = (giorni, ogni = 1, extra = {}) => ({ ora: '14:30', dal: '2026-09-01', ripeti: { come: 'settimane', ogni, giorni }, ...extra });
@@ -27,5 +27,15 @@ ok(descrivi(sett([2, 4])) === 'ogni martedì e giovedì alle 14:30', descrivi(se
 ok(descrivi(sett([5], 2)) === 'ogni 2 settimane, venerdì alle 14:30', descrivi(sett([5], 2)));
 ok(descrivi(mese(1, 4)) === 'il primo giovedì del mese alle 17:00', descrivi(mese(1, 4)));
 ok(ultima(sett([2], 1, { volte: 3 })) === '2026-09-15' && fine(sett([2], 1, { volte: 3 })) === '3 volte', 'ultima data e testo della fine');
+// spostare "da qui in poi": ogni due settimane, dal martedì 29/9 al martedì 6/10 (cambia la settimana)
+{
+  const r = ripetiSpostato({ come: 'settimane', ogni: 2, giorni: [2] }, '2026-09-29', '2026-10-06');
+  const nuova = { ora: '14:30', dal: '2026-10-06', ripeti: r };
+  ok(JSON.stringify(r.giorni) === '[2]' && occorrenze(nuova, '2026-10-01', '2026-11-30').join() === '2026-10-06,2026-10-20,2026-11-03,2026-11-17', 'ogni due settimane: cambia la settimana di inizio');
+  const r2 = ripetiSpostato({ come: 'settimane', ogni: 2, giorni: [2] }, '2026-09-29', '2026-10-01');
+  ok(JSON.stringify(r2.giorni) === '[4]', 'spostata di giorno: martedì → giovedì');
+  ok(JSON.stringify(ripetiSpostato({ come: 'settimane', ogni: 1, giorni: [2, 4] }, '2026-09-29', '2026-09-30').giorni) === '[3,5]', 'più giorni scorrono insieme');
+  ok(JSON.stringify(ripetiSpostato({ come: 'mese', settimana: 1, giorno: 4 }, '2026-10-01', '2026-10-13')) === JSON.stringify({ come: 'mese', settimana: 2, giorno: 2 }), 'mensile: prende la posizione della nuova data');
+}
 console.log(`\n${n - f}/${n} superati`);
 process.exit(f ? 1 : 0);
