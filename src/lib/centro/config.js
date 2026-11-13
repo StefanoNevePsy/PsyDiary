@@ -18,7 +18,7 @@ const E = import.meta.env;
 function leggiFirebase() {
   if (E.VITE_FIREBASE === 'off') return null;
   const f = {
-    apiKey: E.VITE_FIREBASE_API_KEY || 'AIzaSyDKIoFOaqHaRqhApDGPhUnq67sBlsvHAas',
+    apiKey: E.VITE_FIREBASE_API_KEY || 'AIzaSyDKIoFOaqHaRqhApDGPhUnq67sBIsvHAas',
     authDomain: E.VITE_FIREBASE_AUTH_DOMAIN || 'psydiary-510307.firebaseapp.com',
     projectId: E.VITE_FIREBASE_PROJECT_ID || 'psydiary-510307',
     storageBucket: E.VITE_FIREBASE_STORAGE_BUCKET || 'psydiary-510307.firebasestorage.app',
