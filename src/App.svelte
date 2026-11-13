@@ -14,6 +14,7 @@
   import { REALE, DEMO } from './lib/centro/config.js';
   import StrisciaDemo from './components/centro/StrisciaDemo.svelte';
   import { sync, avvia } from './lib/centro/sync.svelte.js';
+  import { avviaVeloce } from './lib/centro/veloce.svelte.js';
   import Calendario from './views/Calendario.svelte';
   import SedutaPagina from './views/SedutaPagina.svelte';
   import Ragazzi from './views/Ragazzi.svelte';
@@ -38,7 +39,7 @@
   const SECONDARIE = ['sospesi', 'programmi', 'impostazioni'];
 
   onMount(() => {
-    carica().then(() => (REALE ? avvia() : null)).catch((e) => { errore = e.message || String(e); });
+    carica().then(() => (REALE ? avvia() : null)).then(() => (REALE ? avviaVeloce() : null)).catch((e) => { errore = e.message || String(e); });
     const tasti = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !e.target.closest?.('.cm-editor')) { e.preventDefault(); ui.cerca = true; }
       // "/" apre la ricerca solo fuori dai testi: campi, menu e editor (contenteditable)

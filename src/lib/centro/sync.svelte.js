@@ -29,7 +29,14 @@ export const sync = $state({
   inAttesa: 0, consegna: false,
   // l'ultima consegna fatta da sola (n dispositivi, di chi): l'operatore la vede per qualche secondo
   consegnata: null,
+  // gli ambiti che il custode dice che vedo (anche «aula»): la corsia veloce ascolta quelli
+  ambiti: [],
 });
+// La corsia veloce (veloce.svelte.js) si aggancia qui: sync non sa niente di Firestore, sa solo a chi dire
+// «ho salvato queste voci» e «la chiave è arrivata». Senza corsia (o spenta) restano funzioni che non fanno niente.
+// `manuale`: l'operatore ha scelto di consegnare la chiave solo con un tocco (dopo aver controllato il codice di verifica):
+// allora il giro di sincronizzazione non la consegna da solo (il tasto «Consegna la chiave» resta).
+export const ganciVeloce = { attiva: () => false, manuale: () => false, pubblica: () => {}, chiaveArrivata: () => {} };
 // Tempi di risposta del custode (ultime misure, anche tra una sessione e l'altra): servono al riquadro
 // «Velocità del custode» in Impostazioni. Solo una comodità: se il browser non le tiene, si ricomincia.
 const salvate = () => { try { return leggiMisure(localStorage.getItem(CHIAVE_MISURE) || ''); } catch { return []; } };
@@ -196,7 +203,7 @@ function segna(tabella, id) {
   if (!idVociDi(tabella, id).length) return;
   coda.add(tabella + '|' + id);
   salvaCoda();
-  programma(1000);
+  programma(ganciVeloce.attiva() ? 700 : 1000);   // con la corsia veloce gli altri vedono la modifica appena il custode l'ha accettata
 }
 
 // ---------------------------------------------------------------------------
@@ -278,14 +285,14 @@ async function invia() {
       if (v.eliminato) {
         if (!l || !l.version) continue;   // mai arrivata al custode: niente da togliere
         invii.push({ id: v.id, tipo: l.tipo, ambito: l.ambito, versioneBase: l.version, eliminato: true });
-        prep[v.id] = { v: { ...l, eliminato: true }, chiaveCoda: k };
+        prep[v.id] = { v: { ...l, eliminato: true }, chiaveCoda: k, creatoDa: l.creatoDa };
         continue;
       }
       if (l && l.version && JSON.stringify(l.base) === JSON.stringify(v.dati) && l.ambito === v.ambito) continue;   // niente di nuovo
       await caricaImmagini(v);
       const busta = await C.cifra(chiave(), sync.cfg.kid, v.dati, aad(v.ambito, v.id));
       invii.push({ id: v.id, tipo: v.tipo, ambito: v.ambito, versioneBase: l ? l.version : 0, busta });
-      prep[v.id] = { v, chiaveCoda: k };
+      prep[v.id] = { v, chiaveCoda: k, creatoDa: l?.creatoDa };
     }
     coda.delete(k);
   }
@@ -293,11 +300,19 @@ async function invia() {
   if (!invii.length) return false;
   const r = await ricevi(invii);
   // conflitti: si unisce e si rimette in coda
+  const pubblicabili = [];
   for (const e of r.esiti) {
     const p = prep[e.id];
     if (e.ok) {
+      // chi ha creato la voce (serve alle regole della corsia veloce): io se nasce adesso o se il custode mi ha lasciato
+      // modificare/togliere una nota di cui sono tirocinante (può solo se è mia); altrimenti quello che già sapevo
+      const creatoDa = (e.version === 1 || (sync.io?.ruolo !== 'admin' && (p.v.tipo === 'nota' || p.v.eliminato))) ? sync.io?.email : p.creatoDa;
       if (p.v.eliminato) await togliVoce(e.id);
-      else await scriviVoce({ id: e.id, tipo: p.v.tipo, ambito: p.v.ambito, version: e.version, base: p.v.dati });
+      else await scriviVoce({ id: e.id, tipo: p.v.tipo, ambito: p.v.ambito, version: e.version, base: p.v.dati, creatoDa });
+      if (e.version > 0) {
+        const inv = invii.find((x) => x.id === e.id);
+        pubblicabili.push({ id: e.id, tipo: p.v.tipo, ambito: p.v.ambito, version: e.version, busta: inv?.busta || null, eliminato: !!p.v.eliminato, creatoDa });
+      }
       continue;
     }
     if (e.errore === 'conflitto') {
@@ -306,13 +321,13 @@ async function invia() {
       const l = await voceLocale(e.id);
       if (p.v.eliminato || !loro) {
         // eliminata qui e cambiata là (o il contrario): vince l'eliminazione
-        if (att) await scriviVoce({ id: e.id, tipo: att.tipo, ambito: att.ambito, version: att.version, base: loro });
+        if (att) await scriviVoce({ id: e.id, tipo: att.tipo, ambito: att.ambito, version: att.version, base: loro, creatoDa: att.creatoDa });
         if (!p.v.eliminato && !loro) { await scriviInLocale({ ...p.v, eliminato: true }, null); await togliVoce(e.id); }
         else coda.add(p.chiaveCoda);
         continue;
       }
       const unita = unisci(l?.base ?? null, p.v.dati, loro, att.aggiornatoDa);
-      await scriviVoce({ id: e.id, tipo: att.tipo, ambito: att.ambito, version: att.version, base: loro });
+      await scriviVoce({ id: e.id, tipo: att.tipo, ambito: att.ambito, version: att.version, base: loro, creatoDa: att.creatoDa });
       await scriviInLocale({ ...p.v, eliminato: false }, unita);
       coda.add(p.chiaveCoda);
     } else if (e.errore === 'chiave-cambiata') {
@@ -327,6 +342,9 @@ async function invia() {
     }
   }
   await salvaCoda();
+  // corsia veloce: le stesse buste che il custode ha appena accettato, subito anche agli altri dispositivi
+  // (senza aspettare: se qualcosa va storto la corsia si spegne da sola e il custode ha già tutto)
+  if (pubblicabili.length && ganciVeloce.attiva()) { try { ganciVeloce.pubblica(pubblicabili); } catch (e) { /* solo una corsia in più */ } }
   return true;
 }
 
@@ -396,12 +414,12 @@ async function ricevi(invii = [], { io = false } = {}) {
       const { tabella, id } = destinazione(v);
       const mia = vociDi(tabella, $state.snapshot(oggettoLocale(tabella, id) || {}), opzVoci).find((x) => x.id === v.id)?.dati;
       if (d && mia) await scriviInLocale(v, unisci(l.base, mia, d, v.aggiornatoDa));
-      await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d });
+      await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d, creatoDa: v.creatoDa });
       continue;
     }
     await scriviInLocale(v, d);
     if (v.eliminato) await togliVoce(v.id);
-    else await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d });
+    else await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d, creatoDa: v.creatoDa });
   }
   // ragazzi non più condivisi: il loro personale lascia questo dispositivo
   // (gli ambiti visibili cambiano solo quando cambia l'impronta: negli altri giri non si controlla)
@@ -417,6 +435,7 @@ async function ricevi(invii = [], { io = false } = {}) {
     const nuovi = {};
     for (const a of r.ambiti) nuovi[a] = r.cursori[a];
     cursoriMem = nuovi;
+    sync.ambiti = Object.keys(nuovi);
     await scriviMeta('cursori', nuovi);
   }
   if (r.pazienti) {
@@ -447,6 +466,7 @@ let incorso = null, timer = null, ultimaRisposta = {}, ultimaConsegna = 0, ultim
 // scrivendo di continuo si parte comunque entro pochi secondi.
 const ATTESA_MASSIMA = 6000;
 const INTERVALLO_GIRO = 30000;
+const INTERVALLO_VERIFICA = 300000;   // con la corsia veloce attiva
 function programma(ms) {
   clearTimeout(timer);
   if (!primoSegno) primoSegno = Date.now();
@@ -475,7 +495,7 @@ export function sincronizza() {
       if (coda.size) await invia();
       // l'elenco dei dispositivi solo se il custode dice che qualcuno aspetta la chiave
       // (i custodi vecchi non lo dicono: allora ogni 10 minuti)
-      if (eOperatore() && (ultimaRisposta.inAttesa > 0 || (ultimaRisposta.inAttesa === undefined && Date.now() - ultimaConsegna > 600000))) {
+      if (eOperatore() && !ganciVeloce.manuale() && (ultimaRisposta.inAttesa > 0 || (ultimaRisposta.inAttesa === undefined && Date.now() - ultimaConsegna > 600000))) {
         ultimaConsegna = Date.now();
         await consegnaChiavi();
       }
@@ -557,7 +577,7 @@ async function cancellaDatiAula() {
   await op('voci', 'readwrite', (s) => s.clear());
   await op('meta', 'readwrite', (s) => s.clear());
   await C.dimenticaTutto();
-  coda.clear(); chiavi = {}; accessiCache = null; cursoriMem = null; improntaNota = null; sync.inAttesa = 0; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.programmi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
+  coda.clear(); chiavi = {}; accessiCache = null; cursoriMem = null; improntaNota = null; sync.inAttesa = 0; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.programmi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0; sync.ambiti = [];
 }
 
 // ---------------------------------------------------------------------------
@@ -576,6 +596,7 @@ async function accogliChiave(d, r) {
   const k = await C.riceviChiave(busta, d.privata, eOperatore());
   await C.ricordaChiave(sync.cfg.kid, k, !eOperatore());
   chiavi = await C.portachiavi();
+  try { ganciVeloce.chiaveArrivata(); } catch (e) { /* ok */ }   // la richiesta su Firestore non serve più
   return true;
 }
 async function ottieniChiave() {
@@ -681,6 +702,7 @@ export async function avvia() {
   caricate = new Set((await meta('caricate')) || []);
   improntaNota = (await meta('impronta')) || null;
   ambitiImmagini = (await meta('ambitiImmagini')) || {};
+  sync.ambiti = Object.keys((await meta('cursori')) || {});
   const u = Auth.inizia();
   Auth.alCambio(async (nuovo) => {
     if (!nuovo) return;
@@ -700,7 +722,8 @@ export async function avvia() {
     if (Date.now() - ultimaScadenza >= 60000) { ultimaScadenza = Date.now(); controllaScadenza(); }
     if (!aperta()) return;
     if (aspetta()) { if (Date.now() - ultimoControllo >= intervalloAttesa() - 500) controllaChiave(); return; }
-    if (sync.fase === 'pronto' && Date.now() - ultimoGiro >= INTERVALLO_GIRO - 500) sincronizza();
+    // con la corsia veloce le modifiche arrivano da sole: il custode si controlla ogni 5 minuti, come verifica
+    if (sync.fase === 'pronto' && Date.now() - ultimoGiro >= (ganciVeloce.attiva() ? INTERVALLO_VERIFICA : INTERVALLO_GIRO) - 500) sincronizza();
   }, 5000);
   if (!u) { sync.fase = 'fuori'; return; }
   // senza rete si lavora con quanto già noto: profilo e chiave ricordati
@@ -813,6 +836,94 @@ export async function raccogliTutto(avanza = () => {}) {
   const dati = Object.fromEntries(Object.entries(tabelle).map(([t, m]) => [t, Object.values(m).filter(Boolean)]));
   return { dati, file, mancanti, registro: ini.registro };
 }
+// ---------------------------------------------------------------------------
+// Per la corsia veloce (veloce.svelte.js): tutto quello che può chiedere a questa sincronizzazione, e niente di più.
+let codaLive = Promise.resolve();
+const inCodaVoce = (id) => [...coda].some((k) => { const [t, i] = k.split('|'); return idVociDi(t, i).includes(id); });
+/**
+ * Una voce arrivata in tempo reale (la busta è quella del custode, versione `v.version`): si apre e si applica
+ * come quando arriva dal custode, con la stessa fusione. Il custode resta la verifica: al giro dopo la stessa
+ * versione risulta già applicata, e se qualcosa è andato storto converge comunque.
+ * v = { id, tipo, ambito, version, busta | null, eliminato, aggiornatoDa, creatoDa }
+ */
+export function applicaLive(v) {
+  const lavoro = codaLive.then(async () => {
+    if (sync.fase !== 'pronto' || !chiave()) return false;
+    if (incorso) { try { await incorso; } catch (e) { /* il giro ha avuto un problema suo */ } }
+    // un ambito che il custode non mi ha ancora detto di vedere: ci pensa il giro di sincronizzazione
+    if (v.ambito !== 'aula' && !sync.ambiti.includes(v.ambito)) { sincronizza(); return false; }
+    const l = await voceLocale(v.id);
+    if (l && l.version >= v.version && l.ambito === v.ambito) return false;
+    if (v.eliminato) {
+      if (!l || l.ambito !== v.ambito) return false;   // non l'avevo, o nel frattempo è altrove
+      const { tabella, id } = destinazione(v);
+      if (inCodaVoce(v.id)) { coda.delete(tabella + '|' + id); await salvaCoda(); }   // tolta mentre la modificavo: vince la rimozione
+      await scriviInLocale(v, null);
+      await togliVoce(v.id);
+      return true;
+    }
+    let d = null;
+    try { d = await apriVoce(v); } catch (e) { console.warn('voce illeggibile', v.id, e); return false; }
+    if (!d) return false;
+    ricordaImmagini(v.ambito, d);
+    if (inCodaVoce(v.id) && l) {
+      // modificata qui e là: si unisce, e la versione unita ripartirà
+      const { tabella, id } = destinazione(v);
+      const mia = vociDi(tabella, $state.snapshot(oggettoLocale(tabella, id) || {}), opzVoci).find((x) => x.id === v.id)?.dati;
+      if (mia) await scriviInLocale(v, unisci(l.base, mia, d, v.aggiornatoDa));
+      await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d, creatoDa: v.creatoDa ?? l.creatoDa });
+      return true;
+    }
+    await scriviInLocale(v, d);
+    await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d, creatoDa: v.creatoDa ?? l?.creatoDa });
+    // un paziente, un gruppo o un programma nuovo: chi lo vede, di chi è, con chi è condiviso lo dice il custode
+    if (!l && ['ragazzo', 'gruppo', 'programma'].includes(v.tipo)) sincronizza();
+    return true;
+  });
+  codaLive = lavoro.catch(() => {});
+  return lavoro.catch((e) => { console.warn('modifica in tempo reale', v.id, e); return false; });
+}
+/** La chiave consegnata da un operatore tramite la corsia veloce: la stessa cosa di ottieniChiave. */
+async function chiaveRicevuta(busta, kid) {
+  if (!sync.cfg || sync.cfg.kid !== kid || chiave()) return false;
+  const d = await C.dispositivo();
+  const k = await C.riceviChiave(busta, d.privata, eOperatore());
+  await C.ricordaChiave(sync.cfg.kid, k, !eOperatore());
+  chiavi = await C.portachiavi();
+  aggiornaFase();
+  if (sync.fase === 'pronto') { sync.errore = null; sincronizza(); }
+  return true;
+}
+/** La persona è abilitata adesso? (stessa regola del custode: operatore proprietario, o accesso attivo e non scaduto) */
+async function personaAbilitata(email) {
+  if (email === sync.io?.email) return true;
+  const ok = (a) => {
+    if (!a) return false;
+    if (email === String(a.proprietario || '').toLowerCase()) return true;
+    const u = a.utenti?.[email];
+    return !!u && u.attivo !== false && !(u.scadenza && oggiQui() > u.scadenza);
+  };
+  if (ok(accessiCache)) return true;
+  try { await leggiAccessi(); } catch (e) { return false; }
+  return ok(accessiCache);
+}
+export const veloceInterno = {
+  contesto: () => ({
+    email: sync.io?.email ?? null, io: $state.snapshot(sync.io), pronto: sync.fase === 'pronto', fase: sync.fase, ambiti: [...sync.ambiti],
+    eOperatore: eOperatore(), chiaveEsportabile: !!chiave()?.extractable, kid: sync.cfg?.kid ?? null, cfgChiave: !!sync.cfg,
+  }),
+  dispositivo: () => C.dispositivo(),
+  nomeDispositivo,
+  versioneLocale: async (id) => { const l = await voceLocale(id); return { version: l?.version || 0, ambito: l?.ambito || null }; },
+  applica: applicaLive,
+  chiaveRicevuta,
+  cifraChiaveA: (pubblica) => C.consegnaA(pubblica, chiave()),
+  // il custode resta allineato: chi ha ricevuto la chiave, da chi, quando
+  abilitaSuCustode: ({ id, kid, busta, pubblica }) => chiama('dispositivi.abilita', { id, kid, chiave: busta, pubblica }, { tentativi: 1 }),
+  personaAbilitata,
+  // un giro con il custode DOPO quello eventualmente in corso (quello poteva essere partito prima del cambiamento)
+  riallinea: async () => { if (incorso) { try { await incorso; } catch (e) { /* ok */ } } return sincronizza(); },
+};
 export const gestisceCondivisioni = gestisceRiservati;
 export const gestisceCondivisioniGruppi = gestisceGruppi;
 export const gestisceCondivisioniProgrammi = () => (sync.io?.funzioni || []).includes('programmi');

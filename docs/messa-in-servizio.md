@@ -296,6 +296,16 @@ Drive (da evitare: per esempio un file ripristinato da una versione
 precedente), esegui **svuotaCache** dall'editor, altrimenti per qualche ora il
 custode continua a usare la copia che ha in memoria.
 
+### La corsia veloce (facoltativa, mezz'ora)
+
+Con il progetto Firebase `psydiary-510307` le modifiche degli altri arrivano in
+circa un secondo (invece di aspettare il giro di sincronizzazione) e la chiave
+dell'aula arriva a un dispositivo nuovo in pochi secondi. Il custode resta
+l'archivio e la riserva: se la corsia non va, l'app funziona come prima.
+Passi in ordine (regole di Firestore, controllo del client Google, aggiornare il
+custode con il nuovo permesso, collegarlo al progetto Cloud, eseguire
+**configuraFirebase**): **[docs/firebase.md](firebase.md)**.
+
 ## Programmi e protocolli
 
 In **Programmi** c'è la biblioteca: ogni programma ha moduli (con

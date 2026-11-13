@@ -13,20 +13,23 @@ telefono, anche senza rete, e si installa come app.
   tirocinanti applicati dal custode.
 
 ➡️ **Messa in servizio: [docs/messa-in-servizio.md](docs/messa-in-servizio.md)**
+➡️ **Corsia veloce facoltativa (modifiche in tempo reale con Firebase): [docs/firebase.md](docs/firebase.md)**
 
 ```sh
 npm ci
 npm run dev            # prototipo
 npm test               # test del custode e della sincronizzazione
 npm run build          # sito statico in dist/
+npm run firebase:prova # regole di Firestore, custode e browser con gli emulatori (serve Java)
 ```
 
 | Cartella | Cosa c'è |
 |---|---|
 | `src/` | l'app (Svelte 5) |
-| `src/lib/centro/` | accesso Google, cifratura, sincronizzazione con il custode |
+| `src/lib/centro/` | accesso Google, cifratura, sincronizzazione con il custode, corsia veloce (`veloce.js`) |
 | `custode/` | il custode per Google Apps Script (`core.js` è la logica, testata in locale) |
 | `tools/` | composizione e installazione del custode, custode locale, test |
+| `firestore.rules`, `firebase.json` | regole e emulatori della corsia veloce |
 | `.github/workflows/pubblica.yml` | test, pubblicazione su GitHub Pages, aggiornamento del custode |
 
 Direzione di prodotto e principi di design: [PRODUCT.md](PRODUCT.md).

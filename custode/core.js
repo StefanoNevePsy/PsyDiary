@@ -29,6 +29,10 @@
  *     persone scelte (anche tirocinanti), tutti gli operatori se aperto.
  *     I gruppi "di tutta l'aula" (quelli di prima, o aperti) stanno in "aula".
  *
+ * Corsia veloce (facoltativa): se l'ambiente fornisce `specchio` (Firestore, via REST) il custode
+ * scrive lì, e solo lui, una COPIA di chi vede quali ambiti (vedi copiaFirestore). Le regole di
+ * Firestore (firestore.rules) decidono su quella copia; i dati restano buste cifrate.
+ *
  * Tutto è sincrono di proposito: in Apps Script lo sono anche Drive e UrlFetch.
  */
 var PD = (function () {
@@ -55,6 +59,7 @@ var PD = (function () {
     stato: '_config/stato.json',
     pazienti: '_config/pazienti.json',
     esportazioni: '_config/esportazioni.json',
+    specchio: '_config/specchio.json',
     ambito: function (a) { return a === 'aula' ? 'Dati/aula.json' : 'Dati/' + CARTELLA[a[0]] + a.slice(2) + '.json'; },
     storia: function (a) { return a === 'aula' ? 'Storia/aula.json' : 'Storia/' + CARTELLA[a[0]] + a.slice(2) + '.json'; },
     immagine: function (a, id) { return 'Immagini/' + (a === 'aula' ? 'aula' : a[0] === 'r' ? a.slice(2) : CARTELLA[a[0]] + a.slice(2)) + '/' + id + '.json'; },
@@ -288,6 +293,7 @@ var PD = (function () {
         return memoria[p];
       },
       scriviJSON: function (p, o) {
+        if (p === P.accessi || p === P.pazienti) specchioDaFare = true;   // la copia per Firestore va riallineata
         if (DI_STATO[p]) statoMutato();
         scritto(p, o); if (p.indexOf('Immagini/') !== 0) memoria[p] = o;
       },
@@ -318,18 +324,29 @@ var PD = (function () {
     var proprietario = function () { if (prop === null) prop = String(amb.proprietario() || '').toLowerCase(); return prop; };
     function leggiAccessi() { return A.leggiJSON(P.accessi) || { schema: SCHEMA, version: 0, utenti: {} }; }
 
-    function utenteDa(identita) {
-      var email = String(identita.email || '').toLowerCase();
+    // Chi è una persona abilitata, senza effetti collaterali: { u } oppure { negato: [codice, messaggio] }.
+    // La usano utenteDa (a ogni richiesta) e la copia degli accessi per Firestore (copiaFirestore): una
+    // logica sola, così le regole di Firestore non possono divergere da quelle del custode.
+    function profiloDi(email, nome) {
       var voce = leggiAccessi().utenti[email];
       if (email && email === String(proprietario() || '').trim().toLowerCase()) {
         // chi ospita il custode è sempre operatore: nessuno può chiuderlo fuori
-        return { email: email, nome: (voce && voce.nome) || identita.nome || email, ruolo: 'admin', ragazzi: [], proprietario: true };
+        return { u: { email: email, nome: (voce && voce.nome) || nome || email, ruolo: 'admin', ragazzi: [], proprietario: true } };
       }
-      if (!voce) throw err('non-autorizzato', 'L\'account ' + email + ' non è abilitato a PsyDiary. Chiedi a un operatore di aggiungerti.');
-      if (voce.attivo === false) { revocaSeServe(email); throw err('disattivato', 'L\'account ' + email + ' è stato disattivato.'); }
-      if (voce.scadenza && oggi() > voce.scadenza) { revocaSeServe(email); throw err('scaduto', 'L\'accesso di ' + email + ' è scaduto il ' + voce.scadenza + '.'); }
-      return { email: email, nome: voce.nome || identita.nome || email, ruolo: voce.ruolo, ragazzi: voce.ragazzi || [],
-        tuttiDa: voce.ruolo !== 'admin' && voce.tuttiRagazzi && voce.tuttiDa ? voce.tuttiDa : null, scadenza: voce.scadenza || null, proprietario: false };
+      if (!voce) return { negato: ['non-autorizzato', 'L\'account ' + email + ' non è abilitato a PsyDiary. Chiedi a un operatore di aggiungerti.'] };
+      if (voce.attivo === false) return { negato: ['disattivato', 'L\'account ' + email + ' è stato disattivato.'] };
+      if (voce.scadenza && oggi() > voce.scadenza) return { negato: ['scaduto', 'L\'accesso di ' + email + ' è scaduto il ' + voce.scadenza + '.'] };
+      return { u: { email: email, nome: voce.nome || nome || email, ruolo: voce.ruolo, ragazzi: voce.ragazzi || [],
+        tuttiDa: voce.ruolo !== 'admin' && voce.tuttiRagazzi && voce.tuttiDa ? voce.tuttiDa : null, scadenza: voce.scadenza || null, proprietario: false } };
+    }
+    function utenteDa(identita) {
+      var email = String(identita.email || '').toLowerCase();
+      var p = profiloDi(email, identita.nome);
+      if (p.negato) {
+        if (p.negato[0] !== 'non-autorizzato') revocaSeServe(email);
+        throw err(p.negato[0], p.negato[1]);
+      }
+      return p.u;
     }
     // Revoca della chiave: chi non è più abilitato (scaduto, disattivato) perde la
     // busta con la chiave dell'aula su tutti i suoi dispositivi. Se torna abilitato,
@@ -408,12 +425,133 @@ var PD = (function () {
       var x = Object.assign({}, r); delete x.arch; return x;
     }
 
+
+    // ---- Corsia veloce (Firestore): la copia degli accessi -------------------------------
+    // Le regole di Firestore non possono leggere il Drive: decidono su una COPIA di quello che il custode
+    // sa su chi vede cosa, scritta SOLO da qui (via REST, con l'account del proprietario, che salta le
+    // regole) e mai dai client. Un documento per persona abilitata:
+    //   accessi/<email> = { email, attivo: true, ruolo, proprietario, scadeIl, ambiti: [...] }
+    // `ambiti` sono gli ambiti «r:», «g:», «p:» che quella persona vede (l'ambito «aula» lo vede chiunque
+    // abbia il documento). Si calcola con vedeAmbito() e profiloDi(), le STESSE funzioni delle richieste:
+    // chi non è abilitato (sconosciuto, disattivato, scaduto) non ha il documento.
+    var FS = { fine: '2100-01-01T00:00:00.000Z', pulizia: ['modifiche', 'buste', 'richieste', 'consegne'], MAX_AMBITI: 12000 };
+    var SPECCHIO_IMP = 'specchio:imp', SPECCHIO_ERR = 'specchio:err';
+    var specchioDaFare = false, specchioUltimoErrore = null;
+    function giornoDopo(g) { return new Date(Date.parse(g + 'T00:00:00Z') + 86400000).toISOString(); }
+    /** Cosa deve contenere Firestore: { 'accessi/<email>': {...} }. I timestamp sono { $ts: ISO }. */
+    function copiaFirestore() {
+      var utenti = leggiAccessi().utenti, emails = Object.keys(utenti), prop = proprietario(), docs = {};
+      if (prop && emails.indexOf(prop) < 0) emails.push(prop);
+      var tutti = Object.keys(leggiStato().ambiti).filter(function (a) { return a !== 'aula'; }).sort();
+      emails.forEach(function (email) {
+        var p = profiloDi(email, null);
+        if (p.negato) return;
+        var u = p.u, mie = tutti.filter(function (a) { return vedeAmbito(u, a); });
+        if (mie.length > FS.MAX_AMBITI) return;   // non entra in un documento (1 MiB): niente corsia veloce per questa persona
+        docs['accessi/' + email] = {
+          email: email, attivo: true, ruolo: u.ruolo, proprietario: !!u.proprietario,
+          scadeIl: { $ts: u.scadenza ? giornoDopo(u.scadenza) : FS.fine }, ambiti: mie,
+        };
+      });
+      return docs;
+    }
+    // Valori nel formato REST di Firestore (https://firestore.googleapis.com/v1/...)
+    function fsValore(v) {
+      if (v === null || v === undefined) return { nullValue: null };
+      if (typeof v === 'boolean') return { booleanValue: v };
+      if (typeof v === 'number') return Math.floor(v) === v ? { integerValue: String(v) } : { doubleValue: v };
+      if (typeof v === 'string') return { stringValue: v };
+      if (Array.isArray(v)) return { arrayValue: v.length ? { values: v.map(fsValore) } : {} };
+      if (typeof v === 'object' && typeof v.$ts === 'string') return { timestampValue: v.$ts };
+      var campi = fsCampi(v);
+      return { mapValue: Object.keys(campi).length ? { fields: campi } : {} };
+    }
+    function fsCampi(o) { var out = {}; Object.keys(o).forEach(function (k) { out[k] = fsValore(o[k]); }); return out; }
+    function fsNome(progetto, percorso) { return 'projects/' + progetto + '/databases/(default)/documents/' + percorso; }
+    function fsCommit(progetto, scritture, cancellazioni) {
+      var w = [];
+      Object.keys(scritture).forEach(function (p) { w.push({ update: { name: fsNome(progetto, p), fields: fsCampi(scritture[p]) } }); });
+      (cancellazioni || []).forEach(function (p) { w.push({ 'delete': fsNome(progetto, p) }); });
+      return { writes: w };
+    }
+    function fsScadute(collezione, adessoIso, limite) {
+      return { structuredQuery: { from: [{ collectionId: collezione }],
+        where: { fieldFilter: { field: { fieldPath: 'scade' }, op: 'LESS_THAN', value: { timestampValue: adessoIso } } }, limit: limite || 200 } };
+    }
+    function cacheTtl(k, v, s) { if (!CA) return; try { CA.put(k, v, s); } catch (e) { /* solo una comodità */ } }
+    /** Riallinea la copia (solo i documenti cambiati). `tutto`: riscrive ogni documento. Restituisce quanti ne ha scritti o cancellati. */
+    function specchia(tutto) {
+      var S = amb.specchio;
+      if (!S) return 0;
+      var docs = copiaFirestore(), chiavi = Object.keys(docs).sort(), hash = {};
+      chiavi.forEach(function (k) { hash[k] = improntaDi(docs[k]); });
+      var imp = oggi() + '|' + improntaDi(chiavi.map(function (k) { return k + '=' + hash[k]; }));
+      if (!tutto && CA && CA.get(SPECCHIO_IMP) === imp) return 0;
+      var stato = A.leggiJSON(P.specchio) || { schema: SCHEMA, docs: {} };
+      var scritture = {}, cancellazioni = [];
+      chiavi.forEach(function (k) { if (tutto || stato.docs[k] !== hash[k]) scritture[k] = docs[k]; });
+      Object.keys(stato.docs).forEach(function (k) { if (!docs[k]) cancellazioni.push(k); });
+      var totale = Object.keys(scritture).length + cancellazioni.length;
+      if (totale) {
+        var ks = Object.keys(scritture), i = 0, j = 0;
+        while (i < ks.length || j < cancellazioni.length) {
+          var parte = {};
+          ks.slice(i, i + 200).forEach(function (k) { parte[k] = scritture[k]; });
+          var canc = cancellazioni.slice(j, j + 200);
+          i += 200; j += 200;
+          S.commit(fsCommit(S.progetto, parte, canc));
+        }
+        A.scriviJSON(P.specchio, { schema: SCHEMA, docs: hash, aggiornato: amb.ora() });
+      }
+      cacheTtl(SPECCHIO_IMP, imp, TTL_STATO);
+      return totale;
+    }
+    function copiaVecchia() { return !!CA && String(CA.get(SPECCHIO_IMP) || '').slice(0, 10) !== oggi() && !CA.get(SPECCHIO_ERR); }
+    // Dopo ogni richiesta che ha cambiato accessi, registro o ambiti (o al primo giro del giorno). Firestore è una
+    // comodità: se non risponde il custode funziona lo stesso e riprova dopo un minuto.
+    function specchiaSicuro() {
+      specchioDaFare = false;
+      if (!amb.specchio || (CA && CA.get(SPECCHIO_ERR))) return;
+      try { conLock(function () { specchia(false); }); specchioUltimoErrore = null; }
+      catch (e) {
+        specchioUltimoErrore = String(e && e.message || e).slice(0, 300);
+        if (CA) { try { CA.remove(SPECCHIO_IMP); } catch (x) { /* ok */ } cacheTtl(SPECCHIO_ERR, '1', 60); }
+      }
+    }
+    // Cancella modifiche, buste, richieste e consegne scadute (scade < adesso)
+    function pulisciFirestore() {
+      var S = amb.specchio, n = 0;
+      if (!S) return 0;
+      var adesso = amb.ora();
+      FS.pulizia.forEach(function (coll) {
+        for (var giro = 0; giro < 10; giro++) {
+          var r = S.interroga(fsScadute(coll, adesso, 200)) || [];
+          var nomi = r.filter(function (x) { return x && x.document; }).map(function (x) { return x.document.name; });
+          if (!nomi.length) break;
+          S.commit({ writes: nomi.map(function (nome) { return { 'delete': nome }; }) });
+          n += nomi.length;
+          if (nomi.length < 200) break;
+        }
+      });
+      return n;
+    }
+    /** Dal risveglio periodico o a mano: riallinea la copia e pulisce. */
+    function riallinea(tutto) {
+      if (!amb.specchio) return { copia: 0, pulite: 0, attivo: false };
+      registro = null; memoria = {}; prop = null;
+      var out = { attivo: true, copia: 0, pulite: 0 };
+      out.copia = conLock(function () { return specchia(!!tutto); });
+      try { out.pulite = pulisciFirestore(); } catch (e) { out.errorePulizia = String(e && e.message || e).slice(0, 200); }
+      return out;
+    }
+
     // ---- cifratura e dispositivi (come in Centro TICE) ----
     var azioni = {};
     azioni['io'] = function (u) {
       var c = A.leggiJSON(P.cifratura);
       // con la configurazione della chiave (non segreta): all'accesso basta una chiamata
-      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, tuttiRagazzi: !!u.tuttiDa, scadenza: u.scadenza || null, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, cfg: c || null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa', 'sync-rapido'] };
+      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, tuttiRagazzi: !!u.tuttiDa, scadenza: u.scadenza || null, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, cfg: c || null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa', 'sync-rapido'].concat(amb.specchio ? ['veloce'] : []),
+        veloce: amb.specchio ? { progetto: amb.specchio.progetto } : null };
     };
     azioni['cifratura.leggi'] = function () { return A.leggiJSON(P.cifratura); };
     azioni['cifratura.imposta'] = function (u, d) {
@@ -627,6 +765,7 @@ var PD = (function () {
                 scriviPazienti(reg);
               }
               richiedi(vedeAmbito(u, v.ambito), 'Questo ragazzo non è condiviso con te.');
+              if (st.ambiti[v.ambito] === undefined) specchioDaFare = true;   // un ambito nuovo: la copia per Firestore lo aggiunge
               if (!eAdmin(u) && SOLO_ADMIN[v.tipo]) throw err('vietato', 'Ragazzi, anagrafiche e gruppi li gestiscono gli operatori.');
               // dove sta la voce: nel suo ambito se c'è lì (caso normale: l'indice non serve),
               // altrimenti lo dice l'indice di stato.json (voce nuova o cambiata di ambito)
@@ -895,7 +1034,10 @@ var PD = (function () {
           try { gia = amb.ricordo.leggi(chiave); } catch (e0) { gia = null; }
           if (gia) return JSON.parse(gia);
         }
+        specchioDaFare = false;
         var esito = fn(u, richiesta.dati && typeof richiesta.dati === 'object' ? richiesta.dati : {});
+        // la copia per Firestore, prima di rispondere: chi riceve la risposta trova già i permessi aggiornati
+        if (amb.specchio && (specchioDaFare || copiaVecchia())) specchiaSicuro();
         // "dati" c'è sempre: l'app distingue così una risposta vera da quella di doGet
         var risposta = { ok: true, dati: esito === undefined ? null : esito };
         if (chiave) {
@@ -944,10 +1086,13 @@ var PD = (function () {
     function riscalda() { registro = null; memoria = {}; snap = undefined; prop = null; lockSnap = null; vivoL = null; durev = undefined; return !!statoRapido(); }
     /** Dal risveglio periodico: le chiavi di chi è scaduto si revocano anche se non si ripresenta. */
     function revocaScaduti() { prop = null; memoria = {}; return conLock(revocaChiavi); }
-    return { gestisci: gestisci, azioni: Object.keys(azioni), revocaScaduti: revocaScaduti, riscalda: riscalda };
+    return { gestisci: gestisci, azioni: Object.keys(azioni), revocaScaduti: revocaScaduti, riscalda: riscalda,
+      riallinea: riallinea, erroreSpecchio: function () { return specchioUltimoErrore; },
+      // per i test: la copia come la calcolerebbe adesso e com'è scritta nel formato REST
+      copiaFirestore: function () { registro = null; memoria = {}; snap = undefined; prop = null; return copiaFirestore(); } };
   }
 
-  return { SCHEMA: SCHEMA, TIPI: TIPI, RUOLI: RUOLI, PERCORSI: P, RE: RE, creaCustode: creaCustode, stabile: stabile };
+  return { SCHEMA: SCHEMA, TIPI: TIPI, RUOLI: RUOLI, SOLO_ADMIN: SOLO_ADMIN, PERCORSI: P, RE: RE, creaCustode: creaCustode, stabile: stabile };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = PD;

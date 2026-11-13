@@ -7,8 +7,11 @@
  *   node tools/custode-locale.cjs [porta] [cartella]    (PROPRIETARIO=… per il proprietario)
  *   GUASTI=0.3 … perde a caso il 30% delle risposte dopo aver fatto l'azione,
  *   come il 404 di Apps Script: serve a provare i reinvii dell'app.
+ *   FIRESTORE=127.0.0.1:8085 PROGETTO=demo-psydiary … scrive la copia degli accessi nell'emulatore di Firestore (corsia
+ *   veloce, docs/firebase.md): solo un emulatore locale, mai il progetto vero.
  */
 const http = require('http');
+const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const PD = require('../custode/core.js');
@@ -32,6 +35,21 @@ function cacheInMemoria() {
     remove: (k) => { m.delete(k); },
     scadi: () => m.clear(),
   };
+}
+// Firestore (SOLO l'emulatore): il core è sincrono, quindi la richiesta REST passa da curl. «Authorization: Bearer owner»
+// fa saltare le regole, come l'account del proprietario sul servizio vero. Non si collega mai al progetto vero.
+function firestoreEmulatore(host, progetto) {
+  if (!/^(127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(host)) throw new Error('Firestore: solo un emulatore locale (127.0.0.1:porta)');
+  const base = `http://${host}/v1/projects/${progetto}/databases/(default)/documents`;
+  function chiama(azione, corpo) {
+    const r = spawnSync('curl', ['-sS', '--noproxy', '*', '-X', 'POST', base + azione, '-H', 'Authorization: Bearer owner',
+      '-H', 'Content-Type: application/json', '--data-binary', '@-', '-w', '\n%{http_code}'], { input: JSON.stringify(corpo), maxBuffer: 64 * 1024 * 1024 });
+    if (r.error) throw r.error;
+    const t = r.stdout.toString(), i = t.lastIndexOf('\n'), codice = Number(t.slice(i + 1));
+    if (!(codice >= 200 && codice < 300)) throw new Error('Firestore ' + codice + ': ' + t.slice(0, 200));
+    return JSON.parse(t.slice(0, i) || 'null');
+  }
+  return { progetto, commit: (c) => chiama(':commit', c), interroga: (c) => chiama(':runQuery', c) };
 }
 function creaLocale(dir, opz = {}) {
   let ora = opz.ora || (() => new Date().toISOString());
@@ -65,13 +83,15 @@ function creaLocale(dir, opz = {}) {
     },
     proprietario: () => opz.proprietario || process.env.PROPRIETARIO || 'proprietario@esempio.it',
     ora: () => ora(),
+    // corsia veloce: un finto Firestore (per i test) o l'emulatore (FIRESTORE=127.0.0.1:8085 PROGETTO=demo-psydiary)
+    specchio: opz.specchio || (opz.firestore || process.env.FIRESTORE ? firestoreEmulatore(opz.firestore || process.env.FIRESTORE, opz.progetto || process.env.PROGETTO || 'demo-psydiary') : undefined),
     ricordo: (() => { const m = new Map(); return { leggi: (k) => m.get(k) || null, scrivi: (k, v) => m.set(k, v) }; })(),
   });
   custode.conta = conta; custode.cache = cache;
   return custode;
 }
 const SEGRETO = require('crypto').randomBytes(32).toString('hex');
-module.exports = { creaLocale, archivioSuDisco };
+module.exports = { creaLocale, archivioSuDisco, firestoreEmulatore, cacheInMemoria };
 
 if (require.main === module) {
   const porta = Number(process.argv[2] || 8787);

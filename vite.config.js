@@ -19,7 +19,8 @@ function csp(mode) {
     "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     "img-src 'self' data: blob: https://*.googleusercontent.com",
     "font-src 'self' data:",
-    `connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com${custode ? ' ' + custode : ''}${appsScript}`,
+    // Firebase (corsia veloce): database in tempo reale e accesso con lo stesso ID token di Google
+    `connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com${custode ? ' ' + custode : ''}${appsScript}`,
     'frame-src https://accounts.google.com',
     "worker-src 'self' blob:",
     "manifest-src 'self'",

@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { sync, pulsanteGoogle, accessoDev, creaChiave, inserisciChiave, nuovaFrase, preparaChiave, riprova, esci } from '../../lib/centro/sync.svelte.js';
   import { CONFIG, demo } from '../../lib/centro/config.js';
+  import { veloce, formatoCodice } from '../../lib/centro/veloce.svelte.js';
   import Icona from '../Icona.svelte';
 
   let box = $state();
@@ -75,6 +76,7 @@
     {:else if sync.fase === 'chiave'}
       <h1 class="display">Questo dispositivo è nuovo</h1>
       <p class="sotto">Basta aprire PsyDiary su un dispositivo dove sei già entrato: consegna la chiave a questo da solo, di solito entro mezzo minuto (e subito se tocca «Consegna la chiave»). Questa pagina controlla da sola ogni pochi secondi. Oppure inserisci qui la chiave dell'aula.</p>
+      {#if veloce.codice}<p class="sotto">Codice di verifica: <b class="codice">{formatoCodice(veloce.codice)}</b>. Se l'operatore te lo chiede, leggiglielo.</p>{/if}
       <form class="inserisci" onsubmit={inserisci}>
         <label class="campo"><span>Chiave dell'aula</span><input class="input mono" bind:value={fraseInserita} placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" /></label>
         <button class="btn pieno" disabled={lavoro}>{lavoro ? 'Controllo…' : 'Usa la chiave'}</button>
@@ -83,6 +85,7 @@
     {:else if sync.fase === 'attesa'}
       <h1 class="display">Ci siamo quasi</h1>
       <p class="sotto">Ciao {sync.io?.nome}. Questo dispositivo aspetta la chiave dell'aula. Un operatore deve avere PsyDiary aperto: la consegna da solo entro mezzo minuto, oppure subito se tocca «Consegna la chiave». Questa pagina controlla ogni pochi secondi e si apre da sola: puoi lasciarla così.</p>
+      {#if veloce.codice}<p class="sotto">Codice di verifica: <b class="codice">{formatoCodice(veloce.codice)}</b>. Se l'operatore te lo chiede, leggiglielo: deve essere uguale a quello che vede lui.</p>{/if}
       <p class="mano attesa">in attesa…</p>
       <button class="btn" onclick={riprova}>Controlla adesso</button>
       <p class="sotto piccolo">Se non arriva entro qualche minuto, avvisa un operatore.</p>
@@ -110,6 +113,7 @@
   .spunta input { accent-color: var(--spot); width: 18px; height: 18px; }
   .grande { min-height: 48px; }
   .inserisci, .dev { display: grid; gap: var(--s-3); }
+  .codice { font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.12em; font-size: var(--t-md); }
   .mono { font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.05em; }
   .attesa { font-size: 26px; animation: respiro 2.4s ease-in-out infinite; }
   @keyframes respiro { 50% { opacity: 0.35; } }

@@ -6,6 +6,8 @@
   import EsportaTutto from '../components/EsportaTutto.svelte';
   import AccessiCentro from '../components/centro/AccessiCentro.svelte';
   import VelocitaCustode from '../components/centro/VelocitaCustode.svelte';
+  import CorsiaVeloce from '../components/centro/CorsiaVeloce.svelte';
+  import { veloce } from '../lib/centro/veloce.svelte.js';
   import { REALE } from '../lib/centro/config.js';
   import { sync, esci, mostraFrase } from '../lib/centro/sync.svelte.js';
   import { usaOre12, impostaOre12, oraTesto } from '../lib/orario.js';
@@ -87,6 +89,12 @@
       <section class="blocco">
         <h2 class="eti">Persone e accessi</h2>
         <AccessiCentro />
+      </section>
+    {/if}
+    {#if veloce.presente}
+      <section class="blocco">
+        <h2 class="eti">Corsia veloce</h2>
+        <CorsiaVeloce />
       </section>
     {/if}
     <section class="blocco">

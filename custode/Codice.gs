@@ -68,6 +68,7 @@ function doGet() {
   return ContentService.createTextOutput(JSON.stringify({
     ok: true, servizio: 'custode PsyDiary', versione: VERSIONE_CUSTODE,
     configurato: !!(PROP.getProperty('CARTELLA_RADICE') && impostazione_('GOOGLE_CLIENT_ID')),
+    corsiaVeloce: !!impostazione_('FIREBASE_PROJECT_ID'),
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -101,6 +102,9 @@ function custode_() {
     // Risposte alle scritture gia' fatte, per i reinvii dell'app (10 minuti)
     // Lo "stato" (accessi, chiave, dispositivi, registro, revisioni) per rispondere senza leggere file
     cache: cacheStato_(),
+    // Corsia veloce (facoltativa): copia degli accessi su Firestore. Esiste solo se è impostata la proprietà
+    // FIREBASE_PROJECT_ID (si fa con configuraFirebase, vedi docs/firebase.md); senza, il custode è quello di sempre.
+    specchio: firestore_(),
     misure: { inizia: function () { _misure = {}; }, leggi: function () { var m = _misure; _misure = null; return m; } },
     ricordo: {
       leggi: function (k) { return cacheServizio_().get(chiaveCache_(k)); },
@@ -108,6 +112,33 @@ function custode_() {
     },
   });
   return _custode;
+}
+
+// ---------------------------------------------------------------------------
+// Firestore (corsia veloce): solo la copia degli accessi, scritta da qui e da nessun altro.
+// Usa l'account del proprietario (ScriptApp.getOAuthToken, scope datastore): per questo il progetto
+// Apps Script va collegato allo STESSO progetto Google Cloud di Firebase (docs/firebase.md).
+// ---------------------------------------------------------------------------
+function firestore_() {
+  var progetto = impostazione_('FIREBASE_PROJECT_ID');
+  if (!progetto) return null;
+  var base = 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(progetto) + '/databases/(default)/documents';
+  function chiama(azione, corpo) {
+    var r = op_('firestore', function () {
+      return UrlFetchApp.fetch(base + azione, {
+        method: 'post', contentType: 'application/json', payload: JSON.stringify(corpo), muteHttpExceptions: true,
+        headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      });
+    });
+    var codice = r.getResponseCode();
+    if (codice < 200 || codice >= 300) throw new Error('Firestore ' + codice + ': ' + String(r.getContentText()).slice(0, 200));
+    return JSON.parse(r.getContentText() || 'null');
+  }
+  return {
+    progetto: progetto,
+    commit: function (corpo) { return chiama(':commit', corpo); },
+    interroga: function (corpo) { return chiama(':runQuery', corpo); },
+  };
 }
 
 // Cache dello stato per core.js: testo con scadenza in secondi (al massimo 6 ore). I valori sopra
@@ -375,6 +406,35 @@ function risveglio() {
   try { custode_().riscalda(); } catch (e) { /* al prossimo giro */ }
   // accessi scaduti: le chiavi dei loro dispositivi si revocano (scrive solo se ce n'è)
   try { custode_().revocaScaduti(); } catch (e) { /* al prossimo giro */ }
+  // corsia veloce: la copia degli accessi su Firestore si riallinea e le modifiche vecchie si cancellano
+  try { custode_().riallinea(false); } catch (e) { /* al prossimo giro */ }
+}
+
+/**
+ * Corsia veloce (Firestore, facoltativa). Da eseguire UNA volta dall'editor (▶ Esegui) dopo aver aggiornato il
+ * custode e collegato il progetto Google Cloud (docs/firebase.md): scrive la proprietà FIREBASE_PROJECT_ID, copia
+ * su Firestore accessi e ambiti e, alla prima esecuzione, chiede il permesso «Cloud Datastore».
+ */
+var FIREBASE_PROGETTO = 'psydiary-510307';   // il progetto Firebase di PsyDiary (non è un segreto)
+function configuraFirebase() { impostaFirebase(FIREBASE_PROGETTO); }
+/** Come configuraFirebase, ma con l'id di un altro progetto: impostaFirebase('nome-del-progetto'). */
+function impostaFirebase(idProgetto) {
+  if (!idProgetto) throw new Error('Scrivi l\'id del progetto Firebase: impostaFirebase(\'nome-del-progetto\')');
+  PROP.setProperty('FIREBASE_PROJECT_ID', String(idProgetto).trim());
+  _custode = null;
+  var r = custode_().riallinea(true);
+  Logger.log('Corsia veloce attiva sul progetto ' + idProgetto + ': ' + r.copia + ' documenti scritti, ' + r.pulite + ' modifiche vecchie cancellate.');
+}
+/** Dopo aver svuotato Firestore, o per riparare: riscrive tutta la copia degli accessi. */
+function riallineaFirebase() {
+  _custode = null;
+  var r = custode_().riallinea(true);
+  Logger.log(r.attivo ? 'Copia riscritta: ' + r.copia + ' documenti.' : 'La corsia veloce non è impostata (configuraFirebase).');
+}
+function disattivaFirebase() {
+  PROP.deleteProperty('FIREBASE_PROJECT_ID');
+  _custode = null;
+  Logger.log('Corsia veloce spenta: le app tornano a usare solo il custode.');
 }
 
 // Dopo una modifica fatta a mano sui file in Drive (da evitare: es. un file

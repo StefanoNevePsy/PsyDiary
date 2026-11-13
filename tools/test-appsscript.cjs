@@ -45,6 +45,8 @@ const prop = {};
 const cache = {};
 let lucchettoAltrui = false;   // un'altra persona sta salvando
 let chiamateGoogle = 0;
+const chiamateFirestore = [];   // le richieste REST verso Firestore (corsia veloce)
+let firestoreRisposta = null;
 const adesso = Math.floor(Date.now() / 1000);
 function tokeninfo(t) {
   t = t.split('#')[0];   // i token veri sono lunghi: qui un'imbottitura dopo #
@@ -66,7 +68,13 @@ const ctx = {
     getAll: (ks) => { const o = {}; ks.forEach((k) => { if (cache[k] != null) o[k] = cache[k]; }); return o; },
     putAll: (o) => { Object.entries(o).forEach(([k, v]) => { if (String(v).length > 100000) throw new Error('valore troppo grande'); cache[k] = v; }); } }) },
   LockService: { getScriptLock: () => ({ tryLock: () => !lucchettoAltrui, waitLock: () => true, releaseLock: () => {} }) },
-  UrlFetchApp: { fetch: (url) => {
+  ScriptApp: { getOAuthToken: () => 'token-oauth-finto' },
+  UrlFetchApp: { fetch: (url, opz) => {
+    if (/^https:\/\/firestore\.googleapis\.com\//.test(url)) {
+      chiamateFirestore.push({ url, opz });
+      if (firestoreRisposta) return firestoreRisposta;
+      return { getResponseCode: () => 200, getContentText: () => (/:runQuery$/.test(url) ? '[{}]' : '{}') };
+    }
     chiamateGoogle++;
     const t = decodeURIComponent((url.split('id_token=')[1] || ''));
     const info = tokeninfo(t);
@@ -280,6 +288,53 @@ emailSessione = 'stefano@aula.it';
   nuovaEsecuzione(); azzeraOp();
   const q = chiama(E, 'sync', { cursori: cur.cursori, impronta: cur.impronta });
   ok(q.dati.uguale && totaleOp() === 0 && q.fasi && q.fasi.nCache >= 1, 'controllo a riposo: zero operazioni Drive, e dice quante volte ha usato la cache');
+}
+
+// ---- corsia veloce: la copia degli accessi su Firestore, scritta dall'account del proprietario ----
+{
+  const nuovaEsecuzione = () => vm.runInContext('_custode = null;', ctx);
+  const manifesto = JSON.parse(fs.readFileSync(path.join(__dirname, '../custode-pronto/appsscript.json'), 'utf8'));
+  ok(manifesto.oauthScopes.includes('https://www.googleapis.com/auth/datastore'), 'il manifesto chiede il permesso «Cloud Datastore»');
+  ok(['configuraFirebase', 'impostaFirebase', 'riallineaFirebase', 'disattivaFirebase'].every((x) => typeof ctx[x] === 'function'), 'le funzioni da eseguire dall\'editor ci sono (configuraFirebase, impostaFirebase, riallineaFirebase, disattivaFirebase)');
+  nuovaEsecuzione();
+  ok(chiama('stefano@aula.it', 'io').dati.funzioni.indexOf('veloce') < 0 && JSON.parse(ctx.doGet()._t).corsiaVeloce === false, 'senza configurare Firebase il custode è quello di sempre');
+  ok(chiamateFirestore.length === 0, 'e non chiama mai Firestore');
+  ctx.configuraFirebase();
+  ok(prop.FIREBASE_PROJECT_ID === 'psydiary-510307', 'configuraFirebase imposta il progetto di PsyDiary');
+  ok(chiamateFirestore.length >= 1 && /^https:\/\/firestore\.googleapis\.com\/v1\/projects\/psydiary-510307\/databases\/\(default\)\/documents:commit$/.test(chiamateFirestore[0].url), 'scrive su Firestore con :commit sul progetto giusto');
+  const c0 = chiamateFirestore[0];
+  ok(c0.opz.headers.Authorization === 'Bearer token-oauth-finto' && c0.opz.method === 'post', 'con il token OAuth dell\'account del proprietario');
+  const scritte = JSON.parse(c0.opz.payload).writes.map((w) => w.update && w.update.name.split('/documents/')[1]).filter(Boolean);
+  ok(scritte.includes('accessi/stefano@aula.it'), 'la copia contiene il proprietario [' + scritte.join(',') + ']');
+  const docP = JSON.parse(c0.opz.payload).writes.find((w) => w.update.name.endsWith('accessi/stefano@aula.it')).update.fields;
+  ok(docP.ruolo.stringValue === 'admin' && docP.proprietario.booleanValue === true && docP.scadeIl.timestampValue.startsWith('2100') && docP.ambiti.arrayValue.values.some((x) => x.stringValue === 'r:rluca01'), 'nel formato REST: ruolo, proprietario, scadenza e ambiti');
+  nuovaEsecuzione();
+  const io = chiama('stefano@aula.it', 'io');
+  ok(io.dati.funzioni.indexOf('veloce') >= 0 && io.dati.veloce.progetto === 'psydiary-510307' && JSON.parse(ctx.doGet()._t).corsiaVeloce === true, 'ora «io» e doGet dicono che la corsia veloce c\'è');
+  // una modifica agli accessi aggiorna la copia nella stessa richiesta
+  const prima = chiamateFirestore.length;
+  const a = chiama('stefano@aula.it', 'accessi.leggi').dati; a.utenti['nuova@aula.it'] = { nome: 'Nuova', ruolo: 'tirocinante', ragazzi: [] };
+  ok(chiama('stefano@aula.it', 'accessi.salva', { accessi: a, versioneBase: a.version }).ok, 'accessi salvati');
+  const nuove = chiamateFirestore.slice(prima).filter((x) => /:commit$/.test(x.url));
+  ok(nuove.length === 1 && JSON.parse(nuove[0].opz.payload).writes.some((w) => w.update && w.update.name.endsWith('accessi/nuova@aula.it')), 'la persona nuova entra nella copia');
+  // un controllo a riposo non scrive su Firestore
+  nuovaEsecuzione(); const n1 = chiamateFirestore.length;
+  chiama('stefano@aula.it', 'sync', { cursori: {} });
+  ok(chiamateFirestore.length === n1, 'un controllo a riposo non tocca Firestore');
+  // Firestore che risponde male: il custode funziona lo stesso
+  firestoreRisposta = { getResponseCode: () => 503, getContentText: () => 'giù' };
+  const a2 = chiama('stefano@aula.it', 'accessi.leggi').dati; a2.utenti['altra@aula.it'] = { nome: 'Altra', ruolo: 'tirocinante', ragazzi: [] };
+  ok(chiama('stefano@aula.it', 'accessi.salva', { accessi: a2, versioneBase: a2.version }).ok, 'con Firestore in errore il salvataggio degli accessi riesce lo stesso');
+  firestoreRisposta = null;
+  // il risveglio riallinea e pulisce (solo se la corsia è impostata)
+  nuovaEsecuzione(); Object.keys(cache).forEach((k) => delete cache[k]);
+  const n2 = chiamateFirestore.length;
+  ctx.risveglio();
+  ok(chiamateFirestore.length > n2 && chiamateFirestore.some((x) => /:runQuery$/.test(x.url)), 'il risveglio riallinea la copia e cerca ciò che è scaduto');
+  ctx.disattivaFirebase();
+  ok(!prop.FIREBASE_PROJECT_ID && chiama('stefano@aula.it', 'io').dati.funzioni.indexOf('veloce') < 0, 'disattivaFirebase: si torna al custode di sempre');
+  const n3 = chiamateFirestore.length; ctx.risveglio();
+  ok(chiamateFirestore.length === n3, 'e il risveglio non chiama più Firestore');
 }
 
 console.log(`\n${n - f}/${n} superati`);

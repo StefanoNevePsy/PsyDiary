@@ -103,6 +103,14 @@ export function prendiToken() {
     return Promise.resolve(sessione.token);
   }
   if (valido()) { chiediSessione(token, false); return Promise.resolve(token); }
+  return rinnovaGoogle();
+}
+/**
+ * Un ID token di Google nuovo (anche se la sessione lunga del custode è ancora valida): serve alla corsia veloce per
+ * collegare Firebase con lo stesso account, senza un secondo accesso visibile.
+ */
+export function rinnovaGoogle() {
+  if (CONFIG.dev) return token ? Promise.resolve(token) : Promise.reject(new ErroreAccesso('Serve l\'accesso.'));
   return caricaGIS().then(() => new Promise((ok, ko) => {
     attesa = { ok };
     const timer = setTimeout(() => { if (attesa) { attesa = null; ko(new ErroreAccesso('Accesso scaduto: rientra con Google.')); } }, 9000);
@@ -112,6 +120,8 @@ export function prendiToken() {
     });
   }));
 }
+/** L'ID token di Google ancora valido (non quello della sessione del custode), o null. */
+export const idTokenGoogle = () => (!CONFIG.dev && valido() ? token : null);
 export function invalida() {
   token = null; scadenza = 0; sessione = null;
   try { localStorage.removeItem(K_SESS); } catch (e) { /* ok */ }
