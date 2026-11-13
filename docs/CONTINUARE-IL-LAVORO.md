@@ -1,0 +1,343 @@
+# PsyDiary — guida per riprendere il lavoro
+
+Documento per chi (persona o assistente) prende in mano lo sviluppo senza aver visto le sessioni precedenti. Descrive lo stato del codice al branch `claude/prototipo` (58 commit, dal «Prototipo navigabile di PsyDiary» del 29 settembre 2026 a «Sincronizzazione più veloce e consegna della chiave con un tasto», `dc1c0c4`, 13 novembre 2026). Ogni nome di file, funzione e chiave citato è stato verificato nel codice; se cambia qualcosa, aggiorna questo file. All'ultimo controllo `npm test` passava per intero (tutti i controlli verdi).
+
+Documenti da leggere insieme a questo:
+- `README.md`: panoramica e comandi.
+- `PRODUCT.md`: utenti, scopo, personalità visiva, principi di design e accessibilità. È la fonte per ogni scelta estetica.
+- `docs/messa-in-servizio.md`: guida passo per passo (Pages, client ID Google, custode, variabili GitHub, primo accesso, tirocinanti, aggiornare il custode, esportazione completa). **Alcuni numeri sono rimasti indietro** rispetto all'ultima ottimizzazione della sincronizzazione (vedi sezione 9).
+- `public/privacy.html`: informativa privacy, linkata dalla pagina d'ingresso.
+
+PsyDiary è nato **separato** dall'app di presa dati del Centro TICE (altra aula, altri accessi, altro Drive, altra chiave, altra identità visiva) ma ne riusa le fondamenta tecniche: custode su Apps Script, cifratura con chiave consegnata ai dispositivi, sincronizzazione offline con fusione, accesso Google, PWA, tema «Taccuino». Il codice è però **riscritto** (Svelte 5 + Vite): non ci sono i file `tice-*.js` né `TiceHome`; se leggi il documento dell'altra app, usalo solo per il metodo di lavoro.
+
+---
+
+## 1. Cos'è l'app e per chi
+
+**PsyDiary** è il diario clinico di un'aula: una PWA (si installa su telefono e computer, funziona anche senza rete) per uno psicologo e i suoi colleghi che lavorano con **gruppi** di ragazzi (preadolescenti e adolescenti), con **classi** scolastiche e con singoli **pazienti** (le parole «pazienti» o «utenti» sono a scelta, vedi sotto). Gli utenti sono **operatori** (ruolo `admin`: lo psicologo, una collega) e **tirocinanti**. I ragazzi non usano l'app. Si scrive soprattutto al computer a fine seduta, si consulta spesso dal telefono (prima di entrare in aula, in riunione). Principio guida: **aprire, scrivere, ritrovare**, senza sforzo (`PRODUCT.md`).
+
+Funzioni viste dall'utente (le sezioni sono quelle della barra in alto e, sul telefono, della barra in basso con «Altro»):
+- **Calendario** (`#/calendario`, vista `src/views/Calendario.svelte`): la settimana come **agenda** (ore in verticale, durata, sovrapposizioni affiancate, spazi liberi; toccando uno spazio vuoto si crea una seduta a quell'ora; solo su schermi larghi) o come **elenco** (una riga per giorno), scelta ricordata in `psy:cal-forma`. Il cerchio a matita attorno a «oggi» è `Cerchio.svelte`.
+- **Sedute**: di gruppo, individuali, con i genitori, colloqui di conoscenza (`TIPI` in `dati.svelte.js`). Ogni seduta ha data, ora, durata libera, un **argomento/piano** (anche una futura: diventa il promemoria di cosa si vuole fare), un **resoconto** («com'è andata»), una nota **su ciascuno** dei partecipanti, presenze/assenze, «per la prossima volta», «in evidenza sulla sua pagina» (la nota più recente in evidenza sul paziente). Il foglio della seduta è `src/components/Foglio.svelte` (a fianco del calendario su schermi larghi, a pagina intera in `SedutaPagina.svelte` su telefono e link diretti). Con tanti presenti (una classe) i nomi si raccolgono e si apre la nota di chi si tocca (`POCHI = 4`).
+- **Appuntamenti ricorrenti** («serie», `src/lib/serie.js`): ogni settimana, ogni 2–4 settimane, un giorno fisso del mese (primo martedì, ultimo venerdì…), con fine (mai, una data, dopo N volte). Le sedute di una serie esistono solo «sulla carta» (virtuali, id `v:<serie>:<data>`) finché qualcuno non ci scrive. Spostare una data propone **«Questa e le successive»**: la serie si chiude il giorno prima e ne riparte una dalla nuova data con lo stesso ritmo, le sedute già scritte non cambiano (`spostaSerieDa`). Dialogo in `SerieDialogo.svelte`, elenco in `ElencoSerie.svelte`, vista «tutte le ricorrenze» in `Ricorrenze.svelte`.
+- **Pazienti** («Ragazzi» nella barra; l'etichetta segue la scelta pazienti/utenti, `parole.svelte.js`): elenco con filtri per etichette e per **cartelle**, pagina del paziente (`Ragazzo.svelte`) con schede Diario / Anagrafica / Conoscenza, foto in bicromia, «In breve» (`InBreve.svelte`: diagnosi, familiari, genogramma a colpo d'occhio), etichette colorate, nota veloce (`rapido.js`, `notaVeloce`), appuntamenti, gruppi di appartenenza, idee in sospeso, allegati.
+- **Anagrafica a sezioni** (`src/lib/anagrafica.js`, `SEZIONI`): dati personali, scuola, profilo (interessi, punti di forza, bisogni, obiettivi, strategie, attenzioni), invio e servizi, consensi. **Diagnosi o ipotesi multiple**, ognuna con il codice facoltativo, con suggerimenti ICD-10 (`src/lib/diagnosi.js`, `DiagnosiElenco.svelte`); il campo di testo `diagnosi` resta come riepilogo, così ricerca, esportazioni e prompt continuano a leggerlo. Familiari con ruoli predefiniti (`famiglia.js`).
+- **Genogrammi**: i file di **GenoGram Creator** (altra app dello stesso utente, `https://stefanonevepsy.github.io/GenoGram-Creator/`, override `VITE_GENOGRAM_URL`) si allegano all'anagrafica e si ridisegnano nel tema di PsyDiary (`src/lib/genogramma.js`, `components/geno/`). Il «ponte» tra le due app (`ponte-geno.js`) usa `postMessage` con origine esatta, finestra attesa e codice monouso; riceve `RiceviGenogramma.svelte`. Il genogramma non passa mai da un server.
+- **Gruppi e classi** (`Gruppi.svelte`, `Gruppo.svelte`, `classe.js`): gruppi terapeutici e classi (con **alunni** scritti nella classe stessa — nome, sesso, nota — che non sono pazienti), membri con data di ingresso e uscita, storico delle sedute, copertina in bicromia, archiviazione, anno scolastico sulle classi (`annoScolastico` in `rapido.js`), genogramma di partenza «Relazioni» per una classe (`genogrammaDiClasse`).
+- **Cartelle stile file manager** (`FiltroCartelle.svelte`, `Cartella.svelte`, `rapido.js`): per pazienti e gruppi; si creano dagli elenchi, ci si trascinano dentro pazienti o gruppi (dataTransfer `application/x-psy`), si rinominano, si archivia in blocco il contenuto di una cartella (gruppi). Il campo è `cartella` sul paziente/gruppo; le cartelle vuote appena create vivono solo sul dispositivo (`psy:cartelle-vuote:<tipo>`).
+- **Diario** (`Diario.svelte`, `DiarioElenco.svelte`, `Filtri.svelte`): tutto in una linea del tempo, filtrabile per tipo, tag (si combinano), date, testo; esportazione in **Word** (`src/lib/esporta.js`, libreria `docx` caricata al bisogno) e **stampa/PDF** (`window.print()`).
+- **Note libere** (`Nota.svelte`): su un paziente, un gruppo o l'aula, con categoria (`CATEGORIE_NOTA`: nel gruppo, osservazione, scuola, famiglia, servizi, telefonata, altro). Le note «nel gruppo» su un paziente si vedono e si scrivono anche senza averlo condiviso.
+- **Editor** (`Editor.svelte`, `src/lib/editor/tiptap.js`): TipTap/ProseMirror, si vede la formattazione e mai i simboli, ma il testo salvato è **markdown**. `#tag`, `@menzione` di un paziente (`@[Nome](r:id)`), caselle da spuntare, immagini `![didascalia](img:ID)` in bicromia (si aprono a colori nel `Visore`). In lettura `Md.svelte` + `testo.js` (`html()` passa da DOMPurify).
+- **In sospeso** (`Sospesi.svelte`, `ElencoSospesi.svelte`): idee da portare in una seduta futura senza legarle a una data; «Usa» le aggiunge al piano della seduta come voce da fare.
+- **Programmi e protocolli** (`Programmi.svelte`, `Programma.svelte`, `src/lib/programmi.js`, `Assegnazioni.svelte`, `DalProgramma.svelte`): biblioteca di programmi con moduli (con immagine), unità in ordine e attività libere; si crea a mano o da un documento (`daTesto`/`aTesto`) preparato da un modello di IA con il tasto «Copia il prompt per l'IA» (`prompt-programma.js`). Si **assegnano** a un gruppo, una classe o un paziente come **copia** (`assegna`): l'ordine dei moduli si cambia lì senza toccare la biblioteca; «C'è una versione nuova → Aggiorna». Il ritmo è per sedute: nella seduta compare l'unità da fare (Usa / Un'altra… / Salta); una seduta annullata non consuma niente.
+- **Ricerca unica** (`Cerca.svelte`, Ctrl/Cmd+K o `/` fuori dai campi di testo): pazienti, gruppi, tag, testo, date scritte a mano («12 marzo», «ieri»; `leggiData` in `date.js`).
+- **Impostazioni** (`Impostazioni.svelte`): tema (carta/inchiostro/automatico), **28 stili** (vedi sezione 8), formato orari 12/24 ore (`orario.js`; le date sono sempre gg/mm/aaaa), pazienti/utenti, il proprio accesso, chiave dell'aula (solo operatori), **Persone e accessi**, **Esportazione completa** (sezione 4), scorciatoie dell'editor.
+- **Privacy per costruzione**: ogni paziente, gruppo/classe e programma nuovo è **di chi lo crea** e lo vede solo lui finché non lo condivide con persone scelte o lo apre a tutta l'aula (`Condivisione.svelte`).
+- **Demo**: senza configurazione l'app è un prototipo con dati inventati (sezione 3).
+
+---
+
+## 2. Architettura
+
+Svelte 5 (runes: `$state`, `$derived`, `$effect`, `$props`) + Vite 6, `type: "module"`. **Nessun router e nessuno store esterno**: tutto è in pochi moduli `*.svelte.js` che esportano oggetti `$state`. Base relativa (`base: './'`) perché il sito sta in una sottocartella di GitHub Pages.
+
+### Cartelle
+
+| Percorso | Contenuto |
+|---|---|
+| `index.html`, `src/main.js` | Entrata. `public/tema.js` (caricato a mano nell'`<head>`) applica `data-tema` e `data-stile` da `localStorage` **prima** del primo disegno, senza lampi; è un file a parte perché la CSP vieta gli script inline. |
+| `src/App.svelte` | Guscio: barra in alto, navigazione (`VOCI`), barra in basso sul telefono + «Altro» (`SECONDARIE`), pulsante «Scrivi», scorciatoie globali, scelta fra `Ingresso` e vista corrente. |
+| `src/views/` | Una vista per rotta: `Calendario`, `SedutaPagina`, `Ragazzi`, `Ragazzo`, `Gruppi`, `Gruppo`, `Diario`, `Sospesi`, `Nota`, `Programmi`, `Programma`, `Ricorrenze`, `Impostazioni`. |
+| `src/components/` | Componenti condivisi (foglio seduta, editor, ricerca, «Scrivi» in `Crea.svelte`, condivisione, menu a tendina `Scelta.svelte`, campi data/ora…). `centro/` per ingresso, stato sync, consegna chiave, accessi; `geno/` per i genogrammi. |
+| `src/lib/` | Stato e logica. Moduli **puri** (senza DOM né stato, provati in Node): `serie.js`, `agenda.js`, `diagnosi.js`, `anagrafica.js`, `classe.js`, `programmi.js`, `genogramma.js`, `ponte-geno.js`, `esporta-tutto.js`, `esporta.js`(parte docx), `orario.js`, `date.js`, `testo.js`, `etichette.js`, `famiglia.js`, `centro/voci.js`, `centro/trasporto.js`. |
+| `src/lib/centro/` | Accesso Google (`accesso.js`), cifratura (`cifra.js`), voci e fusione (`voci.js`), trasporto verso Apps Script (`trasporto.js`), configurazione (`config.js`), motore di sincronizzazione (`sync.svelte.js`). |
+| `src/styles/` | `tokens.css` (variabili, temi chiaro/scuro), `base.css` (reset, tipografia, `.btn`, `.input`, `.tag`, `.md`, stampa, bicromia), `stili.css` (i 27 stili alternativi al Taccuino). |
+| `custode/` | `core.js` (tutta la logica del custode), `Codice.gs` (collegamento a Google), `appsscript.json` (manifesto), `package.json` (`{"type":"commonjs"}`, perché il progetto è ESM). |
+| `tools/` | `componi-custode.cjs`, `installa-custode.mjs`, `custode-locale.cjs`, e i test `test-*.{mjs,cjs}`. |
+| `public/` | Icone (192, 512, maschera, apple-180), `favicon.svg`, `privacy.html`, `tema.js`. |
+| `.github/workflows/pubblica.yml` | Test, build, pubblicazione, aggiornamento custode. |
+
+### Stato (moduli `*.svelte.js`)
+
+- **`src/lib/dati.svelte.js`**: cuore dell'app.
+  - `dati` = `$state({ pronto, ragazzi, gruppi, sedute, note, sospesi, persone, serie, programmi })`: gli array di oggetti **vivono in memoria** e sono una copia dell'archivio IndexedDB.
+  - `sessione` (tema, stile, `utenteId` della demo), `centro` (cosa dice il custode: `io`, `pazienti`, `gruppi`, `programmi`, `pazientiNoti`), `ganci.alCambio` (il motore di sincronizzazione ci si aggancia).
+  - `carica()`, `salva(tabella, oggetto, remoto = false)`, `elimina(tabella, id, remoto = false)`. **`remoto = true` va usato solo per ciò che arriva dal custode**: non aggiorna `modificato` e non rimette l'oggetto in coda di invio. `salva` fa `$state.snapshot` prima di scrivere in IndexedDB.
+  - Regole di dominio e permessi: `io()` (chi sei, con ruolo), `eAdmin`, `puoGestire`, `puoModificare`, `condiviso`, `accessoDi`, `accessoGruppo`, `accessoProgramma`, `nascosto`, `visibileSeduta`, `visibileNota`, `creaPaziente`, `creaGruppo`.
+  - Sedute: `sedutePeriodo(da, a)` (salvate + virtuali delle serie), `seduta(id)`, `materializza`, `aggiornaSeduta`, `statoSeduta` (futura · oggi · da-scrivere · scritta), gestione serie (`creaSerie`, `modificaSerieDa`, `terminaSerie`, `eccezioneSerie`, `spostaSerieDa`, `spostaSeduta`), `migraRicorrenze` (le vecchie ricorrenze dentro gruppo/paziente si trasformano in serie una volta sola).
+  - Diario: `diarioRagazzo`, `storicoGruppo`, `diarioAula`, `filtra`, `tuttiTag`.
+  - `STILI` (elenco dei 28 stili: id, nome, descrizione, 3 colori, font), `impostaStile`, `impostaTema`.
+- **`src/lib/parole.svelte.js`**: `parole`, `T('il')`, `M('tanti')`: «paziente/utente» accordati (`psy:parole`). Nei testi dell'interfaccia non scrivere «paziente» a mano: usa `T(...)`/`M(...)`.
+- **`src/lib/rotta.svelte.js`**: `rotta = $state({ parti, query })` letta da `location.hash` (`#/ragazzo/<id>`, `#/diario?tag=x`) e `vai(percorso)`.
+- **`src/lib/ui.svelte.js`**: pannelli aperti da più punti (`ui.cerca`, `ui.crea`, `ui.visore`; `apriCrea(opz)`, `chiudiCrea()`).
+- **`src/lib/centro/sync.svelte.js`**: `sync` (fase, errore, coda, ultima sincronizzazione, `inAttesa`…) ed ogni chiamata al custode (sezione 4).
+
+### Rotte e viste
+
+Le rotte sono segmenti dell'hash; `App.svelte` sceglie la vista con `rotta.parti[0]`:
+
+`calendario` (predefinita) · `seduta/<id>` · `ragazzi` · `ragazzo/<id>` · `gruppi` · `gruppo/<id>` · `diario` · `sospesi` · `nota/<id>` · `programmi` · `programma/<id>` · `ricorrenze` · `impostazioni`. Altro: «Pagina non trovata».
+
+Le viste con id sono avvolte in `{#key rotta.parti[1]}` per ripartire pulite al cambio di id (e `Diario` si riavvia al cambio della query). Voci della barra attive: `attiva(id)` tiene accesa «Ragazzi» su `ragazzo`, «Gruppi» su `gruppo`, «Programmi» su `programma`, «Calendario» su `seduta` e `ricorrenze`.
+
+Il foglio della seduta è un componente, non una rotta: `Calendario` lo mostra a fianco, `SedutaPagina` a tutta pagina. Il foglio salva da sé con un ritardo di 600 ms e al momento di chiudersi, tiene una copia locale `s` e accoglie le modifiche arrivate da un altro dispositivo solo se non sta scrivendo (`coda` vuota). **Non rompere questo schema** (non sovrascrivere un testo mentre l'utente scrive).
+
+### Ordine di avvio
+
+1. `index.html` carica `tema.js` (tema e stile subito) e poi `src/main.js`.
+2. `main.js` importa i font (`@fontsource…`) e i CSS **in questo ordine**: `tokens.css`, `base.css`, poi i font degli stili, poi `stili.css` (deve venire dopo `base.css` per vincere a parità di specificità). Poi `mount(App)`. In fondo chiede la persistenza dell'archivio: `navigator.storage.persisted()` e, se non concessa, `navigator.storage.persist()`, **a ogni avvio finché non è concessa** (commit «Chiede al browser di conservare i dati in modo permanente»).
+3. `App.svelte` in `onMount`: `carica()` (legge le tabelle da IndexedDB; in demo e archivio vuoto crea i dati di prova con `creaDemo`; `migraRicorrenze`; legge `psy:utente`/`psy:tema`; `dati.pronto = true`) e, se `REALE`, poi `avvia()` del motore di sincronizzazione.
+4. Disegno: `<RiceviGenogramma />` sempre; se `REALE && dati.pronto && sync.fase !== 'pronto'` appare **`Ingresso`** (accesso, chiave, attesa), altrimenti il guscio con la vista corrente. Finché `dati.pronto` è falso c'è «apro il diario…».
+5. `Aggiorna.svelte` registra il service worker (non in sviluppo): `registerType: 'prompt'`, quindi la nuova versione **non si installa da sola**; compare «C'è una nuova versione di PsyDiary → Aggiorna» (mai a metà di una nota) e si cerca un aggiornamento ogni ora.
+
+### Build, PWA, sicurezza della pagina
+
+- `vite.config.js`: plugin `svelte()`, un plugin `psydiary-csp` che in **build** inserisce un `<meta http-equiv="Content-Security-Policy">` (GitHub Pages non permette intestazioni HTTP) e `VitePWA` (manifest «PsyDiary», `lang: it`, `display: standalone`, icone in `public/icone/`, precache di `js,css,html,svg,png,woff,woff2` fino a 4 MB per file, `navigateFallback: 'index.html'`).
+- La CSP ammette solo script propri e `https://accounts.google.com/gsi/client`, e consente `connect-src` solo verso sé stessa, Google, `oauth2.googleapis.com` e l'origine del custode configurato (se è `script.google.com` anche `script.googleusercontent.com`, dove Apps Script consegna le risposte). **Se aggiungi una chiamata a un nuovo dominio, devi aggiornare la CSP in `vite.config.js`**, altrimenti in produzione (ma non in `npm run dev`!) fallisce in silenzio. Gli stili inline sono ammessi (Svelte).
+- Variabili di build (`import.meta.env`, tutte pubbliche e non segrete): `VITE_CUSTODE_URL`, `VITE_GOOGLE_CLIENT_ID`, `VITE_ACCESSO_DEV` (solo `1` in locale), `VITE_GENOGRAM_URL` (facoltativa). Modello in `.env.esempio` (copia in `.env.local`, ignorato da git).
+- `npm run build` → `dist/` (ignorata da git). `npm run preview` per provarla.
+
+---
+
+## 3. Modello dei dati e archiviazione locale
+
+### Dove stanno i dati
+
+- **IndexedDB `psydiary`** (demo) oppure **`psydiary-aula`** (versione collegata al custode): sono archivi **separati**, i dati di prova non si mescolano mai con quelli veri (`src/lib/archivio.js`, `VERSIONE = 4`). Object store (tutti con `keyPath: 'id'`): `ragazzi`, `gruppi`, `sedute`, `note`, `sospesi`, `persone`, `serie`, `programmi` (`TABELLE`) e `immagini` (`ALTRE`: blob delle immagini e degli allegati, **non** in `dati`; si leggono quando servono con `fileImmagine`/`urlImmagine`). `persone` serve solo alla demo (utenti finti per provare i ruoli); col custode `dati.persone` è vuoto. `mettiTutto` scrive più tabelle in una transazione (o tutto o niente).
+  - **Per aggiungere una tabella**: aggiungila a `TABELLE` e **incrementa `VERSIONE`** (`onupgradeneeded` crea gli store che mancano); aggiungila a `dati` e a `carica()`; poi a `voci.js` (`TIPO_DI`, `TABELLA_DI`, `ambitoDi`), a `TIPI` (ed eventualmente `SOLO_ADMIN`) in `custode/core.js`, e agli elenchi di tabelle in `sync.svelte.js` (`cancellaDatiAula`, `creaChiave`, `raccogliTutto`), poi all'esportazione completa (`esporta-tutto.js`).
+- **IndexedDB `psydiary-sync`** (v1, solo `sync.svelte.js`): store `voci` (id → `{ id, tipo, ambito, version, base }`, dove `base` è l'ultima copia comune con il custode, serve alla fusione) e `meta` (chiavi usate: `coda`, `cursori`, `io`, `cfg`, `pazienti`, `gruppi`, `programmi`, `accessi`, `impronta`, `caricate`, `ambitiImmagini`).
+- **IndexedDB `psydiary-chiavi`** (solo `cifra.js`): portachiavi con la chiave dell'aula (`portachiavi`), la coppia RSA del dispositivo (`dispositivo`), e sui dispositivi degli operatori la frase cifrata con una chiave locale non esportabile (`frase`, `locale`).
+- **`localStorage`** (solo preferenze e comodità, mai dati che devono sopravvivere con sicurezza; ogni accesso è in `try/catch`): `psy:tema`, `psy:stile`, `psy:parole`, `psy:ore12`, `psy:cal-forma`, `psy:gruppi-quali`, `psy:gruppi-cartella`, `psy:ragazzi-cartella`, `psy:cartelle-vuote:<tipo>`, `psy:demo` (modalità demo attiva), `psy:utente` (persona scelta nella demo), `psy:account` (l'account Google: email e nome), `psy:sessione` (la sessione lunga del custode), e in sviluppo `psy:token:dev`. **`sessionStorage`**: `psy:token` (ID token Google in corso).
+- **Persistenza**: `navigator.storage.persist()` a ogni avvio (vedi sopra). Il browser può comunque cancellare i dati di un sito non installato in caso di disco pieno; con il custode i dati sono comunque al sicuro sul Drive.
+
+### Gli oggetti (campi principali)
+
+Id: `nuovoId(prefisso)` = prefisso + 10 caratteri `[a-z0-9]` (`r…` paziente, `g…` gruppo, `s…` seduta, `n…` nota, `ri…` serie, `p…` programma). **Il custode accetta solo id `^[a-z0-9]{2,40}$`**: niente maiuscole, trattini, due punti.
+
+- **Paziente** (`ragazzi`): `id, nome, cognome, nascita, scuola, classe, foto (id immagine), stato ('attivo'|'concluso'), creato, modificato` (campi «pubblici», vedi sotto) più la «scheda»: tutta l'anagrafica di `anagrafica.js`, `genitori[]` (familiari: `nome`, `relazione`, `telefono`…), `diagnosi` (riepilogo) e `diagnosiElenco[{testo, codice}]`, `allegati[{id, nome, tipo…}]`, `etichette[]`, `cartella`, `noteStabili`, `evidenzaTolta`. Nel prototipo anche `accesso: { proprietario, condivisi, tutti }`.
+- **Gruppo** (`gruppi`): `id, nome, tipo ('terapeutico'|'classe'), tema, obiettivi, membri[{ragazzoId, dal, al?}], alunni[{id, nome, sesso, nota}]` (classi), `copertina, cartella, archiviato, programmi[]` (assegnazioni), `accesso` (solo prototipo).
+- **Seduta** (`sedute`): `id, tipo ('gruppo'|'individuale'|'genitori'|'conoscenza'), data 'AAAA-MM-GG', ora 'HH:MM', durata (minuti), gruppoId | ragazzoId, argomento, resoconto, prossima` (testi markdown), `partecipanti{ id → testo }` (nota su ciascuno), `presenze{ id → false }` (solo le assenze), `evidenza{ ragazzoId → testo }`, `autori{ campo → nome }`, `chi, serieId, annullata, programma{ assegnazione, unita, libera?, esito? }`. Le sedute **virtuali** (`virtuale: true`, id `v:…`) non sono in `dati.sedute`.
+- **Serie** (`serie`): vedi il commento in testa a `serie.js` (`ripeti`, `dal`, `al`, `volte`, `eccezioni{ data → 'saltata'|'spostata' }`).
+- **Nota** (`note`): `id, data, titolo, categoria, testo, autore, ragazzoId?, gruppoId?`.
+- **Sospeso** (`sospesi`): `id, testo, gruppoId | ragazzoId, usatoIn`.
+- **Programma** (`programmi`): vedi il commento in testa a `programmi.js` (moduli → unità, attività libere, `destinatari`).
+- Tutti hanno `creato`/`modificato` (aggiunti da `salva`).
+- **Testo**: markdown puro; `#tag` (`RE_TAG`), menzioni `@[Nome](r:<id>)` (`RE_MENZIONE`), immagini `![alt](img:<id>)` (`RE_IMMAGINE`). Le immagini si riducono e si convertono in WebP (JPEG su Safari) sul dispositivo (`salvaImmagine`: lato lungo 1600 + miniatura 360). Gli **allegati** dell'anagrafica (`salvaAllegato`) si conservano così come sono (limite `MAX_ALLEGATO` = 5 MB: cifrati e in base64 devono stare nel limite del custode).
+
+### Cosa viaggia verso il custode: le «voci» e gli «ambiti» (`src/lib/centro/voci.js`)
+
+Ogni oggetto diventa una o più **voci** cifrate (`vociDi`). Ogni voce ha un **ambito** che decide chi la riceve:
+- `aula`: la vede chiunque abbia accesso (gruppi e classi aperti, sedute di gruppo, note «nel gruppo», nome e foto dei pazienti non riservati).
+- `r:<id>`: ciò che è personale di un paziente (scheda, sedute individuali/genitori/conoscenza, note personali, serie e sospesi personali). Agli altri **non arriva nemmeno cifrato**.
+- `g:<id>`: un gruppo o una classe **riservati** con le loro sedute, note, serie e sospesi.
+- `p:<id>`: un programma riservato.
+
+Il **paziente è diviso in due voci**: quella pubblica (id = id del paziente, solo `CAMPI_PUBBLICI`: `id, nome, cognome, nascita, scuola, classe, foto, stato, creato, modificato`) e la **scheda** (id = `idScheda(rid)` = `rid + 'sc'`, tutto il resto) sempre in `r:<id>`. Se il paziente è riservato anche la voce pubblica sta in `r:<id>`. `applica()` ricompone l'oggetto locale; `destinazione()` dice quale oggetto aggiorna una voce.
+
+**La fusione** (`unisci(base, mia, loro, chiLoro)`) è nell'app, non nel custode (non può leggere i dati): a tre vie, campo per campo; liste di oggetti con `id` per elemento (allegati); testi: se entrambi hanno aggiunto in fondo si tengono tutte e due le aggiunte, altrimenti si accodano separati da «Scritto nello stesso momento da…»; numeri, booleani e liste semplici: vince questo dispositivo. Provata in `tools/test-voci.mjs`.
+
+### Modalità demo
+
+`src/lib/centro/config.js`: `DEMO = !CONFIG.custodeUrl || (localStorage 'psy:demo' === '1' o URL con ?demo)`, `REALE = !!custodeUrl && !DEMO`. Senza `VITE_CUSTODE_URL` l'app è **sempre** demo. In demo: archivio `psydiary`, dati inventati da `creaDemo()` in `src/lib/demo.js` (gruppi, classi, sedute attorno alla data di oggi, un programma di esempio, copertine disegnate sul momento da `demo-immagini.js`), persone finte per provare i ruoli (`PERSONE_INIZIALI`), niente rete né cifratura, striscia `StrisciaDemo` sempre visibile. «Ricomincia dai dati di prova» = `ricominciaDemo()`. Con il custode la demo resta disponibile dal pulsante «Guarda la demo» nella pagina d'ingresso o da `…/?demo`, e non tocca mai i dati veri (`demo(true/false)` ricarica la pagina). **Tutti i nomi e i dati nel repository devono restare inventati.**
+
+---
+
+## 4. Centro, custode e sincronizzazione
+
+### Idea
+
+L'app lavora sempre sul database locale. `sync.svelte.js` cifra ogni voce e la manda al **custode**: uno script Google Apps Script che gira con l'account del proprietario e scrive su un Drive (cartella «PsyDiary · dati cifrati»). Il custode **non vede i dati**: riceve «buste» cifrate (gzip se serve + AES-256-GCM con la chiave dell'aula; `aad` = `psy:<ambito>:<id>`) con pochi metadati in chiaro (id, tipo, ambito, versione, chi e quando, e nel registro `_config/pazienti.json` chi ha creato e con chi è condiviso ogni paziente/gruppo/programma). Gli utenti non accedono al Drive: entrano con Google e il custode controlla ruolo e permessi a **ogni richiesta**.
+
+### Chiave dell'aula e consegna ai dispositivi (`cifra.js`, `sync.svelte.js`)
+
+- La **chiave dell'aula** è una frase di 25 caratteri (alfabeto Crockford, 5 gruppi da 5) generata dall'app (`generaFrase`); PBKDF2-SHA256 (600.000 iterazioni, sale in `_config/cifratura.json`) → AES-256. La conoscono solo gli operatori. `normalizzaFrase` perdona O/0, I/L/1, U/V, maiuscole e trattini.
+- **Fasi** (`sync.fase`): `spento` (nessun custode: demo) · `fuori` (non entrato; compare il pulsante Google, o in locale il campo «Email (accesso di prova)») · `chiave` (operatore: se `sync.cfg` non c'è si crea la chiave e si stampa; se c'è e il dispositivo è nuovo si può inserire la frase o aspettare la consegna) · `attesa` (non-operatore che aspetta la chiave) · `pronto`. Le schermate sono in `components/centro/Ingresso.svelte`.
+- **Consegna**: un dispositivo nuovo crea una coppia RSA-OAEP 3072 bit e registra la parte pubblica (`dispositivo.registra`); un operatore con la chiave in memoria la cifra per quel dispositivo e la deposita (`consegnaChiavi` → `dispositivi.abilita`); il dispositivo la ritira (`ottieniChiave`/`controllaChiave` → `dispositivo.chiave`) come chiave **non esportabile**. **Gli operatori la ricevono esportabile** (serve per consegnarla ad altri); per questo un operatore che ha inserito la frase una volta «può consegnare», uno che ha la chiave non esportabile no (`consegnaOra` lo dice).
+- **Tasto «Consegna la chiave a chi la aspetta»** (`ConsegnaChiave.svelte`, `consegnaOra()` in `sync.svelte.js`): in Persone e accessi (versione estesa) e, in forma compatta «Consegna la chiave», nella barra in alto accanto al pallino **solo se c'è qualcuno in attesa** (`sync.inAttesa > 0`). Consegna subito, senza aspettare il giro. Se la consegna parte da sola nel giro, l'operatore vede per 8 secondi «Chiave consegnata a N dispositivi» (`sync.consegnata`).
+- **Frequenza dei controlli**: chi **aspetta** la chiave (`aspetta()`: fase `attesa`, oppure `chiave` con `sync.cfg`) fa una richiesta leggera `dispositivo.chiave` ogni **5 secondi per i primi 3 minuti**, poi ogni 15 secondi fino a 18 minuti, poi ogni minuto (`intervalloAttesa`); `Ingresso` lo dice all'utente («controlla da sola ogni pochi secondi»). Chi ha già la chiave **non** fa controlli in più: il custode, nella risposta di `sync`, dice quanti dispositivi aspettano (`inAttesa`), e solo allora l'operatore chiede l'elenco e consegna (`sincronizza` → `consegnaChiavi`). Un custode vecchio che non manda `inAttesa`: l'operatore controlla comunque ogni 10 minuti (`ultimaConsegna`).
+- **Nuova frase per ricreare/cambiare la chiave**: **non è implementato**. `cifratura.imposta` fallisce con `conflitto` se la chiave esiste già; l'errore `chiave-cambiata` esiste solo come difesa (il custode rifiuta salvataggi con un `kid` diverso e l'app dice «rientra per riceverla»). Per un vero cambio chiave servirebbe ricifrare tutte le voci (idea aperta).
+
+### Accesso (`accesso.js`)
+
+Solo ID token di Google (nome ed email, niente Drive o posta di chi entra), ricaricato in silenzio quando scade (dura un'ora). Subito dopo il primo accesso l'app chiede al custode una **sessione lunga** (`sessione.crea`; token `s1.<dati>.<firma>`, firmato con un segreto `SESSIONE_SEGRETO` che il custode si crea da solo nelle proprietà dello script, validità `SESSIONE_GIORNI` = 180 giorni) che si rinnova da sola usando l'app (`sessione.rinnova`, quando restano meno di 150 giorni). Se la sessione viene rifiutata si ricade sul token Google (`scartaSessione`). Chi è tolto o scaduto resta fuori comunque: il custode ricontrolla l'elenco accessi a ogni richiesta (`utenteDa`). In sviluppo (`VITE_ACCESSO_DEV=1`) il token è finto: `dev:<email>|<nome>`.
+
+### Ruoli, proprietario, accessi (`custode/core.js`)
+
+- **Ruoli**: `RUOLI = ['admin', 'tirocinante']`. Nell'interfaccia `admin` si chiama **«operatore»**. (Non esistono altri ruoli, né le «aule» multiple dell'app del Centro TICE: c'è **un'aula sola**, l'ambito `aula`.)
+- **Proprietario** (email dell'account su cui gira lo script, proprietà `PROPRIETARIO`, letta e ricordata da `proprietario_()` in `Codice.gs`): sempre operatore, nessuno può chiuderlo fuori. È l'unico che può fare l'**esportazione completa** (`esporta.*`: riceve tutto, anche i riservati degli altri) e vede i pazienti «orfani» (il cui creatore non è più abilitato) per ripassarli a qualcuno.
+- **Tirocinanti** (`SOLO_ADMIN`: `ragazzo, scheda, gruppo, serie, programma`): non creano né gestiscono pazienti, anagrafiche, gruppi, ricorrenze, programmi; scrivono note e sedute; modificano e cancellano **solo ciò che hanno scritto** (`creatoDa` lato custode, `puoModificare` lato app). Vedono per intero i pazienti che sono assegnati a loro (`ragazzi[]`) o, con `tuttiRagazzi`, tutti quelli dell'operatore che ha dato l'accesso (`tuttiDa`); degli altri vedono solo quello che accade nei gruppi. Un accesso può avere **scadenza** (`scadenza` 'AAAA-MM-GG'): passata la data il custode revoca le chiavi dei suoi dispositivi (`revocaChiavi`, anche dal risveglio periodico `revocaScaduti`) e l'app cancella i dati dell'aula dal dispositivo (`cancellaDatiAula`, anche senza rete: `controllaScadenza` ogni minuto). Alla risposta di rifiuto (`non-autorizzato`, `disattivato`, `scaduto`) l'app **non cancella subito**: attende 2,5 s e richiede `io`; solo se rifiutata di nuovo cancella (`confermaNegato`).
+- **Riservatezza**: registro `_config/pazienti.json` (`pazienti`, `gruppi`, `programmi`, ciascuno `{ proprietario, condivisi: [email], tutti, creato, aggiornato… }`). Il primo dato di un ambito nuovo lo rende di chi lo scrive (`sync`). Lo vede chi l'ha creato, chi è in `condivisi`, gli operatori se `tutti`, il proprietario se orfano. Cambiano con `paziente.condivisione`, `gruppo.condivisione`, `programma.condivisione` (decide chi l'ha creato; il proprietario se il creatore non è più abilitato). Dopo una condivisione l'app rimette in coda l'oggetto e tutto ciò che gli appartiene, così si sposta nell'ambito giusto (`condividiPaziente`, `condividiGruppo`, `condividiProgramma`).
+- **Accessi**: `accessi.leggi`/`accessi.salva` (solo operatori; `versioneBase` per i conflitti; non ci si può togliere da soli il ruolo di operatore; chi esce dall'elenco perde i suoi dispositivi). UI: `components/centro/AccessiCentro.svelte` (nel prototipo `Accessi.svelte`).
+
+### Chiamate (`azioni[...]` in `custode/core.js`)
+
+`io`, `cifratura.leggi`, `cifratura.imposta`, `dispositivo.registra`, `dispositivo.chiave`, `dispositivi.elenco`, `dispositivi.abilita`, `dispositivo.togli`, `accessi.leggi`, `accessi.salva`, **`sync`**, `paziente.condivisione`, `gruppo.condivisione`, `programma.condivisione`, `voce.storia`, `esporta.inizia`, `esporta.ambiti`, `esporta.immagine`, `esportazioni.leggi`, `immagine.carica`, `immagine.leggi`; più `sessione.crea`/`sessione.rinnova` (gestite in `gestisci` quando l'ambiente fornisce `creaSessione`). Le richieste portano `{ v: 1, token, azione, rid, dati }`. Risposte: `{ ok: true, dati }` oppure `{ ok: false, errore, messaggio, extra }`; i codici d'errore usati dall'app sono `non-autenticato`, `non-autorizzato`, `disattivato`, `scaduto`, `vietato`, `conflitto`, `chiave-cambiata`, `non-trovato`, `richiesta-non-valida`, `occupato`, `interno`, `senza-chiave`. L'endpoint è pubblico: tutto ciò che entra passa da validatori (`testoV`, `bustaV`, …); limiti: `MAX_VOCE` 2 MB, `MAX_IMMAGINE` 8 milioni di caratteri base64, al massimo 200 voci per richiesta (l'app ne manda 60 per volta).
+
+- **`io`** restituisce il profilo (`email`, `nome`, `ruolo`, `ragazzi`, `tuttiRagazzi`, `scadenza`, `proprietario`, `cifratura`, `kid`, `cfg`) e **`funzioni`**: `['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa', 'sync-rapido']`. L'app guarda questa lista per sapere se il custode è aggiornato: oggi usa `riservati`, `gruppi-riservati`, `programmi`, `esportazione` (`gestisceCondivisioni`, `gestisceCondivisioniGruppi`, `gestisceCondivisioniProgrammi`, `puoEsportareTutto`); `io-cfg`, `in-attesa` e `sync-rapido` sono dichiarative (l'app si accorge dei campi presenti/assenti nelle risposte). **Se aggiungi una funzione che l'app deve poter rilevare, aggiungila a questa lista.** Se `Condivisione.svelte` rileva che manca, mostra «per scegliere chi lo vede va aggiornato il custode».
+- **`sync`**: una richiesta = applica gli invii (con controllo di versione) + restituisce le novità. `dati = { cursori: { ambito: rev }, impronta?, io?, invii: [{ id, tipo, ambito, versioneBase, busta | eliminato }] }`. Risposta: `{ esiti, voci, rev, kid, inAttesa, impronta, ambiti?, cursori?, pazienti?, gruppi?, programmi?, accesso?, uguale?, io? }`.
+  - **Impronta** (`improntaDi`, hash cyrb53 + lunghezza): riassume tutto ciò che non sono le voci (ambiti visibili, chi vede cosa, accesso, chiave). Se quella mandata dall'app è uguale, il custode risponde `uguale: true` senza elenchi: **un giro «niente di nuovo» è una risposta di poche righe**. L'app ricorda l'impronta (`improntaNota`, meta `impronta`) e la manda solo se ha già gli elenchi completi (`elenchiCompleti()`); la **riscrive per ultima**, così un'interruzione a metà fa rimandare tutto al giro dopo.
+  - **Avvio in una richiesta**: con `io: true` la risposta contiene anche il profilo con la configurazione della chiave (`prepara` imposta `avvioRapido` e `sincronizza` la usa). Se la chiave o l'accesso sono cambiati (`profilo.kid`, `email`) non si applica nulla e si riparte da `prepara()`.
+  - **Cursori** (`rev` per ambito): il dispositivo riceve solo le voci con `rev` maggiore. Le voci eliminate restano come lapidi; se una voce cambia ambito nel vecchio resta una lapide con `spostato`.
+  - **Conflitti**: ogni voce porta `versioneBase`; se la versione sul custode è diversa risponde `conflitto` con `extra.attuale`; l'app unisce con `unisci`, aggiorna la copia locale e rimette in coda. Un **reinvio** di una voce già accettata (stessa busta, stesso autore, versione = base + 1) risponde ok senza rifare niente.
+  - **Reinvii sicuri** (`RIPETIBILI` + `rid`): `cifratura.imposta`, `dispositivo.registra`, `dispositivi.abilita`, `dispositivo.togli`, `accessi.salva` ricordano per 10 minuti la risposta (cache dello script) legata a `rid`: se Apps Script perde la risposta e l'app ripete, l'azione non si rifà. `chiama()` in `sync.svelte.js` ripete fino a 4 volte (attese 1,5 / 4 / 9 / 15 s) per errori di rete, `occupato`, `interno`; `trasporto.js` (`inviaAlCustode`) gestisce i particolari di Apps Script (reindirizzamenti verso `script.googleusercontent.com`, 404/5xx di consegna: si **rilegge** il risultato con GET senza rifare il POST; reindirizzamento a un altro `/exec` con più account Google nel browser: si rifà il POST che non era stato eseguito). Timeout di una chiamata 330 s (Apps Script chiude a 6 minuti).
+- **Coda e ritmi (lato app, `sync.svelte.js`)**: ogni salvataggio fatto qui (`ganci.alCambio` → `segna`) mette `tabella|id` in `coda` (persistita in meta `coda`) e programma una sincronizzazione dopo **1 s** (`programma(1000)`), ma scrivendo di continuo si parte comunque entro **6 s** (`ATTESA_MASSIMA`). Un solo battito ogni 5 secondi (`setInterval` in `avvia`) decide cosa fare: giro di sincronizzazione ogni **30 s** (`INTERVALLO_GIRO`) con l'app visibile, controllo chiave per chi aspetta, scadenza ogni minuto. In più sincronizza all'evento `online` e quando la pagina torna visibile. Senza rete si lavora in locale; la coda parte al ritorno.
+- **Storia e raffica** (`archiviaStoria`, `STORIA_PER_VOCE` = 15, `BOZZE_MS` = 30 min, **`RAFFICA_MS` = 3 min**): per ogni voce il custode tiene le ultime 15 versioni. Salvataggi della **stessa persona** entro 30 minuti sostituiscono la versione precedente (una «sessione di scrittura» sola); entro 3 minuti dall'ultima archiviata **non si riscrive nemmeno il file della storia** (una scrittura su Drive in meno a ogni salvataggio). Se interviene un'altra persona si archivia sempre. **Non esiste ancora una schermata dell'app per recuperare le versioni precedenti**: l'azione `voce.storia` c'è nel custode ma nessun codice dell'app la chiama.
+- **Letture del custode**: `core.js` legge ogni file una volta per richiesta (`memoria` dentro `creaCustode`); `Codice.gs` tiene anche in `CacheService` i file letti spesso (spezzati in pezzi da 90 KB, fino a ~900 KB; le immagini **mai**), con una «generazione» che cambia con `svuotaCache()`. La cache si riempie solo sotto il lucchetto delle scritture (`conLock`, `LockService`, attesa fino a 25 s poi `occupato`), per non rimettere in cache una copia vecchia. `attivaRisveglio`/`disattivaRisveglio` gestiscono un attivatore ogni 10 minuti tra le 7 e le 21 (ora di Roma) che tiene sveglio lo script e revoca le chiavi degli scaduti. Dopo modifiche **a mano** ai file su Drive (da evitare) eseguire `svuotaCache` dall'editor.
+- **Immagini**: voci a parte (`immagine.carica`/`immagine.leggi`), cifrate (`cifraByte`), caricate dal dispositivo prima della voce che le cita (`caricaImmagini`) e riscaricate al bisogno (`recuperaImmagine` via `impostaRecupero`). Sul Drive: `Immagini/aula/<id>.json`, `Immagini/<idPaziente>/<id>.json`, `Immagini/gruppi/<idGruppo>/<id>.json`…
+- **File sul Drive** (`P` in `core.js`): `_config/{accessi,cifratura,dispositivi,stato,pazienti,esportazioni}.json`; `Dati/aula.json`, `Dati/ragazzi/<id>.json`, `Dati/gruppi/<id>.json`, `Dati/programmi/<id>.json`; gli stessi sotto `Storia/`; `Immagini/…`. Non spostarli né modificarli a mano.
+
+### Esportazione completa
+
+`EsportaTutto.svelte` (Impostazioni, solo operatori; la fa solo il proprietario). Il custode manda le buste così come sono (`esporta.inizia`, `esporta.ambiti` a gruppi da 25, `esporta.immagine`); **l'app le apre sul dispositivo** (`raccogliTutto`) e compone lo zip con `esporta-tutto.js` (`componi`) e `zip-esporta.js` (zip.js, password AES-256, niente worker per via della CSP): `indice.html`, `psydiary.json`, `tabelle/*.csv` (separatore `;` e BOM), per ogni paziente/gruppo scheda e diario in HTML e Markdown con gli allegati, `LEGGIMI.txt`. Serve la frase dell'aula (`verificaFrase`); ogni esportazione resta nel registro (`esportazioni.leggi`, ultime 50).
+
+### Compatibilità con un custode vecchio
+
+L'app deve funzionare anche con il custode **precedente a `dc1c0c4`** (che non conosce `impronta`, `io: true`, `inAttesa`, `sync-rapido`): `ricevi` non trova `r.io` e chiede `io` a parte; `prepara` non trova `cfg` in `io` e chiama `cifratura.leggi`; senza `impronta` il custode ignora il campo e rimanda gli elenchi a ogni giro (più lento, ma corretto); senza `inAttesa` l'operatore controlla ogni 10 minuti. Regola: quando aggiungi al custode un campo di risposta o un'azione, l'app deve **tollerarne l'assenza** e dire chiaramente quando una funzione richiede l'aggiornamento (come `Condivisione.svelte`). Un custode **più nuovo** dell'app invece non crea problemi: i campi in più si ignorano.
+
+### Come si aggiorna il custode
+
+Il codice sta in due file sorgente:
+- `custode/core.js`: **tutta la logica** (nessun servizio Google; la stessa gira in locale nel custode finto e nei test).
+- `custode/Codice.gs`: il collegamento a Google (Drive, Cache, Lock, UrlFetch, proprietà dello script, `doGet`/`doPost`, `configura`, risveglio, `svuotaCache`).
+
+**Non esiste un `custode-completo.gs` committato.** Si genera con:
+```
+npm run custode      # = node tools/componi-custode.cjs
+```
+che scrive la cartella **`custode-pronto/`** (ignorata da git, la rigenera anche `npm test`, perché `test-appsscript.cjs` la usa): `Codice.gs` (core + collegamento), `Configurazione.gs` (variabile `CONFIGURAZIONE` con `GOOGLE_CLIENT_ID` e `PROPRIETARIO` presi dall'ambiente, se dati), `appsscript.json` (manifesto: app web «esegui come me», accesso «chiunque», fuso Europe/Rome) e **`custode-completo.gs`** (tutto in un file, per incollarlo a mano). Le proprietà dello script con lo stesso nome **hanno la precedenza** su `CONFIGURAZIONE` (`impostazione_`): incollare un `custode-completo.gs` generato senza client ID non rovina un client ID già impostato nelle proprietà.
+
+Due strade per aggiornare quello vero:
+1. **Automatica**, con `clasp`: il job `custode` di `pubblica.yml` parte sul branch principale se la variabile del repository `SCRIPT_ID` è impostata; se c'è anche il segreto `CLASPRC_JSON` fa `clasp push --force` (con `custode-completo.gs` tolto dalla cartella) e, se c'è anche `CUSTODE_DEPLOYMENT_ID`, `clasp deploy` sulla stessa distribuzione (l'URL `/exec` non cambia). Le tre cose le imposta `npm run custode:installa` (`tools/installa-custode.mjs`, usa `clasp@2.4.2` e, se c'è `gh` collegata, anche le variabili GitHub). Senza `CLASPRC_JSON` il job lo dice in un avviso.
+2. **A mano** (quella che l'utente usa se la strada 1 non è configurata): su GitHub → Actions → ultima esecuzione di «Pubblica PsyDiary» → in fondo, *Artifacts* → **`custode-apps-script`** (lo zip contiene `custode-pronto/`, quindi `custode-completo.gs`) → apri il progetto «PsyDiary · custode» su script.google.com → in `Codice.gs` cancella tutto e incolla `custode-completo.gs` → salva → **Distribuisci → Gestisci distribuzioni → matita → Versione: «Nuova versione» → Distribuisci**. L'indirizzo `/exec` resta lo stesso, l'app non va toccata. Si verifica aprendo l'URL `/exec` nel browser: risponde `{"ok":true,"servizio":"custode PsyDiary",…,"configurato":true}`. (L'artifact c'è per **ogni** push su qualunque branch: scegli l'esecuzione del branch giusto e più recente.)
+
+**Regola di lavoro: ogni volta che cambi `custode/core.js` o `custode/Codice.gs`, ricordalo all'utente in modo chiaro a fine risposta** (cosa cambia per lui e i due passi sopra), e dì se l'app nuova funziona anche con il custode vecchio.
+
+Proprietà dello script (non committare i valori): `CARTELLA_RADICE` (creata da `configura`), `GOOGLE_CLIENT_ID`, `PROPRIETARIO`, `SESSIONE_SEGRETO`, `GENERAZIONE_CACHE`.
+
+### Prova in locale con il custode finto
+
+```
+npm run custode:locale     # custode su http://localhost:8787, dati in .custode-locale/ (ignorata da git)
+npm run dev:reale          # app (Vite) collegata a quel custode, con accesso di prova
+```
+`tools/custode-locale.cjs` usa la **stessa `core.js`** con file su disco e accesso finto (`dev:<email>|<nome>`). Opzioni: `PROPRIETARIO=tua@email npm run custode:locale` (di serie `proprietario@esempio.it`), `GUASTI=0.3` (perde a caso il 30% delle risposte *dopo* aver fatto l'azione, come il 404 di Apps Script, per provare i reinvii). `dev:reale` usa la sintassi `VAR=valore comando` (shell POSIX).
+Per provare più dispositivi: due finestre/profili del browser (o due contesti Playwright). Il primo accesso con l'email del proprietario crea la chiave dell'aula (compare la frase); poi si aggiunge una seconda email in Impostazioni → Persone e accessi, si entra da un altro profilo e si prova la consegna. **Usa solo email e nomi di prova.** Quello che **non** si può provare in locale: l'accesso Google vero, i servizi Apps Script reali (Drive, Cache, Lock). `test-appsscript.cjs` prova solo il collegamento con servizi simulati.
+
+---
+
+## 5. Test e verifica
+
+- **`npm test`**: esegue in fila, fermandosi al primo errore, `test-custode.cjs` (regole del custode su `core.js` con archivio su disco: permessi, riservati, condivisioni, accessi, conflitti, reinvii, storia, cambio di ambito, immagini, dispositivi, esportazione, accesso a tempo, impronta e raffica), `test-appsscript.cjs` (**compone** `custode-pronto/custode-completo.gs` e lo esegue in una `vm` con Drive, Cache, Lock e UrlFetch finti), `test-voci.mjs` (ambiti, divisione paziente/scheda, fusione), `test-serie.mjs`, `test-trasporto.mjs` (reindirizzamenti e 404 di Apps Script), `test-genogramma.mjs`, `test-agenda.mjs`, `test-ponte.mjs`, `test-classe.mjs`, `test-esporta.mjs`, `test-programmi.mjs`, `test-orario.mjs`. Sono gli stessi che gira la pubblicazione.
+- **`npm run build`** è il controllo di compilazione delle viste Svelte (e mostra gli avvisi di accessibilità del compilatore). **Non c'è un linter, né `svelte-check`, né una prova nel browser nel repository**: le schermate si verificano a mano o con uno script Playwright.
+- **Playwright** è installato a parte (`/opt/node22/lib/node_modules`, Chromium in `/opt/pw-browsers`). Esegui gli script in **CommonJS** con `NODE_PATH=/opt/node22/lib/node_modules node prova.cjs` (con `import` ESM `NODE_PATH` non vale). Scrivi gli script di prova **fuori dal repository** (cartella temporanea della sessione), non committarli. In demo (`npm run dev` o `npm run build && npm run preview`, senza `VITE_CUSTODE_URL`) si possono controllare viste, temi, stili, telefono/computer (`page.setViewportSize`), e errori di pagina (`page.on('pageerror')`, `console`). Per la versione collegata: `npm run custode:locale` + `npm run dev:reale` come sopra.
+- **Quando scrivere un test**: logica pura (`src/lib/*.js`, `centro/voci.js`, `centro/trasporto.js`) e regole del custode → test Node nuovo e aggiungilo alla catena di `npm test` in `package.json`. Cambi nel formato delle voci → `test-voci.mjs`. Nuove azioni o permessi del custode → `test-custode.cjs`. Cambi in `Codice.gs` → `test-appsscript.cjs`.
+- Se non puoi eseguire il browser, almeno `npm run build` deve passare, e dillo apertamente.
+
+---
+
+## 6. Pubblicazione
+
+- Il sito è su **GitHub Pages**: `https://stefanonevepsy.github.io/PsyDiary/` (con le maiuscole: l'indirizzo segue il nome del repository). Il repository è stato **spostato a `StefanoNevePsy/PsyDiary`**; nel checkout di lavoro `git remote -v` può ancora mostrare il nome in minuscolo (`psydiary`): GitHub tratta i due nomi come lo stesso repository. Sorgente di Pages: «GitHub Actions» (impostato una volta in Settings → Pages; se manca, il workflow lo segnala con l'errore «GitHub Pages non è ancora attivo»).
+- Workflow **`.github/workflows/pubblica.yml`** («Pubblica PsyDiary»): parte a **ogni push su qualunque branch** e a mano (`workflow_dispatch`); concorrenza per ref con cancellazione di quello in corso.
+  - Job `costruisci`: `npm ci` → **`npm test`** → `npm run build` (con `VITE_CUSTODE_URL` e `VITE_GOOGLE_CLIENT_ID` presi dalle variabili del repository `CUSTODE_URL` e `GOOGLE_CLIENT_ID`) → `node tools/componi-custode.cjs` → carica l'artifact `custode-apps-script` → riepilogo (dice se la versione è collegata al custode o è la **demo**: senza `CUSTODE_URL` il sito pubblicato è solo la demo) → solo sul **branch principale** controlla che Pages sia attivo e carica `dist` come artifact di Pages.
+  - Job `pubblica`: solo sul branch principale (`github.event.repository.default_branch`, oggi `claude/prototipo`), `deploy-pages`.
+  - Job `custode`: solo sul branch principale e solo se `SCRIPT_ID` è impostata (vedi sezione 4).
+  - **Se `npm test` fallisce non si pubblica** e online resta la versione di prima.
+- **Dopo un push conviene controllare che il workflow sia andato a buon fine** (Actions su GitHub, oppure gli strumenti `gh`/MCP GitHub della sessione).
+- L'app installata si aggiorna chiedendo conferma («Aggiorna», `Aggiorna.svelte`), non da sola.
+- Messa in servizio iniziale (client ID Google, custode, variabili `CUSTODE_URL`/`GOOGLE_CLIENT_ID`, primo accesso): vedi `docs/messa-in-servizio.md`. Il client ID e l'URL del custode **non sono segreti** e finiscono nel sito; l'unico segreto è `CLASPRC_JSON` (solo nei Secrets di GitHub).
+
+---
+
+## 7. Regole di lavoro con l'utente
+
+- **Rispondi in italiano**, in modo chiaro e senza gergo: l'utente non è uno sviluppatore. Spiega l'effetto per chi usa l'app, non il meccanismo.
+- **Mai committare** credenziali, token, chiavi o frasi di cifratura, `.env*`, `.clasp.json`, `.clasprc.json`, `.custode-distribuzione`, cartelle dati del custode locale (`.custode-locale/`), **dati clinici veri** o esportazioni di dati reali. Sono quasi tutti in `.gitignore`, ma verifica con `git status` prima di ogni commit. Nei test e nella demo solo persone, scuole ed email **inventate** (e di prova, come `proprietario@esempio.it`).
+- **La frase (chiave) dell'aula non va mai passata in chat** né scritta in file, log o test. Per le prove usa la frase generata al momento.
+- **Messaggi di commit** in italiano, descrittivi (cosa cambia per chi usa l'app, come quelli già nella storia). Dopo aver verificato, **si fa commit e push sul branch indicato dalla sessione** (oggi `claude/prototipo`; il push sul branch principale è la pubblicazione). Chiudi ogni messaggio di commit e ogni descrizione di PR con **le righe di attribuzione richieste dalla sessione** (promemoria di sistema: `Co-Authored-By` e `Claude-Session` per i commit; il testo della sessione per le PR) e **nessun altro identificativo di modello** nel testo. Non fare push su altri branch e non forzare.
+- **Quando cambi il custode** (`custode/core.js` o `custode/Codice.gs`): ricorda all'utente di aggiornarlo (sezione 4), in chiaro, a fine risposta. Se l'app nuova dipende da una funzione nuova, falla degradare con garbo con il custode vecchio.
+- **Orchestra con agenti economici e verifica tu.** L'utente preferisce che i lavori ampi vengano suddivisi tra sotto-agenti di costo ridotto; poi **verifichi tu** il risultato (lettura del diff, `npm test`, `npm run build`, prova nel browser) prima di dire che è fatto.
+- **Prima di cambiamenti estetici importanti mostra una proposta** (anteprime, schermate, varianti) e aspetta il parere; i ritocchi piccoli (allineamenti, spaziature, un colore) si fanno direttamente. Nuovi stili: la serie è già lunga (28), non aggiungerne altri senza che l'utente li chieda.
+- **Sii onesto su ciò che non hai potuto provare** (accesso Google vero, Apps Script reale, Safari/iOS, un dispositivo fisico) e distingui «verificato» da «presumibilmente funziona».
+- Non rimuovere funzioni esistenti per semplificare; non rinominare `psy:*`, i nomi degli store IndexedDB o i campi dei dati senza una **migrazione** (come `migraRicorrenze`): ci sono dati veri nei dispositivi e sul Drive.
+- Privacy prima di tutto: ogni nuova funzione che tocca dati clinici deve rispettare la riservatezza per ambito (sezioni 3 e 4); niente analytics, niente servizi esterni, niente dati verso terzi.
+
+---
+
+## 8. Stile UI, accessibilità, tastiera
+
+Direzione (da `PRODUCT.md`): **«Taccuino»**, un quaderno professionale di pregio: autorevole, intimo, artigianale; carta calda, inchiostro blu-nero, **un solo inchiostro spot** (vermiglio da matita rossa); serif ad alto contrasto con segni a mano; texture da carta e da stampa (grana, retino, bicromia) che **non devono mai costare leggibilità o velocità di scrittura** e non entrano nei controlli né nel testo delle note. Da evitare: il gestionale sanitario (tabelle grigie, colori «medicali»), l'app di produttività generica (fondo bianco, accento blu, card tutte uguali), l'estetica da diario infantile.
+
+### Dove sta il CSS
+
+- **`src/styles/tokens.css`**: tutte le variabili. Tema **carta** (chiaro, di serie) e **inchiostro** (scuro); si sceglie con `<html data-tema="chiaro|scuro">` (assente = automatico, segue `prefers-color-scheme`; il blocco scuro è scritto **due volte**: sotto `:root[data-tema='scuro']` e dentro `@media (prefers-color-scheme: dark)` con `:root:not([data-tema='chiaro'])`. **Se cambi un valore del tema scuro, cambialo in entrambi.**). Variabili principali: font `--f-display` (Gloock), `--f-testo` (Archivo Variable), `--f-mano` (La Belle Aurore); colori `--carta`, `--carta-2`, `--carta-3`, `--inchiostro`, `--inchiostro-2`, `--inchiostro-3`, `--matita`, `--matita-forte`, `--spot`, `--spot-testo`, `--spot-tenue`, `--spot-retino`, `--su-inchiostro`, `--ombra`, `--duo-scuro`, `--duo-chiaro`, `--grana-fondo`, `--grana-opacita`; scala `--t-xs` … `--t-xxl`; spazi `--s-1` … `--s-8` (ritmo a base 4); raggi `--r`, `--r-grande`, `--r-piccolo`; `--barra`, `--misura`; movimento `--e-uscita`, `--d-breve`, `--d-media`; famiglie di colore dei genogrammi `--g-*` (accordate al tema). I colori sono in **OKLCH**. Usa le variabili, mai colori fissi dove ne esiste una.
+- **`src/styles/base.css`**: reset, tipografia, utilità globali (`.display`, `.eti`, `.mano`, `.sotto`, `.piccolo`, `.vis-nascosto`), controlli (`.btn` con `.pieno`, `.spot`, `.nudo`, `.piccolo`; `.campo`, `.input`, `.tag`, `.retino`), testo delle note `.md`, bicromia delle immagini (`.duo-g`, `.duo-ed`), tendina dei suggerimenti (`.sugg`), regole di stampa (`.no-stampa`).
+- **`src/styles/stili.css`**: i **27 stili alternativi** al Taccuino (di serie, `data-stile` assente). Ognuno è un blocco con `:root[data-stile='<id>']` (variabili e font), la variante scura `[data-tema='scuro']`, la variante scura automatica in `@media (prefers-color-scheme: dark)` e poi regole sui componenti globali (`.display`, `.eti`, `.mano`, `.btn`, `.barra`, `.retino`…), spesso con `!important`. Si scelgono in Impostazioni → Stile (28 campioni con `STILI` in `dati.svelte.js`, ricordati in `psy:stile`; `impostaStile` toglie l'attributo per il Taccuino). **Per aggiungere uno stile**: voce in `STILI`, blocco in `stili.css` (chiaro + scuro + automatico), font in `package.json` e import in `main.js` (solo i pesi usati: la dimensione del precache conta); controlla tutte le viste in chiaro e scuro, telefono e computer. Stili con riquadro o maiuscole possono rompere etichette e barra: in fondo a `stili.css` ci sono le correzioni (`.margine`, `.barra` per `pop` e `tipografia`).
+- **Stili dei componenti**: ogni `.svelte` ha il suo `<style>` con ambito locale. Le regole degli stili in `stili.css` agiscono su classi globali (`.barra`, `.retino`, `.margine`, `.btn`…): **non riutilizzare quei nomi** per cose diverse e non usare due volte la stessa classe con due significati nello stesso file (nel commit «Tasti Aspetto di nuovo come prima» si è dovuta rinominare la classe del campione degli stili, che coincideva con quella del tondino del tema). Nomi di classe specifici e in italiano, come nel resto del codice.
+- **Il «Taccuino» è condiviso con Centro TICE** (stessa famiglia di font e di intenzioni), ma **non il meccanismo**: lì il tema è `data-theme^="taccuino"` con `css/taccuino.css`, qui `data-tema` (chiaro/scuro) e `data-stile` in `tokens.css`/`stili.css`. Non copiare selettori o variabili da una all'altra senza adattarli.
+- **Allineamenti**: gli ultimi commit sono quasi tutti di rifinitura (ingranaggio centrato, calendario, agenda, In breve, In sospeso, impostazioni e pazienti su telefono; etichette del margine della seduta a distanza fissa dalla riga anche negli stili con riquadro). Prima di toccare una spaziatura controlla **tutti gli stili con riquadro** (`brutale`, `pop`, `fumetto`, `archivio`, `tipografia`, `deco`, `riso`) e il telefono.
+
+### Responsività
+
+Soglie: 1100 px (barra più compatta: la ricerca diventa solo icona) e **720 px** (telefono: scompare la navigazione in alto, compaiono la barra in basso con 5 voci, il foglio «Altro» e il pulsante «Scrivi» fluttuante che si rimpicciolisce mentre si scorre; `padding-bottom` con `env(safe-area-inset-bottom)`). `Calendario` mostra l'agenda solo su schermi larghi. Controlla sempre telefono (circa 390 px) e computer. Sul telefono si deve poter anche **scrivere** comodamente.
+
+### Accessibilità (`PRODUCT.md`: WCAG 2.2 AA)
+
+- Contrasti rispettati in tema chiaro **e** scuro, anche su grana e bicromia: ogni componente nuovo va guardato in entrambi. `--inchiostro-2` è il testo secondario AA; per testo piccolo colorato usa `--spot-testo`, non `--spot`.
+- Tutto usabile da tastiera, focus visibile (`:focus-visible` con `--spot`), link «Vai al contenuto» (`.salta`), `main` con `tabindex="-1"`.
+- `prefers-reduced-motion` rispettato (durate ridotte a 1 ms in `base.css`); `prefers-color-scheme` per il tema, con scelta manuale.
+- Pulsanti con sola icona con `aria-label`; tasti a due stati con `aria-pressed`; scelte singole con `role="radiogroup"`/`role="radio"` e `aria-checked` (Impostazioni); finestre con `<dialog>` + `showModal()` (`Crea`, `Cerca`); `Scelta.svelte` (menu a tendina nel tema) gestisce frecce, Home/End, Invio/Spazio, Esc e lettere.
+- Il colore non è l'unica informazione; testo ingrandibile senza rompere il layout; stampa ed esportazione pulite (`@media print`, `.no-stampa`).
+
+### Tastiera
+
+- `Ctrl/Cmd+K` apre la ricerca da qualunque punto (anche scrivendo nell'editor: è una combinazione con modificatore; l'eccezione `.cm-editor` in `App.svelte` è un residuo di un vecchio editor); `/` apre la ricerca **solo fuori da campi di testo e da elementi modificabili** (`INPUT`, `TEXTAREA`, `SELECT`, `contenteditable`). **Regola d'oro: mai una scorciatoia a lettera singola mentre si scrive** (nell'app TICE sparivano lettere dalle note). Se ne aggiungi una, controlla il bersaglio come fa `App.svelte`.
+- Editor (elenco in Impostazioni → «Scorciatoie dell'editor»): `Ctrl+B/I`, `Ctrl+Maiusc+8/7/9` (elenco, numerato, da fare), `Ctrl+Invio` (spunta la riga), `Ctrl+Alt+1–3` (titoli), `Ctrl+Maiusc+S` (barrato), `#` e `@` (tag e menzioni con tendina), `Tab` (rientro).
+
+---
+
+## 9. Storia sintetica delle decisioni e problemi noti
+
+### Decisioni (in ordine grosso modo cronologico)
+
+1. **Prototipo prima** (`c66930d`): app navigabile con dati inventati, tutto sul dispositivo; poi un editor «come Word» (markdown sotto), immagini in bicromia, anagrafica completa, accessi dei tirocinanti.
+2. **Messa in servizio** (`6b03bab`): custode su Apps Script, cifratura end-to-end con chiave dell'aula consegnata ai dispositivi, accesso Google, sincronizzazione, Action; guida per passi (`docs/messa-in-servizio.md`). Il sito resta la **demo** finché non si configura `CUSTODE_URL`; la demo è sempre raggiungibile (`?demo`).
+3. **Sedute dal calendario e appuntamenti ricorrenti** (`30135ae`): le sedute future nascono dalle serie come «virtuali», si materializzano alla prima scrittura. In seguito durata libera, agenda a ore, ingresso nei gruppi con data, calendario come agenda.
+4. **Ogni dato è di chi lo crea** (pazienti, poi gruppi e classi, poi programmi): ambiti `r:`/`g:`/`p:` e registro delle condivisioni nel custode, perché PsyDiary si usa anche per pazienti esterni all'aula; i dati di prima restano di tutta l'aula. Nome e foto dei riservati stanno nel loro ambito.
+5. **Fusione nell'app, non nel custode** (che è cieco): `unisci` a tre vie con la `base` memorizzata per voce; il custode fa solo il controllo di versione.
+6. **Affidabilità con Apps Script**: reinvii sicuri con `rid` e cache delle risposte, recupero della risposta persa con GET, reindirizzamento con più account Google, richieste rimandate («Recover transient Google response delivery errors without replaying writes»).
+7. **Genogrammi** di GenoGram Creator ridisegnati nel tema di PsyDiary, con ponte `postMessage` sicuro, tabella completa dei legami e segni clinici.
+8. **Gruppi, classi con alunni, relazioni**, poi **programmi e protocolli** (importabili da un documento con un prompt per l'IA) e **esportazione completa cifrata** per passare a un altro sistema.
+9. **Content Security Policy** (`eb6c4f3`), informativa privacy, sessione lunga del custode (sei mesi, si rinnova usando l'app), accesso dei tirocinanti con o senza scadenza, revoca della chiave.
+10. **Meno carico visivo e stili**: filtri raccolti, «Altro» sul telefono, azioni rare della seduta nel menu «⋯», anagrafica a sezioni; poi **28 stili** (Taccuino + 27) con selettore a campioni; tema chiaro/scuro in ogni stile.
+11. **Cartelle stile file manager** (`1746d35`), nota con un clic, anno scolastico sulle classi, **diagnosi multiple** con codice (`cb59d3c`), **«Questa e le successive»** per le serie (`880c2ad`), persistenza dell'archivio (`ff41815`).
+12. **Sincronizzazione più veloce** (`dc1c0c4`, l'ultimo lavoro): impronta e risposta minima, avvio in una richiesta, `RAFFICA_MS`, connessione IndexedDB riusata, consegna della chiave con un tasto e attesa con controlli frequenti, compatibile con il custode precedente.
+
+### Problemi noti e idee aperte
+
+- **`docs/messa-in-servizio.md` è in ritardo sull'ultimo commit**: dice che le modifiche partono «dopo un secondo e mezzo» e che gli aggiornamenti degli altri arrivano «ogni minuto» (ora 1 s, al massimo 6 s se si scrive di continuo; giro ogni 30 s), che la chiave arriva «entro un minuto» (ora ~5 s di controllo per chi aspetta, subito con «Consegna la chiave»), e non cita il tasto «Consegna la chiave a chi la aspetta». Aggiornare.
+- **Il testo di `Ingresso.svelte`** dice «di solito entro mezzo minuto»: è l'attesa dell'operatore se non tocca il tasto (giro ogni 30 s); coerente, ma da rivedere se si cambiano i ritmi.
+- **Storia delle versioni senza interfaccia**: il custode tiene le ultime 15 versioni per voce (`voce.storia`) ma l'app non le mostra né permette di ripristinarle.
+- **Nessun cambio della chiave dell'aula** nell'app (vedi sezione 4); la guida dell'esportazione dice «cambia la chiave dell'aula» se la password dello zip è stata condivisa, ma oggi non esiste la funzione: andrebbe implementata (ricifrare tutte le voci e le immagini, rifiutare la chiave vecchia) o la frase della guida corretta.
+- **Controlli lato app e lato custode non coincidono del tutto**: `puoModificare(autore, testo)` confronta il **nome** dell'autore; il custode controlla `creatoDa` (email) su note ed eliminazioni. Il limite «le tirocinanti non modificano programmi, gruppi, ecc.» il custode lo applica per tipo di voce (`SOLO_ADMIN`); i permessi **dentro** una voce (per esempio chi può cambiare un testo di una seduta) non sono verificabili dal custode, che non legge i dati.
+- **Limite della cifratura**: chi ha l'accesso a un dispositivo di un operatore e conoscenze tecniche potrebbe estrarre la chiave dal browser (esportabile per gli operatori). Se si perdono tutte le copie della frase e tutti i dispositivi con la chiave, i dati sul Drive non si recuperano.
+- **L'accesso Google vero e Apps Script non si provano in locale**; il custode locale verifica la logica (`core.js`), non i servizi. Dopo un aggiornamento del custode il primo controllo reale lo fa l'utente.
+- **La sessione lunga del custode** (`sessione.crea`/`sessione.rinnova`, `creaSessione_` in `Codice.gs`) **non è coperta da nessun test** (né `test-custode.cjs` né `test-appsscript.cjs` la nominano); si prova solo con il custode locale (`creaSessione` in `custode-locale.cjs`) e in produzione. Un test sarebbe utile.
+- **Nessuna prova automatica nel browser** nel repository: tutto il lato schermate si verifica a mano o con Playwright ad hoc. Un test di fumo in Playwright (demo: apri ogni rotta, nessun errore di pagina; entra nel foglio di una seduta e scrivi) sarebbe utile e potrebbe entrare nel workflow.
+- **`dati.svelte.js` (620 righe) e `sync.svelte.js` (832 righe) sono grandi**: stanno insieme cose di dominio diverse (regole di condivisione, sedute e serie, diario) e il motore di sincronizzazione (rete, cifratura, coda, ruoli). Si può spezzare lo stato in moduli più piccoli, mantenendo le stesse esportazioni.
+- **Dimensione dell'app**: 44 pacchetti di font (`package.json`) per gli stili; il precache ammette file fino a 4 MB. Se la prima installazione pesa troppo, caricare i font di uno stile solo quando lo si sceglie.
+- **Più aule/ruoli intermedi** (come nell'app del Centro TICE) non esistono: ruoli solo `admin`/`tirocinante`, aula unica.
+- Idee citate o naturali da qui: schermata delle versioni precedenti, cambio chiave, prova automatica nel browser, aggiornare la guida di messa in servizio, spezzare i due moduli grandi.
+
+---
+
+## Lista di controllo prima di consegnare un lavoro
+
+1. `npm test` passa (se hai toccato il custode, passa anche `test-appsscript.cjs`, che ricompone `custode-pronto/`).
+2. `npm run build` passa senza nuovi avvisi del compilatore Svelte.
+3. Se hai toccato la UI: l'hai guardata nel browser (demo, anche con Playwright) in **tema chiaro e scuro**, **telefono e computer**, e almeno in due stili (Taccuino e uno con riquadro, per esempio `brutale`); nessun errore di pagina in console.
+4. Se hai toccato il custode (`custode/core.js`, `custode/Codice.gs`): l'app funziona ancora con il custode **precedente** (campi nuovi tollerati) e **hai ricordato all'utente di aggiornare il custode** (`npm run custode` → incolla `custode-completo.gs` → «Nuova versione»), oppure di controllare il job `custode` del workflow se è configurato `SCRIPT_ID`.
+5. Se hai aggiunto una chiamata a un dominio nuovo: aggiornata la CSP in `vite.config.js`.
+6. Se hai aggiunto una tabella o un campo-lista di oggetti con `id`: percorso completo (`archivio.js` con `VERSIONE` incrementata, `dati`, `voci.js`, `TIPI` del custode, elenchi in `sync.svelte.js`, esportazione, test).
+7. `git status` senza credenziali, `.env*`, `.clasp*`, `.custode-locale/`, dati reali; nessun identificativo di modello nel messaggio di commit oltre alle righe di attribuzione.
+8. Commit e push sul branch indicato dalla sessione (oggi `claude/prototipo`) solo dopo le verifiche; poi controllare che il workflow «Pubblica PsyDiary» sia verde.
