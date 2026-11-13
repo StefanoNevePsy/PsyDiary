@@ -155,23 +155,85 @@ var PD = (function () {
     // cache, costa decine di millisecondi: un giro "niente di nuovo" ne faceva più di dieci).
     // Chi scrive aggiorna la copia; al lucchetto e a ogni richiesta nuova si riparte da zero.
     var A0 = amb.archivio, memoria = {};
+    // ---- corsia rapida: lo "stato" in cache ----
+    // I cinque file di configurazione (accessi, chiave, dispositivi, registro dei pazienti, stato
+    // con la revisione di ogni ambito, senza l'indice delle voci) stanno anche in un'unica voce
+    // di cache (amb.cache: get/put/remove, valori di testo con scadenza in secondi). Fuori dal
+    // lucchetto si legge da lì: un giro «niente di nuovo» non legge nessun file.
+    //  - Chi scrive un file di configurazione toglie la voce PRIMA di scrivere, e a fine lucchetto
+    //    (se è andato tutto bene) la rifà da quello che ha scritto. Se qualcosa si interrompe la
+    //    voce resta tolta e la rifà il prossimo lettore, sotto il lucchetto, da Drive.
+    //  - Dentro il lucchetto si legge sempre dai file, mai dalla cache.
+    //  - Se la cache manca, scade o non funziona si torna a leggere i file: lentamente, ma giusto.
+    var CHIAVE_STATO = 'stato1', TTL_STATO = 6 * 3600;
+    var DI_STATO = {}; DI_STATO[P.accessi] = 'accessi'; DI_STATO[P.cifratura] = 'cifratura'; DI_STATO[P.dispositivi] = 'dispositivi';
+    DI_STATO[P.pazienti] = 'pazienti'; DI_STATO[P.stato] = 'stato';
+    var snap;            // undefined: non ancora caricato in questa richiesta; null: non disponibile
+    var statoTolto = false, daRifare = false;
+    function cacheTogli() { statoTolto = true; snap = undefined; if (amb.cache) amb.cache.remove(CHIAVE_STATO); }
+    function leggiStatoCache() {
+      try {
+        var t = amb.cache.get(CHIAVE_STATO);
+        if (!t) return null;
+        var o = JSON.parse(t);
+        return o && o.v === 1 && o.stato ? o : null;
+      } catch (e) { return null; }
+    }
+    // Dentro il lucchetto: rifà la voce di cache da quello che i file contengono ora
+    function scriviStatoCache() {
+      if (!amb.cache) return;
+      var st = A.leggiJSON(P.stato) || { rev: 0, ambiti: {} };
+      var o = { v: 1, accessi: A.leggiJSON(P.accessi), cifratura: A.leggiJSON(P.cifratura), dispositivi: A.leggiJSON(P.dispositivi),
+        pazienti: A.leggiJSON(P.pazienti), stato: { schema: SCHEMA, rev: st.rev, ambiti: st.ambiti } };
+      try { amb.cache.put(CHIAVE_STATO, JSON.stringify(o), TTL_STATO); } catch (e) { try { amb.cache.remove(CHIAVE_STATO); } catch (x) { /* solo una comodità */ } }
+    }
+    function statoRapido() {
+      if (snap !== undefined) return snap;
+      snap = null;
+      if (!amb.cache) return null;
+      try {
+        snap = leggiStatoCache();
+        if (!snap) {
+          // manca: la rifà chi ha il lucchetto, partendo dai file. Se è occupato si leggono i file e basta.
+          conLock(function () {
+            snap = leggiStatoCache();
+            if (!snap) { scriviStatoCache(); snap = leggiStatoCache(); }
+          });
+        }
+      } catch (e) { snap = null; }
+      return snap;
+    }
     var A = {
       leggiJSON: function (p) {
         if (p.indexOf('Immagini/') === 0) return A0.leggiJSON(p);
+        if (!inLock && DI_STATO[p]) { var s = statoRapido(); if (s) return s[DI_STATO[p]] === undefined ? null : s[DI_STATO[p]]; }
         if (!Object.prototype.hasOwnProperty.call(memoria, p)) memoria[p] = A0.leggiJSON(p);
         return memoria[p];
       },
-      scriviJSON: function (p, o) { A0.scriviJSON(p, o); if (p.indexOf('Immagini/') !== 0) memoria[p] = o; },
+      scriviJSON: function (p, o) {
+        if (DI_STATO[p]) { daRifare = true; if (!statoTolto || !inLock) cacheTogli(); }
+        A0.scriviJSON(p, o); if (p.indexOf('Immagini/') !== 0) memoria[p] = o;
+      },
       esiste: function (p) { return A0.esiste(p); },
       conLock: function (fn) { return A0.conLock(function () { memoria = {}; return fn(); }); },
     };
     var inLock = false;
     function conLock(fn) {
       if (inLock) return fn();
-      return A.conLock(function () { inLock = true; try { return fn(); } finally { inLock = false; } });
+      return A.conLock(function () {
+        inLock = true; statoTolto = false; daRifare = false;
+        try {
+          var r = fn();
+          // andato tutto bene: se si è scritto qualcosa di quello che sta nello stato, lo si rifà
+          if (daRifare) scriviStatoCache();
+          return r;
+        } finally { inLock = false; }
+      });
     }
     var oggi = function () { return amb.ora().slice(0, 10); };
-    var proprietario = function () { return String(amb.proprietario() || '').toLowerCase(); };
+    // una lettura per richiesta (con Apps Script è una chiamata al servizio delle proprietà)
+    var prop = null;
+    var proprietario = function () { if (prop === null) prop = String(amb.proprietario() || '').toLowerCase(); return prop; };
     function leggiAccessi() { return A.leggiJSON(P.accessi) || { schema: SCHEMA, version: 0, utenti: {} }; }
 
     function utenteDa(identita) {
@@ -540,13 +602,15 @@ var PD = (function () {
       // Impronta di tutto quello che non sono le voci (ambiti visibili, chi vede cosa, accesso, chiave):
       // se l'app ha già quella giusta non si rimanda niente di tutto questo, e un giro «niente di
       // nuovo» è una risposta di poche righe.
+      var cursoriVisibili = {};
+      visibili.forEach(function (a) { if (stato.ambiti && Object.prototype.hasOwnProperty.call(stato.ambiti, a)) cursoriVisibili[a] = stato.ambiti[a]; });
       var impronta = improntaDi([visibili, pazienti, gruppi, programmi, accesso, kid]);
       var risposta = { esiti: esiti, voci: cambi, rev: stato.rev, kid: kid, inAttesa: inAttesa, impronta: impronta };
       if (typeof d.impronta === 'string' && d.impronta === impronta) {
         risposta.uguale = true;
-        if (cambi.length || esiti.length) { risposta.ambiti = visibili; risposta.cursori = stato.ambiti; }
+        if (cambi.length || esiti.length) { risposta.ambiti = visibili; risposta.cursori = cursoriVisibili; }
       } else {
-        risposta.ambiti = visibili; risposta.cursori = stato.ambiti;
+        risposta.ambiti = visibili; risposta.cursori = cursoriVisibili;
         risposta.pazienti = pazienti; risposta.gruppi = gruppi; risposta.programmi = programmi; risposta.accesso = accesso;
       }
       // avvio in una richiesta sola: il profilo (con la configurazione della chiave) insieme alle novità
@@ -677,14 +741,14 @@ var PD = (function () {
       return r;
     };
 
-    function gestisci(richiesta) {
+    function gestisciInterno(richiesta) {
       try {
         if (!richiesta || typeof richiesta !== 'object') throw err('richiesta-non-valida', 'Richiesta vuota.');
         if (richiesta.v !== 1) throw err('richiesta-non-valida', 'Versione del protocollo non supportata: aggiorna l\'app.');
         var fn = azioni[richiesta.azione];
         var perSessione = (richiesta.azione === 'sessione.crea' || richiesta.azione === 'sessione.rinnova') && amb.creaSessione;
         if (!fn && !perSessione) throw err('richiesta-non-valida', 'Azione sconosciuta.');
-        registro = null; memoria = {};
+        registro = null; memoria = {}; snap = undefined; prop = null;
         var identita;
         try { identita = amb.verificaToken(richiesta.token); } catch (e) { throw err('non-autenticato', 'Accesso scaduto o non valido: rientra con Google.'); }
         var u = utenteDa(identita);
@@ -716,9 +780,17 @@ var PD = (function () {
         return { ok: false, errore: 'interno', messaggio: 'Errore interno del custode: ' + String(e && e.message || e).slice(0, 300) };
       }
     }
+    // «ms»: quanto ha impiegato il custode (dentro la sua esecuzione, senza rete né avvio dello script)
+    function gestisci(richiesta) {
+      var t0 = Date.now(), r = gestisciInterno(richiesta);
+      if (r && typeof r === 'object') r.ms = Date.now() - t0;
+      return r;
+    }
+    /** Dal risveglio periodico: tiene pronto lo stato in cache (e lo rifà se è sparito). */
+    function riscalda() { registro = null; memoria = {}; snap = undefined; prop = null; return !!statoRapido(); }
     /** Dal risveglio periodico: le chiavi di chi è scaduto si revocano anche se non si ripresenta. */
-    function revocaScaduti() { return conLock(revocaChiavi); }
-    return { gestisci: gestisci, azioni: Object.keys(azioni), revocaScaduti: revocaScaduti };
+    function revocaScaduti() { prop = null; return conLock(revocaChiavi); }
+    return { gestisci: gestisci, azioni: Object.keys(azioni), revocaScaduti: revocaScaduti, riscalda: riscalda };
   }
 
   return { SCHEMA: SCHEMA, TIPI: TIPI, RUOLI: RUOLI, PERCORSI: P, RE: RE, creaCustode: creaCustode, stabile: stabile };

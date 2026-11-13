@@ -15,6 +15,7 @@
 import { CONFIG, REALE } from './config.js';
 import * as Auth from './accesso.js';
 import { inviaAlCustode } from './trasporto.js';
+import { tipoDi, aggiungi as aggiungiMisura, leggi as leggiMisure, CHIAVE_MISURE } from './misure.js';
 import * as C from './cifra.js';
 import { vociDi, idVociDi, destinazione, applica, unisci, immaginiDi, TABELLA_DI } from './voci.js';
 import { dati, salva, elimina, centro, ganci } from '../dati.svelte.js';
@@ -29,6 +30,19 @@ export const sync = $state({
   // l'ultima consegna fatta da sola (n dispositivi, di chi): l'operatore la vede per qualche secondo
   consegnata: null,
 });
+// Tempi di risposta del custode (ultime misure, anche tra una sessione e l'altra): servono al riquadro
+// «Velocità del custode» in Impostazioni. Solo una comodità: se il browser non le tiene, si ricomincia.
+const salvate = () => { try { return leggiMisure(localStorage.getItem(CHIAVE_MISURE) || ''); } catch { return []; } };
+export const velocita = $state({ misure: salvate(), misurando: false, passo: 0, ultima: [], errore: null });
+const orologio = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+function registraMisura(azione, d, totale, ms) {
+  velocita.misure = aggiungiMisura(velocita.misure, { t: Date.now(), tipo: tipoDi(azione, d), totale, ms });
+  try { localStorage.setItem(CHIAVE_MISURE, JSON.stringify(velocita.misure)); } catch { /* solo una comodità */ }
+}
+export function cancellaMisure() {
+  velocita.misure = []; velocita.ultima = [];
+  try { localStorage.removeItem(CHIAVE_MISURE); } catch { /* niente */ }
+}
 let chiavi = {};             // kid → CryptoKey
 const chiave = () => (sync.cfg ? chiavi[sync.cfg.kid] || null : null);
 export const eOperatore = () => sync.io?.ruolo === 'admin';
@@ -66,6 +80,7 @@ async function chiamaUnaVolta(azione, d, rid, tokenFisso) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 330000);
   let r, testo;
+  const inizio = orologio();
   try {
     // text/plain evita la richiesta preliminare CORS, che Apps Script non gestisce
     // se si perde solo la consegna della risposta, trasporto.js la richiede senza rifare il POST
@@ -79,6 +94,9 @@ async function chiamaUnaVolta(azione, d, rid, tokenFisso) {
   let j;
   try { j = JSON.parse(testo); } catch (e) { throw new ErroreRete('Risposta del custode non leggibile.'); }
   if (!j || typeof j !== 'object') throw new ErroreRete('Risposta del custode non leggibile.');
+  // la risposta di «sono attivo» (GET) non è una misura; una risposta vera sì, anche se dice di no
+  const misura = 'dati' in j || j.ok === false ? { totale: orologio() - inizio, ms: typeof j.ms === 'number' ? j.ms : null } : null;
+  if (misura) registraMisura(azione, d, misura.totale, misura.ms);
   if (!j.ok) {
     if (j.errore === 'non-autenticato') {
       if (Auth.scartaSessione(token)) throw new ErroreRete('Sessione scaduta: riprovo con l\'accesso Google.');
@@ -461,6 +479,27 @@ export function sincronizza() {
     if (rifare) await prepara(rifare).catch(gestisciErrore);
   })();
   return incorso;
+}
+/**
+ * «Misura ora»: tre controlli «c'è qualcosa di nuovo?» uno dopo l'altro, come quelli che l'app fa da sola ma
+ * senza applicare niente (le novità, se ci sono, arrivano al prossimo giro vero). Ognuno lascia la sua misura.
+ */
+export async function misuraOra(volte = 3) {
+  if (velocita.misurando || sync.fase !== 'pronto' || !sync.online) return;
+  velocita.misurando = true; velocita.errore = null; velocita.ultima = []; velocita.passo = 0;
+  try {
+    if (!cursoriMem) cursoriMem = (await meta('cursori')) || {};
+    for (let i = 0; i < volte; i++) {
+      velocita.passo = i + 1;
+      const prima = velocita.misure.length ? velocita.misure[velocita.misure.length - 1] : null;
+      const richiesta = { cursori: cursoriMem };
+      if (improntaNota && elenchiCompleti()) richiesta.impronta = improntaNota;
+      await chiamaUnaVolta('sync', richiesta, nuovoRid());
+      const ultima = velocita.misure[velocita.misure.length - 1];
+      if (ultima && ultima !== prima) velocita.ultima = [...velocita.ultima, ultima];
+    }
+  } catch (e) { velocita.errore = e?.message || String(e); }
+  finally { velocita.misurando = false; velocita.passo = 0; }
 }
 const NEGATI = ['non-autorizzato', 'disattivato', 'scaduto'];
 function gestisciErrore(e) {

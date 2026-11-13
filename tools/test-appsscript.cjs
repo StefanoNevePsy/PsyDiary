@@ -14,14 +14,14 @@ const { execFileSync } = require('child_process');
 let n = 0, f = 0;
 const ok = (c, m) => { n++; if (!c) f++; console.log((c ? 'ok  ' : 'NO  ') + m); };
 
-let contatore = 0;
+let contatore = 0, lettureDrive = 0;
 const tutti = {};
 const it = (l) => { let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; };
 const conSegno = (buf) => Array.from(buf).map((b) => (b > 127 ? b - 256 : b));
 function nuovoFile(nome, contenuto) {
   const x = { _tipo: 'file', _id: 'id' + ++contatore, _nome: nome, _testo: contenuto, _cestino: false,
     getId: () => x._id, getName: () => x._nome, isTrashed: () => x._cestino,
-    getBlob: () => ({ getDataAsString: () => x._testo }), setContent: (t) => { x._testo = t; } };
+    getBlob: () => { lettureDrive++; return { getDataAsString: () => x._testo }; }, setContent: (t) => { x._testo = t; } };
   tutti[x._id] = x; return x;
 }
 function nuovaCartella(nome) {
@@ -66,7 +66,7 @@ const ctx = {
     const info = tokeninfo(t);
     return { getResponseCode: () => (info ? 200 : 400), getContentText: () => JSON.stringify(info || {}) };
   } },
-  Utilities: { DigestAlgorithm: { SHA_256: 'x' }, computeDigest: (a, s) => conSegno(crypto.createHash('sha256').update(String(s)).digest()) },
+  Utilities: { DigestAlgorithm: { SHA_256: 'x' }, formatDate: () => '12', computeDigest: (a, s) => conSegno(crypto.createHash('sha256').update(String(s)).digest()) },
   Session: { getEffectiveUser: () => ({ getEmail: () => emailSessione }) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ _t: t, setMimeType() { return this; } }) },
   Logger: { log: () => {} },
@@ -159,6 +159,63 @@ emailSessione = 'stefano@aula.it';
   ok(A().leggiJSON('_config/prova.json').a === 2, 'cambio a mano su Drive: per ora resta la copia in cache');
   ctx.svuotaCache(); nuovaEsecuzione();
   ok(A().leggiJSON('_config/prova.json').a === 99, 'dopo svuotaCache si legge da Drive');
+}
+
+// ---- corsia rapida: lo stato in cache ----
+{
+  const nuovaEsecuzione = () => vm.runInContext('_custode = null;', ctx);
+  nuovaEsecuzione();
+  const prima = chiama('stefano@aula.it', 'sync', { cursori: {} }).dati;
+  nuovaEsecuzione();
+  lettureDrive = 0;
+  const q = chiama('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta });
+  ok(q.ok && q.dati.uguale === true && lettureDrive === 0, 'sync a riposo in un\'esecuzione nuova: zero letture da Drive [' + lettureDrive + ']');
+  ok(typeof q.ms === 'number', 'la risposta porta «ms»');
+  lettureDrive = 0;
+  nuovaEsecuzione();
+  ok(chiama('stefano@aula.it', 'io').dati.cfg.kid === 'kx' && lettureDrive === 0, 'anche il profilo («io») senza leggere file');
+  // una scrittura: la voce si rifà e l'altro vede la novità, poi di nuovo a riposo
+  const inv = chiama('stefano@aula.it', 'sync', { invii: [{ id: 'nz1', tipo: 'nota', ambito: 'aula', versioneBase: 0, busta: b }] });
+  ok(inv.ok && inv.dati.esiti[0].ok, 'invio dopo la corsia rapida');
+  nuovaEsecuzione(); lettureDrive = 0;
+  const q2 = chiama('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta }).dati;
+  ok(q2.voci.some((v) => v.id === 'nz1') && q2.rev === inv.dati.rev, 'la novità arriva (mai «niente di nuovo»)');
+  nuovaEsecuzione(); lettureDrive = 0;
+  ok(chiama('stefano@aula.it', 'sync', { cursori: q2.cursori, impronta: q2.impronta }).dati.uguale === true && lettureDrive === 0, 'e poi di nuovo zero letture');
+  // svuotaCache: tutto si rilegge da Drive e poi si rifà la voce
+  ctx.svuotaCache(); nuovaEsecuzione(); lettureDrive = 0;
+  const q3 = chiama('stefano@aula.it', 'sync', { cursori: q2.cursori, impronta: q2.impronta }).dati;
+  ok(q3.uguale === true && lettureDrive > 0, 'dopo svuotaCache si rilegge da Drive (' + lettureDrive + ' letture)');
+  nuovaEsecuzione(); lettureDrive = 0;
+  chiama('stefano@aula.it', 'sync', { cursori: q2.cursori, impronta: q2.impronta });
+  ok(lettureDrive === 0, 'e subito dopo è di nuovo veloce');
+  // cache che scade da sola
+  Object.keys(cache).filter((k) => /^q/.test(k)).forEach((k) => delete cache[k]);
+  nuovaEsecuzione(); lettureDrive = 0;
+  ok(chiama('stefano@aula.it', 'sync', { cursori: q2.cursori, impronta: q2.impronta }).dati.uguale === true && Object.keys(cache).some((k) => /^q/.test(k)), 'voce scaduta: risposta giusta e la voce si rifà');
+  // mentre un'altra persona scrive (lucchetto occupato) non si rifà la voce da una lettura che potrebbe essere vecchia
+  Object.keys(cache).filter((k) => /^q/.test(k)).forEach((k) => delete cache[k]);
+  lucchettoAltrui = true; nuovaEsecuzione();
+  ok(chiama('stefano@aula.it', 'sync', { cursori: q2.cursori, impronta: q2.impronta }).dati.uguale === true, 'lucchetto occupato: risposta giusta dai file');
+  ok(!Object.keys(cache).some((k) => /^q/.test(k)), 'lucchetto occupato: lo stato non entra in cache');
+  lucchettoAltrui = false;
+  // il risveglio tiene pronta la voce
+  nuovaEsecuzione(); ctx.risveglio(); nuovaEsecuzione(); lettureDrive = 0;
+  chiama('stefano@aula.it', 'sync', { cursori: q2.cursori, impronta: q2.impronta });
+  ok(Object.keys(cache).some((k) => /^q/.test(k)) && lettureDrive === 0, 'il risveglio rifà lo stato in cache (se l\'ora è di lavoro)');
+  // valori grandi: si spezzano e si ricompongono; un pezzo perso = voce assente
+  nuovaEsecuzione();
+  const cs = vm.runInContext('cacheStato_()', ctx);
+  const grande = '{"x":"' + 'z'.repeat(250000) + '"}';
+  cs.put('prova', grande, 60);
+  ok(cs.get('prova') === grande, 'cache dello stato: un valore da 250 KB si spezza e si ricompone');
+  const pz = Object.keys(cache).find((k) => /^q[^:]*:prova:/.test(k));
+  delete cache[pz];
+  ok(cs.get('prova') === null, 'cache dello stato: un pezzo perso vale come voce assente');
+  let rifiutato = false; try { cs.put('enorme', 'y'.repeat(1000000), 60); } catch (e) { rifiutato = true; }
+  ok(rifiutato, 'cache dello stato: oltre ~900 KB non si tiene (si leggono i file)');
+  cs.remove('prova');
+  ok(cs.get('prova') === null, 'cache dello stato: remove');
 }
 
 console.log(`\n${n - f}/${n} superati`);

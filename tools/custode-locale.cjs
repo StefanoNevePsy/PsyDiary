@@ -23,10 +23,29 @@ function archivioSuDisco(dir) {
     conLock: (fn) => fn(),   // un solo processo, richieste in fila
   };
 }
+// Cache in memoria, come CacheService: solo testo, con scadenza in secondi (per i test: `scadi()` la svuota)
+function cacheInMemoria() {
+  const m = new Map();
+  return {
+    get: (k) => { const x = m.get(k); return x && x.fine > Date.now() ? x.v : null; },
+    put: (k, v, ttl) => { if (typeof v !== 'string') throw new Error('la cache vuole testo'); m.set(k, { v, fine: Date.now() + Math.min(ttl || 600, 21600) * 1000 }); },
+    remove: (k) => { m.delete(k); },
+    scadi: () => m.clear(),
+  };
+}
 function creaLocale(dir, opz = {}) {
   let ora = opz.ora || (() => new Date().toISOString());
-  return PD.creaCustode({
-    archivio: archivioSuDisco(dir),
+  const base = archivioSuDisco(dir);
+  // conta le letture e le scritture di file (le immagini no): serve a vedere quanto costa una richiesta
+  const conta = { letture: 0, scritture: 0, file: [] };
+  const archivio = { ...base,
+    leggiJSON: (x) => { conta.letture++; conta.file.push(x); return base.leggiJSON(x); },
+    scriviJSON: (x, o) => { if (conta.guastoSu && x.includes(conta.guastoSu)) throw new Error('guasto di prova su ' + x); conta.scritture++; return base.scriviJSON(x, o); },
+  };
+  const cache = opz.cache === false ? undefined : opz.cache || cacheInMemoria();
+  const custode = PD.creaCustode({
+    archivio,
+    cache,
     creaSessione: (id) => {
       const scade = Math.floor(Date.now() / 1000) + 180 * 86400;
       const d = Buffer.from(JSON.stringify({ e: id.email, n: id.nome, x: scade })).toString('base64url');
@@ -48,6 +67,8 @@ function creaLocale(dir, opz = {}) {
     ora: () => ora(),
     ricordo: (() => { const m = new Map(); return { leggi: (k) => m.get(k) || null, scrivi: (k, v) => m.set(k, v) }; })(),
   });
+  custode.conta = conta; custode.cache = cache;
+  return custode;
 }
 const SEGRETO = require('crypto').randomBytes(32).toString('hex');
 module.exports = { creaLocale, archivioSuDisco };
@@ -64,7 +85,12 @@ if (require.main === module) {
     req.on('data', (d) => { corpo += d; });
     req.on('end', () => {
       let r;
-      try { r = c.gestisci(JSON.parse(corpo)); } catch (e) { r = { ok: false, errore: 'richiesta-non-valida', messaggio: 'Richiesta non leggibile.' }; }
+      try {
+        const q = JSON.parse(corpo), l0 = c.conta.letture;
+        r = c.gestisci(q);
+        // CONTA=1: una riga per richiesta, con quanti file ha letto (a riposo devono essere zero)
+        if (process.env.CONTA) console.log(`${q.azione}${q.azione === 'sync' ? (q.dati && q.dati.invii && q.dati.invii.length ? ' (invio)' : '') : ''} · ${r.ms} ms · ${c.conta.letture - l0} letture di file`);
+      } catch (e) { r = { ok: false, errore: 'richiesta-non-valida', messaggio: 'Richiesta non leggibile.' }; }
       if (Math.random() < Number(process.env.GUASTI || 0)) { res.statusCode = 404; res.end('<html>Sorry, unable to open the file at this time.</html>'); return; }
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(r));

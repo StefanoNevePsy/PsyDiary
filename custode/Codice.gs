@@ -75,6 +75,8 @@ function custode_() {
     proprietario: proprietario_,
     ora: function () { return new Date().toISOString(); },
     // Risposte alle scritture gia' fatte, per i reinvii dell'app (10 minuti)
+    // Lo "stato" (accessi, chiave, dispositivi, registro, revisioni) per rispondere senza leggere file
+    cache: cacheStato_(),
     ricordo: {
       leggi: function (k) { return CacheService.getScriptCache().get(chiaveCache_(k)); },
       scrivi: function (k, v) { CacheService.getScriptCache().put(chiaveCache_(k), v, 600); },
@@ -83,14 +85,46 @@ function custode_() {
   return _custode;
 }
 
+// Cache dello stato per core.js: testo con scadenza in secondi (al massimo 6 ore). I valori sopra
+// 90 KB si spezzano in pezzi (fino a ~900 KB); chi legge ricompone, e se manca un pezzo è come
+// se la voce non ci fosse. La generazione cambia con svuotaCache().
+function cacheStato_() {
+  var cache = CacheService.getScriptCache(), PEZZO = 90000, MAX_PEZZI = 10;
+  function chiave(k) { return 'q' + generazioneCache_() + ':' + k; }
+  return {
+    get: function (k) {
+      var kk = chiave(k), t = cache.get(kk);
+      if (!t || t.charAt(0) !== '#') return t || null;
+      var h = t.slice(1).split(':'), n = Number(h[1]), len = Number(h[2]), ks = [];
+      for (var i = 0; i < n; i++) ks.push(kk + ':' + h[0] + ':' + i);
+      var pezzi = cache.getAll(ks), out = '';
+      for (var j = 0; j < ks.length; j++) { if (pezzi[ks[j]] == null) return null; out += pezzi[ks[j]]; }
+      return out.length === len ? out : null;
+    },
+    put: function (k, v, ttl) {
+      var kk = chiave(k), s = Math.max(1, Math.min(21600, ttl || 21600));
+      if (v.length <= PEZZO) { cache.put(kk, v, s); return; }
+      if (v.length > PEZZO * MAX_PEZZI) throw new Error('valore troppo grande per la cache');
+      var tag = Math.random().toString(36).slice(2, 8), n = Math.ceil(v.length / PEZZO), pezzi = {};
+      for (var i = 0; i < n; i++) pezzi[kk + ':' + tag + ':' + i] = v.slice(i * PEZZO, (i + 1) * PEZZO);
+      cache.putAll(pezzi, s);
+      cache.put(kk, '#' + tag + ':' + n + ':' + v.length, s);
+    },
+    remove: function (k) { cache.remove(chiave(k)); },
+  };
+}
+
 // Verifica dell'ID token di "Accedi con Google": solo chi sei, nessun accesso
 // al tuo Drive o alla posta.
 // Sessione del custode: «s1.<dati>.<firma>», firmata con un segreto che il custode crea
 // da solo nelle proprietà dello script. Dura SESSIONE_GIORNI giorni e l'app la rinnova usandola.
 var SESSIONE_GIORNI = 180;
+var _segreto = null;
 function segretoSessione_() {
+  if (_segreto) return _segreto;
   var s = PROP.getProperty('SESSIONE_SEGRETO');
   if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); PROP.setProperty('SESSIONE_SEGRETO', s); }
+  _segreto = s;
   return s;
 }
 function firmaSessione_(dati) {
@@ -303,6 +337,8 @@ function risveglio() {
   var a = archivioDrive_();
   ['_config/accessi.json', '_config/cifratura.json', '_config/dispositivi.json', '_config/stato.json', '_config/pazienti.json']
     .forEach(function (p) { try { a.leggiJSON(p); } catch (e) { /* al prossimo giro */ } });
+  // lo stato in cache (accessi, chiave, dispositivi…): se è scaduto o sparito si rifà, così la prima richiesta è già veloce
+  try { custode_().riscalda(); } catch (e) { /* al prossimo giro */ }
   // accessi scaduti: le chiavi dei loro dispositivi si revocano (scrive solo se ce n'è)
   try { custode_().revocaScaduti(); } catch (e) { /* al prossimo giro */ }
 }

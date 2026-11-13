@@ -5,6 +5,7 @@
   import Accessi from '../components/Accessi.svelte';
   import EsportaTutto from '../components/EsportaTutto.svelte';
   import AccessiCentro from '../components/centro/AccessiCentro.svelte';
+  import VelocitaCustode from '../components/centro/VelocitaCustode.svelte';
   import { REALE } from '../lib/centro/config.js';
   import { sync, esci, mostraFrase } from '../lib/centro/sync.svelte.js';
   import { usaOre12, impostaOre12, oraTesto } from '../lib/orario.js';
@@ -88,6 +89,10 @@
         <AccessiCentro />
       </section>
     {/if}
+    <section class="blocco">
+      <h2 class="eti">Velocità del custode</h2>
+      <VelocitaCustode />
+    </section>
   {:else}
   <section class="blocco">
     <h2 class="eti">Chi sta scrivendo</h2>

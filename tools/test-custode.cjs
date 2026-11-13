@@ -118,7 +118,7 @@ ok(r.dati.esiti[0].errore === 'chiave-cambiata', 'buste con una chiave diversa r
   const rid = 'rid-prova-001';
   const r1 = c.gestisci({ v: 1, token: 'dev:stefano@aula.it|stefano', azione: 'dispositivo.registra', rid, dati: { id: 'dstefano01', pubblica: 'AAAA', nome: 'Mac' } });
   const r2 = c.gestisci({ v: 1, token: 'dev:stefano@aula.it|stefano', azione: 'dispositivo.registra', rid, dati: { id: 'dstefano01', pubblica: 'AAAA', nome: 'Mac' } });
-  ok(r1.ok && JSON.stringify(r1) === JSON.stringify(r2), 'scrittura rimandata con lo stesso identificativo: stessa risposta');
+  ok(r1.ok && JSON.stringify(r1.dati) === JSON.stringify(r2.dati), 'scrittura rimandata con lo stesso identificativo: stessa risposta');
   chiama('stefano@aula.it', 'dispositivo.togli', { id: 'dstefano01' });
 }
 
@@ -352,6 +352,147 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   ch3('stefano@aula.it', 'sync', { invii: [Object.assign(voce('sraf1', 'seduta', 'aula', ver), { busta: unica(8) })] });
   ok(conta.scritti.includes('Storia/aula.json'), 'se interviene un\'altra persona la versione di Elena si archivia subito');
   fs.rmSync(d3, { recursive: true, force: true });
+}
+
+// ---- corsia rapida: lo stato in cache ----
+{
+  const d4 = fs.mkdtempSync(path.join(os.tmpdir(), 'psy-rapido-'));
+  const k = creaLocale(d4, { proprietario: 'stefano@aula.it' });
+  const ch = (email, azione, dati) => k.gestisci({ v: 1, token: 'dev:' + email, azione, dati });
+  const letture = (fn) => { k.conta.letture = 0; k.conta.file = []; const r = fn(); return { r, n: k.conta.letture, file: k.conta.file.join(',') }; };
+  ch('stefano@aula.it', 'cifratura.imposta', { cifratura });
+  ch('stefano@aula.it', 'accessi.salva', { accessi: { utenti: {
+    'elena@aula.it': { nome: 'Elena', ruolo: 'admin' },
+    'giulia@aula.it': { nome: 'Giulia', ruolo: 'tirocinante', ragazzi: ['rlu01'] },
+  } }, versioneBase: 0 });
+  const prima = ch('stefano@aula.it', 'sync', { invii: [voce('gmart', 'gruppo', 'aula'), voce('rlu01', 'ragazzo', 'aula'), voce('rlu01s', 'scheda', 'r:rlu01'), voce('sind1', 'seduta', 'r:rlu01')] }).dati;
+  const ioG = ch('giulia@aula.it', 'sync', { cursori: {} }).dati;
+
+  // a riposo: nessuna lettura di file, per chiunque, e la risposta è quella di sempre
+  let x = letture(() => ch('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta }));
+  ok(x.r.ok && x.r.dati.uguale === true && x.r.dati.voci.length === 0 && x.n === 0, 'sync a riposo (operatore): zero letture di file [' + x.n + ']');
+  x = letture(() => ch('giulia@aula.it', 'sync', { cursori: ioG.cursori, impronta: ioG.impronta }));
+  ok(x.r.dati.uguale === true && x.n === 0, 'sync a riposo (tirocinante): zero letture di file [' + x.n + ']');
+  x = letture(() => ch('stefano@aula.it', 'sync', { cursori: prima.cursori }));
+  ok(x.r.dati.pazienti && x.r.dati.pazienti.rlu01 && x.n === 0, 'senza impronta: elenchi completi, sempre senza leggere file');
+  x = letture(() => ch('stefano@aula.it', 'sync', { cursori: {}, io: true }));
+  ok(x.r.dati.io && x.r.dati.io.cfg && x.r.dati.io.kid === 'kprova' && x.r.dati.voci.length > 0 && x.n <= 3, 'avvio con profilo e voci: soltanto i file degli ambiti [' + x.file + ']');
+  x = letture(() => ch('stefano@aula.it', 'io'));
+  ok(x.r.dati.cfg && x.n === 0, 'il profilo («io») si legge dalla cache');
+  ok(typeof x.r.ms === 'number' && x.r.ms >= 0 && typeof ch('ignoto@x.it', 'io').ms === 'number', 'ogni risposta dice «ms», anche gli errori');
+
+  // un invio: il cambiamento arriva all'altro e subito dopo si torna a riposo
+  const inv = ch('elena@aula.it', 'sync', { invii: [voce('n1', 'nota', 'aula')] }).dati;
+  ok(inv.esiti[0].ok, 'Elena invia una nota');
+  x = letture(() => ch('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta }));
+  ok(x.r.dati.voci.length === 1 && x.r.dati.voci[0].id === 'n1' && x.r.dati.rev === inv.rev, 'dopo l\'invio l\'altro riceve la nota e la revisione nuova (mai «niente di nuovo»)');
+  const cur2 = x.r.dati.cursori;
+  x = letture(() => ch('stefano@aula.it', 'sync', { cursori: cur2, impronta: prima.impronta }));
+  ok(x.r.dati.uguale && x.r.dati.voci.length === 0 && x.n === 0, 'e di nuovo a riposo, senza letture');
+  // un paziente nuovo cambia l'impronta e la cache lo sa
+  const eleP = ch('elena@aula.it', 'sync', { cursori: {} }).dati;
+  ch('stefano@aula.it', 'sync', { invii: [voce('rpa02', 'ragazzo', 'aula'), voce('rpa02s', 'scheda', 'r:rpa02')] });
+  x = letture(() => ch('stefano@aula.it', 'sync', { cursori: cur2, impronta: prima.impronta }));
+  ok(!x.r.dati.uguale && x.r.dati.pazienti.rpa02 && x.r.dati.pazienti.rpa02.proprietario === 'stefano@aula.it' && x.r.dati.voci.some((v) => v.id === 'rpa02s'), 'un paziente nuovo: elenchi aggiornati e voci per chi lo vede');
+  const eleD = ch('elena@aula.it', 'sync', { cursori: eleP.cursori, impronta: eleP.impronta }).dati;
+  ok(!eleD.ambiti.includes('r:rpa02') && !eleD.voci.some((v) => v.id === 'rpa02s'), '…ma non per chi non lo vede (anche con l\'impronta vecchia)');
+
+  // una scrittura che fallisce a metà non lascia in cache uno stato falso
+  const stF = ch('stefano@aula.it', 'sync', { cursori: {} }).dati;
+  k.conta.guastoSu = '_config/stato.json';
+  ok(ch('elena@aula.it', 'sync', { invii: [voce('nfail', 'nota', 'aula')] }).errore === 'interno', 'scrittura interrotta: errore, l\'app riprova');
+  k.conta.guastoSu = null;
+  const dopoG = ch('stefano@aula.it', 'sync', { cursori: stF.cursori, impronta: stF.impronta }).dati;
+  ok(dopoG.rev === stF.rev && !dopoG.voci.some((v) => v.id === 'nfail'), 'dopo l\'interruzione la cache non dice cose false');
+  ok(ch('elena@aula.it', 'sync', { invii: [voce('nfail', 'nota', 'aula')] }).dati.esiti[0].ok, 'il reinvio va a buon fine');
+  ok(ch('elena@aula.it', 'sync', { invii: [voce('nfail2', 'nota', 'aula')] }).dati.esiti[0].ok, 'un altro invio dopo l\'interruzione');
+  const dopoR = ch('stefano@aula.it', 'sync', { cursori: stF.cursori, impronta: stF.impronta }).dati;
+  ok(dopoR.voci.some((v) => v.id === 'nfail2') && dopoR.rev > stF.rev, 'e Stefano lo riceve');
+
+  // accessi: cambiano e l'effetto è immediato (scadenza, pazienti assegnati, disattivazione)
+  let acc;
+  const sa = (mod) => { acc = ch('stefano@aula.it', 'accessi.leggi').dati; mod(acc.utenti); return ch('stefano@aula.it', 'accessi.salva', { accessi: { utenti: acc.utenti }, versioneBase: acc.version }); };
+  const cG = ch('giulia@aula.it', 'sync', { cursori: {} }).dati;
+  ok(cG.voci.some((v) => v.id === 'sind1'), 'Giulia vede Luca (assegnato)');
+  ok(sa((u) => { u['giulia@aula.it'].ragazzi = []; }).ok, 'tolgo Luca a Giulia');
+  x = letture(() => ch('giulia@aula.it', 'sync', { cursori: cG.cursori, impronta: cG.impronta }));
+  ok(!x.r.dati.uguale && !x.r.dati.ambiti.includes('r:rlu01') && x.r.dati.accesso.ragazzi.length === 0, 'cambio accessi: l\'impronta di Giulia non coincide più e il paziente non le è più elencato');
+  ok(sa((u) => { u['giulia@aula.it'].scadenza = '2020-01-01'; }).ok, 'scadenza nel passato');
+  ok(ch('giulia@aula.it', 'sync', { cursori: cG.cursori, impronta: cG.impronta }).errore === 'scaduto', 'accesso scaduto: rifiutato subito');
+  ok(sa((u) => { u['giulia@aula.it'].scadenza = null; u['giulia@aula.it'].attivo = false; }).ok, 'disattivata');
+  ok(ch('giulia@aula.it', 'sync', { cursori: cG.cursori }).errore === 'disattivato', 'accesso disattivato: rifiutato subito');
+  ok(sa((u) => { u['giulia@aula.it'].attivo = true; }).ok && ch('giulia@aula.it', 'sync', { cursori: {} }).ok, 'riattivata: rientra');
+  ok(sa((u) => { delete u['giulia@aula.it']; }).ok && ch('giulia@aula.it', 'sync', { cursori: {} }).errore === 'non-autorizzato', 'tolta dall\'elenco: fuori subito');
+  ok(sa((u) => { u['giulia@aula.it'] = { nome: 'Giulia', ruolo: 'tirocinante', ragazzi: [] }; }).ok, 'rimessa');
+
+  // dispositivi: richiesta di chiave in attesa, consegna, revoca
+  const attesa = (e) => ch(e, 'sync', { cursori: {} }).dati.inAttesa;
+  ok(attesa('stefano@aula.it') === 0, 'nessuno aspetta la chiave');
+  ok(ch('giulia@aula.it', 'dispositivo.registra', { id: 'dispo01giulia', pubblica: 'AAAA', nome: 'Telefono' }).ok, 'Giulia registra un dispositivo');
+  ok(attesa('stefano@aula.it') === 1, 'l\'operatore vede subito 1 richiesta in attesa');
+  x = letture(() => ch('giulia@aula.it', 'dispositivo.chiave', { id: 'dispo01giulia' }));
+  ok(x.r.dati.kid === 'kprova' && Object.keys(x.r.dati.chiavi).length === 0 && x.n === 0, 'chi aspetta controlla senza leggere file [' + x.n + ']');
+  const el = ch('stefano@aula.it', 'dispositivi.elenco').dati.find((z) => z.id === 'dispo01giulia');
+  ok(ch('stefano@aula.it', 'dispositivi.abilita', { id: 'dispo01giulia', kid: 'kprova', chiave: 'QUJD', pubblica: el.pubblica }).ok, 'l\'operatore consegna la chiave');
+  ok(attesa('stefano@aula.it') === 0 && Object.keys(ch('giulia@aula.it', 'dispositivo.chiave', { id: 'dispo01giulia' }).dati.chiavi).length === 1, 'chiave consegnata: nessuna attesa, e Giulia la trova');
+  ok(sa((u) => { delete u['giulia@aula.it']; }).ok, 'Giulia tolta dagli accessi');
+  ok(ch('stefano@aula.it', 'dispositivi.elenco').dati.every((z) => z.id !== 'dispo01giulia'), 'il suo dispositivo (e la chiave) non c\'è più');
+  ok(sa((u) => { u['giulia@aula.it'] = { nome: 'Giulia', ruolo: 'tirocinante', ragazzi: [] }; }).ok, 'rimessa');
+  ch('giulia@aula.it', 'dispositivo.registra', { id: 'dispo02giulia', pubblica: 'AAAA', nome: 'Tablet' });
+  const el2 = ch('stefano@aula.it', 'dispositivi.elenco').dati.find((z) => z.id === 'dispo02giulia');
+  ch('stefano@aula.it', 'dispositivi.abilita', { id: 'dispo02giulia', kid: 'kprova', chiave: 'QUJD', pubblica: el2.pubblica });
+  ok(ch('giulia@aula.it', 'dispositivo.togli', { id: 'dispo02giulia' }).ok, 'Giulia toglie il suo dispositivo');
+  ok(ch('giulia@aula.it', 'dispositivo.chiave', { id: 'dispo02giulia' }).errore === 'non-trovato', 'revocato: il dispositivo non è più riconosciuto');
+  // scadenza: le chiavi di chi scade si ritirano
+  ch('giulia@aula.it', 'dispositivo.registra', { id: 'dispo03giulia', pubblica: 'AAAA', nome: 'Altro' });
+  const el3 = ch('stefano@aula.it', 'dispositivi.elenco').dati.find((z) => z.id === 'dispo03giulia');
+  ch('stefano@aula.it', 'dispositivi.abilita', { id: 'dispo03giulia', kid: 'kprova', chiave: 'QUJD', pubblica: el3.pubblica });
+  sa((u) => { u['giulia@aula.it'].scadenza = '2020-01-01'; });
+  ok(ch('giulia@aula.it', 'dispositivo.chiave', { id: 'dispo03giulia' }).errore === 'scaduto', 'accesso scaduto: anche il controllo della chiave è rifiutato');
+  const d3g = ch('stefano@aula.it', 'dispositivi.elenco').dati.find((z) => z.id === 'dispo03giulia');
+  ok(d3g && d3g.abilitato === false, 'e il dispositivo ha perso la chiave');
+  sa((u) => { u['giulia@aula.it'].scadenza = null; });
+
+  // condivisione di un paziente riservato
+  ok(!ch('giulia@aula.it', 'sync', { cursori: {} }).dati.ambiti.includes('r:rpa02'), 'un paziente riservato non è elencato a chi non c\'entra');
+  ok(ch('stefano@aula.it', 'paziente.condivisione', { id: 'rpa02', condivisi: ['elena@aula.it'], tutti: false }).ok, 'Stefano condivide un paziente con Elena');
+  const curE = Object.fromEntries(eleD.ambiti.map((a) => [a, eleD.cursori[a]]));   // l'app tiene i cursori dei soli ambiti visibili
+  const dE = ch('elena@aula.it', 'sync', { cursori: curE, impronta: eleD.impronta }).dati;
+  ok(!dE.uguale && dE.pazienti.rpa02.condivisi.includes('elena@aula.it') && dE.voci.some((v) => v.id === 'rpa02s'), 'Elena lo vede subito, con le sue voci');
+  ok(ch('stefano@aula.it', 'paziente.condivisione', { id: 'rpa02', condivisi: ['giulia@aula.it'], tutti: false }).ok && ch('giulia@aula.it', 'sync', { cursori: {} }).dati.ambiti.includes('r:rpa02') && !ch('elena@aula.it', 'sync', { cursori: {} }).dati.ambiti.includes('r:rpa02'), 'poi con Giulia al posto di Elena: cambia subito per tutte e due');
+
+  // cache vuota o scaduta: si ricostruisce da Drive e poi si torna veloci
+  const att = ch('stefano@aula.it', 'sync', { cursori: {} }).dati;
+  k.cache.scadi();
+  x = letture(() => ch('stefano@aula.it', 'sync', { cursori: att.cursori, impronta: att.impronta }));
+  ok(x.r.dati.uguale === true && x.r.dati.rev === att.rev && x.n === 5, 'cache vuota: risposta giusta, ricostruita leggendo i 5 file [' + x.n + ']');
+  x = letture(() => ch('stefano@aula.it', 'sync', { cursori: att.cursori, impronta: att.impronta }));
+  ok(x.r.dati.uguale === true && x.n === 0, 'poi di nuovo zero letture');
+  k.cache.scadi();
+  ok(ch('elena@aula.it', 'sync', { invii: [voce('n9', 'nota', 'aula')] }).dati.esiti[0].ok, 'cache vuota e invio: va a buon fine');
+  ok(ch('stefano@aula.it', 'sync', { cursori: att.cursori, impronta: att.impronta }).dati.voci.some((v) => v.id === 'n9'), 'e l\'altro riceve la nota');
+  k.cache.put('stato1', '{non json', 100);
+  ok(ch('stefano@aula.it', 'sync', { cursori: att.cursori }).ok, 'voce di cache rovinata: si ricostruisce');
+  fs.rmSync(d4, { recursive: true, force: true });
+}
+{
+  // senza cache (o con la cache che non legge né scrive) il custode funziona come prima
+  const d5 = fs.mkdtempSync(path.join(os.tmpdir(), 'psy-nocache-'));
+  const rotta = { get: () => { throw new Error('cache giù'); }, put: () => { throw new Error('cache giù'); }, remove: () => {} };
+  for (const [nome, cache] of [['senza cache', false], ['con la cache che dà errore', rotta]]) {
+    const k = creaLocale(fs.mkdtempSync(path.join(d5, 'x-')), { proprietario: 'stefano@aula.it', cache });
+    const ch = (email, azione, dati) => k.gestisci({ v: 1, token: 'dev:' + email, azione, dati });
+    ch('stefano@aula.it', 'cifratura.imposta', { cifratura });
+    const b = ch('stefano@aula.it', 'sync', { invii: [voce('gq', 'gruppo', 'aula')] });
+    const z = ch('stefano@aula.it', 'sync', { cursori: b.dati ? b.dati.cursori : {}, impronta: b.dati && b.dati.impronta });
+    ok(b.ok && z.ok && z.dati.uguale && z.dati.rev === 1, nome + ': invio e sync a riposo corretti');
+  }
+  // se la cache non riesce a togliere lo stato vecchio, NON si scrive: meglio un errore (l'app riprova)
+  // che un «niente di nuovo» falso per ore
+  const k2 = creaLocale(fs.mkdtempSync(path.join(d5, 'x-')), { proprietario: 'stefano@aula.it', cache: { get: () => null, put: () => {}, remove: () => { throw new Error('non riesco a svuotare'); } } });
+  const r2 = k2.gestisci({ v: 1, token: 'dev:stefano@aula.it', azione: 'cifratura.imposta', dati: { cifratura } });
+  ok(!r2.ok && r2.errore === 'interno' && k2.conta.scritture === 0, 'cache che non si svuota: la scrittura non parte (errore, l\'app riprova)');
+  fs.rmSync(d5, { recursive: true, force: true });
 }
 
 fs.rmSync(dir, { recursive: true, force: true });
