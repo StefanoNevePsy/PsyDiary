@@ -9,6 +9,7 @@
   import { dati, nomeCompleto, ragazziAttivi, membriAl } from '../../lib/dati.svelte.js';
   import { oggi, lunga, relativa } from '../../lib/date.js';
   import Icona from '../Icona.svelte';
+  import ConsegnaChiave from './ConsegnaChiave.svelte';
 
   let acc = $state(null);          // { version, utenti: { email: {...} }, proprietario }
   let modificato = $state(false);
@@ -70,7 +71,7 @@
     try {
       const pulito = { utenti: Object.fromEntries(Object.entries($state.snapshot(acc.utenti)).map(([e, u]) => [e, { ...u, ragazzi: u.ruolo === 'admin' ? [] : (u.ragazzi || []).filter((r) => tutti.some((x) => x.id === r)), tuttiRagazzi: u.ruolo !== 'admin' && !!u.tuttiRagazzi }])) };
       acc = await salvaAccessi(pulito, acc.version || 0);
-      modificato = false; errore = ''; messaggio = 'Salvato. Chi entra per la prima volta riceve la chiave da un vostro dispositivo entro un minuto.';
+      modificato = false; errore = ''; messaggio = 'Salvato. Chi entra per la prima volta riceve la chiave da un vostro dispositivo entro mezzo minuto, o subito con «Consegna la chiave».';
       dispositivi = await elencoDispositivi();
     } catch (e) {
       errore = e.codice === 'conflitto' ? 'Un altro operatore ha cambiato gli accessi nel frattempo: ricarico la versione attuale, rifai la modifica.' : e.message;
@@ -163,11 +164,13 @@
     </div>
 
     <h3 class="eti titoletto">Dispositivi</h3>
+    <p class="sotto piccolo">Chi entra da un dispositivo nuovo aspetta la chiave dell'aula: un vostro dispositivo gliela consegna da solo entro mezzo minuto, oppure subito con il tasto qui sotto.</p>
+    <div class="consegna-riga"><ConsegnaChiave dopo={() => (dispositivi = [...sync.dispositivi])} /></div>
     <ul class="dispositivi">
       {#each dispositivi as d (d.id)}
         <li>
           <span><strong>{d.nome}</strong> <span class="sotto piccolo">{d.email}</span></span>
-          <span class="sotto piccolo">{d.abilitato ? 'con la chiave' : d.personaAbilitata ? 'riceve la chiave al prossimo giro' : 'persona non abilitata'}{d.ultimoAccesso ? ' · visto ' + relativa(d.ultimoAccesso.slice(0, 10)) : ''}</span>
+          <span class="sotto piccolo">{d.abilitato ? 'con la chiave' : d.personaAbilitata ? 'aspetta la chiave: si consegna entro mezzo minuto, o subito col tasto' : 'persona non abilitata'}{d.ultimoAccesso ? ' · visto ' + relativa(d.ultimoAccesso.slice(0, 10)) : ''}</span>
           <button class="btn nudo piccolo" onclick={() => toglid(d.id)} aria-label={'Togli ' + d.nome}><Icona nome="chiudi" /></button>
         </li>
       {:else}
@@ -205,6 +208,7 @@
   .salva .mano { font-size: 20px; }
   .err { color: var(--spot-testo); font-weight: 600; font-size: var(--t-sm); }
   .titoletto { margin-top: var(--s-4); }
+  .consegna-riga { margin: var(--s-2) 0; }
   .dispositivi { list-style: none; margin: 0; padding: 0; }
   .dispositivi li { display: flex; flex-wrap: wrap; gap: 4px var(--s-3); align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--matita); }
   @media (max-width: 720px) { .nuovo { grid-template-columns: 1fr; } }

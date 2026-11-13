@@ -41,6 +41,8 @@ var PD = (function () {
   var SOLO_ADMIN = { ragazzo: true, scheda: true, gruppo: true, serie: true, programma: true };
   var STORIA_PER_VOCE = 15;   // versioni precedenti tenute per ogni voce
   var BOZZE_MS = 30 * 60000;  // salvataggi della stessa persona entro 30 minuti: una versione sola
+  // ...ed entro 3 minuti dall'ultima versione archiviata non si riscrive nemmeno il file della storia
+  var RAFFICA_MS = 3 * 60000;
 
   // "r:" pazienti, "g:" gruppi e classi, "p:" programmi riservati
   var CARTELLA = { r: 'ragazzi/', g: 'gruppi/', p: 'programmi/' };
@@ -149,7 +151,20 @@ var PD = (function () {
   var RE_RICHIESTA = /^[A-Za-z0-9_-]{8,64}$/;
 
   function creaCustode(amb) {
-    var A = amb.archivio;
+    // Ogni file si legge una volta sola per richiesta (con Apps Script ogni lettura, anche dalla
+    // cache, costa decine di millisecondi: un giro "niente di nuovo" ne faceva più di dieci).
+    // Chi scrive aggiorna la copia; al lucchetto e a ogni richiesta nuova si riparte da zero.
+    var A0 = amb.archivio, memoria = {};
+    var A = {
+      leggiJSON: function (p) {
+        if (p.indexOf('Immagini/') === 0) return A0.leggiJSON(p);
+        if (!Object.prototype.hasOwnProperty.call(memoria, p)) memoria[p] = A0.leggiJSON(p);
+        return memoria[p];
+      },
+      scriviJSON: function (p, o) { A0.scriviJSON(p, o); if (p.indexOf('Immagini/') !== 0) memoria[p] = o; },
+      esiste: function (p) { return A0.esiste(p); },
+      conLock: function (fn) { return A0.conLock(function () { memoria = {}; return fn(); }); },
+    };
     var inLock = false;
     function conLock(fn) {
       if (inLock) return fn();
@@ -242,7 +257,7 @@ var PD = (function () {
     azioni['io'] = function (u) {
       var c = A.leggiJSON(P.cifratura);
       // con la configurazione della chiave (non segreta): all'accesso basta una chiamata
-      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, tuttiRagazzi: !!u.tuttiDa, scadenza: u.scadenza || null, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, cfg: c || null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa'] };
+      return { email: u.email, nome: u.nome, ruolo: u.ruolo, ragazzi: u.ragazzi, tuttiRagazzi: !!u.tuttiDa, scadenza: u.scadenza || null, proprietario: u.proprietario, cifratura: !!c, kid: c ? c.kid : null, cfg: c || null, funzioni: ['riservati', 'gruppi-riservati', 'esportazione', 'programmi', 'io-cfg', 'in-attesa', 'sync-rapido'] };
     };
     azioni['cifratura.leggi'] = function () { return A.leggiJSON(P.cifratura); };
     azioni['cifratura.imposta'] = function (u, d) {
@@ -324,7 +339,7 @@ var PD = (function () {
     // ---- accessi ----
     azioni['accessi.leggi'] = function (u) {
       richiedi(eAdmin(u));
-      var a = leggiAccessi();
+      var a = Object.assign({}, leggiAccessi());
       a.proprietario = proprietario();
       return a;
     };
@@ -380,8 +395,8 @@ var PD = (function () {
     }
     // Le versioni precedenti: nella stessa richiesta un file di storia si legge
     // e si scrive una volta sola, anche se cambiano più voci dello stesso ambito.
-    var storie = null;
-    function archiviaStoria(ambito, r) {
+    var storie = null, storieCambiate = null;
+    function archiviaStoria(ambito, r, daChi) {
       var s = storie && storie[ambito];
       if (!s) {
         s = A.leggiJSON(P.storia(ambito)) || { schema: SCHEMA, voci: {} };
@@ -394,17 +409,34 @@ var PD = (function () {
       // Così restano le versioni che servono (com'era prima di ogni sessione) e la
       // storia non si riempie di 15 bozze dello stesso minuto.
       var prec = l[0];
-      if (prec && !prec.eliminato && !nuova.eliminato && prec.aggiornatoDa === nuova.aggiornatoDa &&
-          Math.abs(Date.parse(nuova.aggiornato) - Date.parse(prec.aggiornato)) < BOZZE_MS) l[0] = nuova;
+      var stessa = prec && !prec.eliminato && !nuova.eliminato && prec.aggiornatoDa === nuova.aggiornatoDa;
+      // Salvataggi a raffica della stessa persona (si sta scrivendo): la versione precedente di
+      // pochi minuti fa basta, il file della storia non si riscrive (una scrittura su Drive in meno
+      // a ogni salvataggio). Se poi interviene un'altra persona si archivia come sempre.
+      if (stessa && daChi === nuova.aggiornatoDa && Math.abs(Date.parse(amb.ora()) - Date.parse(prec.aggiornato)) < RAFFICA_MS) return;
+      if (stessa && Math.abs(Date.parse(nuova.aggiornato) - Date.parse(prec.aggiornato)) < BOZZE_MS) l[0] = nuova;
       else l.unshift(nuova);
       s.voci[r.id] = l.slice(0, STORIA_PER_VOCE);
-      if (!storie) A.scriviJSON(P.storia(ambito), s);
+      if (storieCambiate) storieCambiate[ambito] = true;
+      else A.scriviJSON(P.storia(ambito), s);
+    }
+
+    // Impronta corta e stabile (cyrb53) di un valore: serve solo a vedere se è cambiato
+    function improntaDi(v) {
+      var t = stabile(v), h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+      for (var i = 0; i < t.length; i++) {
+        var ch = t.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36) + '-' + t.length;
     }
 
     /**
      * Una sola chiamata: prima applica gli invii (con controllo di versione),
      * poi restituisce quello che è cambiato negli ambiti visibili.
-     * dati = { cursori: { ambito: rev }, invii: [ { id, tipo, ambito, versioneBase, busta | eliminato } ] }
+     * dati = { cursori: { ambito: rev }, impronta?: string, io?: true, invii: [ { id, tipo, ambito, versioneBase, busta | eliminato } ] }
      */
     azioni['sync'] = function (u, d) {
       var c = A.leggiJSON(P.cifratura);
@@ -412,7 +444,7 @@ var PD = (function () {
       var esiti = [];
       if (invii.length) {
         if (!c) throw err('senza-chiave', 'Prima un operatore deve creare la chiave dell\'aula.');
-        storie = {};
+        storie = {}; storieCambiate = {};
         try { conLock(function () {
           var stato = leggiStato();
           stato.indice = stato.indice || {};
@@ -452,7 +484,7 @@ var PD = (function () {
                 id: v.id, tipo: v.tipo, version: versione + 1, rev: stato.rev, busta: v.busta, eliminato: v.eliminato || undefined,
                 creato: attuale ? attuale.creato : ora, creatoDa: attuale ? attuale.creatoDa : u.email, aggiornato: ora, aggiornatoDa: u.email,
               };
-              if (attuale) archiviaStoria(dove, attuale);
+              if (attuale) archiviaStoria(dove, attuale, u.email);
               if (dove !== v.ambito) {
                 // cambio di ambito (es. una nota che diventa "nel gruppo"): nel vecchio resta una lapide
                 attualeFile.voci[v.id] = { id: v.id, tipo: v.tipo, version: r.version, rev: stato.rev, eliminato: true, spostato: v.ambito, aggiornato: ora, aggiornatoDa: u.email };
@@ -468,9 +500,9 @@ var PD = (function () {
             }
           });
           Object.keys(toccati).forEach(function (a) { A.scriviJSON(P.ambito(a), toccati[a]); });
-          Object.keys(storie).forEach(function (a) { A.scriviJSON(P.storia(a), storie[a]); });
+          Object.keys(storieCambiate).forEach(function (a) { A.scriviJSON(P.storia(a), storie[a]); });
           A.scriviJSON(P.stato, stato);
-        }); } finally { storie = null; }
+        }); } finally { storie = null; storieCambiate = null; }
       }
       // cosa è cambiato da quando il dispositivo ha guardato l'ultima volta
       var cursori = oggettoV(d.cursori || {}, 'cursori');
@@ -502,9 +534,24 @@ var PD = (function () {
         var dd = leggiDispositivi().dispositivi;
         Object.keys(dd).forEach(function (id) { var x = dd[id]; if (!(x.chiavi && x.chiavi[c.kid]) && abilitato(x.email)) inAttesa++; });
       }
-      return { esiti: esiti, voci: cambi, ambiti: visibili, cursori: stato.ambiti, rev: stato.rev, kid: c ? c.kid : null, pazienti: pazienti, gruppi: gruppi, programmi: programmi, inAttesa: inAttesa,
-        // l'accesso può cambiare mentre l'app è aperta (scadenza, pazienti): l'app lo aggiorna senza chiedere "io"
-        accesso: { scadenza: u.scadenza || null, tuttiRagazzi: !!u.tuttiDa, ragazzi: u.ragazzi } };
+      // l'accesso può cambiare mentre l'app è aperta (scadenza, pazienti): l'app lo aggiorna senza chiedere "io"
+      var accesso = { scadenza: u.scadenza || null, tuttiRagazzi: !!u.tuttiDa, ragazzi: u.ragazzi };
+      var kid = c ? c.kid : null;
+      // Impronta di tutto quello che non sono le voci (ambiti visibili, chi vede cosa, accesso, chiave):
+      // se l'app ha già quella giusta non si rimanda niente di tutto questo, e un giro «niente di
+      // nuovo» è una risposta di poche righe.
+      var impronta = improntaDi([visibili, pazienti, gruppi, programmi, accesso, kid]);
+      var risposta = { esiti: esiti, voci: cambi, rev: stato.rev, kid: kid, inAttesa: inAttesa, impronta: impronta };
+      if (typeof d.impronta === 'string' && d.impronta === impronta) {
+        risposta.uguale = true;
+        if (cambi.length || esiti.length) { risposta.ambiti = visibili; risposta.cursori = stato.ambiti; }
+      } else {
+        risposta.ambiti = visibili; risposta.cursori = stato.ambiti;
+        risposta.pazienti = pazienti; risposta.gruppi = gruppi; risposta.programmi = programmi; risposta.accesso = accesso;
+      }
+      // avvio in una richiesta sola: il profilo (con la configurazione della chiave) insieme alle novità
+      if (d.io === true) risposta.io = azioni['io'](u);
+      return risposta;
     };
 
     /**
@@ -637,7 +684,7 @@ var PD = (function () {
         var fn = azioni[richiesta.azione];
         var perSessione = (richiesta.azione === 'sessione.crea' || richiesta.azione === 'sessione.rinnova') && amb.creaSessione;
         if (!fn && !perSessione) throw err('richiesta-non-valida', 'Azione sconosciuta.');
-        registro = null;
+        registro = null; memoria = {};
         var identita;
         try { identita = amb.verificaToken(richiesta.token); } catch (e) { throw err('non-autenticato', 'Accesso scaduto o non valido: rientra con Google.'); }
         var u = utenteDa(identita);

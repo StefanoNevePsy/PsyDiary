@@ -289,6 +289,71 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   fs.rmSync(d2, { recursive: true, force: true });
 }
 
+// giro di sincronizzazione veloce: impronta, avvio in una richiesta, raffica, letture
+{
+  const PD = require('../custode/core.js');
+  const { archivioSuDisco } = require('./custode-locale.cjs');
+  const d3 = fs.mkdtempSync(path.join(os.tmpdir(), 'psy-veloce-'));
+  const base = archivioSuDisco(d3), conta = { r: 0, scritti: [] };
+  let t = Date.parse('2026-05-04T09:00:00Z');
+  const c3 = PD.creaCustode({
+    archivio: { leggiJSON: (x) => { conta.r++; return base.leggiJSON(x); }, scriviJSON: (x, o) => { conta.scritti.push(x); base.scriviJSON(x, o); }, esiste: base.esiste, conLock: base.conLock },
+    verificaToken: (tk) => { const m = /^dev:([^|]+)/.exec(tk); return { email: m[1], nome: m[1] }; },
+    proprietario: () => 'stefano@aula.it', ora: () => new Date(t).toISOString(),
+  });
+  const ch3 = (email, azione, dati) => c3.gestisci({ v: 1, token: 'dev:' + email, azione, dati });
+  ch3('stefano@aula.it', 'cifratura.imposta', { cifratura });
+  ch3('stefano@aula.it', 'accessi.salva', { accessi: { utenti: { 'elena@aula.it': { nome: 'Elena', ruolo: 'admin' } } }, versioneBase: 0 });
+  for (let i = 0; i < 5; i++) ch3('elena@aula.it', 'dispositivo.registra', { id: 'dispo' + i + 'abcd', pubblica: 'AAAA', nome: 'x' });
+  const inv = [];
+  for (let i = 0; i < 20; i++) { const id = 'rp' + String(i).padStart(2, '0'); inv.push(voce(id, 'ragazzo', 'aula'), voce(id + 's', 'scheda', 'r:' + id)); }
+  const prima = ch3('stefano@aula.it', 'sync', { invii: inv }).dati;
+  ok(prima.impronta && !prima.uguale && prima.pazienti && Object.keys(prima.pazienti).length === 20, 'la prima risposta porta tutto e un\'impronta');
+  const completo = ch3('stefano@aula.it', 'sync', { cursori: prima.cursori }).dati;
+  conta.r = 0;
+  const lieve = ch3('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta });
+  ok(lieve.dati.uguale === true && lieve.dati.voci.length === 0 && !lieve.dati.pazienti && !lieve.dati.ambiti, 'con l\'impronta giusta il giro «niente di nuovo» non rimanda elenchi');
+  ok(JSON.stringify(lieve).length < 400 && JSON.stringify(lieve).length * 8 < JSON.stringify(completo).length, 'e pesa una frazione (' + JSON.stringify(lieve).length + ' contro ' + JSON.stringify(completo).length + ' byte)');
+  ok(conta.r <= 5, 'e legge pochi file: ' + conta.r + ' letture con 5 dispositivi registrati');
+  ok(ch3('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: 'sbagliata' }).dati.pazienti, 'con un\'impronta diversa torna l\'elenco completo');
+  ok(ch3('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta }).dati.impronta === prima.impronta, 'l\'impronta è stabile finché non cambia niente');
+  // una novità: arrivano le voci e i cursori, ma non gli elenchi
+  const novita = ch3('elena@aula.it', 'sync', { invii: [voce('nx1', 'nota', 'aula')] }).dati;
+  const vede = ch3('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta }).dati;
+  ok(vede.uguale && vede.voci.length === 1 && vede.voci[0].id === 'nx1' && vede.cursori && vede.ambiti, 'una novità arriva con i cursori, senza rimandare gli elenchi');
+  // un paziente nuovo cambia l'impronta
+  ch3('stefano@aula.it', 'sync', { invii: [voce('rzz01', 'ragazzo', 'aula'), voce('rzz01s', 'scheda', 'r:rzz01')] });
+  ok(ch3('stefano@aula.it', 'sync', { cursori: prima.cursori, impronta: prima.impronta }).dati.pazienti, 'un paziente nuovo: elenchi di nuovo completi');
+  // l'accesso che cambia cambia l'impronta
+  const ie = ch3('elena@aula.it', 'sync', { cursori: {} }).dati;
+  const a3 = ch3('stefano@aula.it', 'accessi.leggi').dati;
+  a3.utenti['elena@aula.it'].scadenza = '2099-01-01';
+  ch3('stefano@aula.it', 'accessi.salva', { accessi: { utenti: a3.utenti }, versioneBase: a3.version });
+  const ie2 = ch3('elena@aula.it', 'sync', { cursori: {}, impronta: ie.impronta }).dati;
+  ok(!ie2.uguale && ie2.accesso.scadenza === '2099-01-01', 'cambia l\'accesso: l\'app lo riceve');
+  // avvio: profilo e novità insieme
+  const av = ch3('elena@aula.it', 'sync', { cursori: {}, io: true }).dati;
+  ok(av.io && av.io.email === 'elena@aula.it' && av.io.kid === 'kprova' && av.io.cfg && av.io.funzioni.includes('sync-rapido') && av.voci.length > 0, 'avvio in una richiesta: profilo, chiave e voci insieme');
+  ok(!ch3('elena@aula.it', 'sync', { cursori: {} }).dati.io, 'senza chiederlo il profilo non c\'è');
+  // salvataggi a raffica: la storia non si riscrive, poi sì
+  const unica = (n) => Object.assign(busta(), { iv: 'AAAAAAAAAAAA' + String(n).padStart(4, '0') });
+  const salva = (ver, n) => ch3('elena@aula.it', 'sync', { invii: [Object.assign(voce('sraf1', 'seduta', 'aula', ver), { busta: unica(n) })] }).dati.esiti[0].version;
+  let ver = salva(0, 0);
+  conta.scritti = [];
+  ver = salva(ver, 1);                        // la prima versione si archivia
+  ok(conta.scritti.includes('Storia/aula.json'), 'il secondo salvataggio archivia la prima versione');
+  for (let k = 2; k <= 6; k++) { t += 5000; conta.scritti = []; ver = salva(ver, k); ok(!conta.scritti.includes('Storia/aula.json') && conta.scritti.includes('Dati/aula.json'), 'salvataggio a raffica #' + k + ': si scrive il dato, non la storia'); }
+  ok(ch3('elena@aula.it', 'voce.storia', { id: 'sraf1', ambito: 'aula' }).dati.length === 1, 'nella storia resta una versione sola');
+  t += 4 * 60000; conta.scritti = [];
+  ver = salva(ver, 7);
+  ok(conta.scritti.includes('Storia/aula.json'), 'dopo qualche minuto la storia si aggiorna di nuovo');
+  ok(ch3('elena@aula.it', 'voce.storia', { id: 'sraf1', ambito: 'aula' }).dati.length === 1, '(sempre una versione, le bozze si condensano)');
+  t += 5000; conta.scritti = [];
+  ch3('stefano@aula.it', 'sync', { invii: [Object.assign(voce('sraf1', 'seduta', 'aula', ver), { busta: unica(8) })] });
+  ok(conta.scritti.includes('Storia/aula.json'), 'se interviene un\'altra persona la versione di Elena si archivia subito');
+  fs.rmSync(d3, { recursive: true, force: true });
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${n - falliti}/${n} superati`);
 process.exit(falliti ? 1 : 0);

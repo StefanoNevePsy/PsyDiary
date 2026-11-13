@@ -4,6 +4,7 @@
   //   verde: tutto salvato · giallo: da inviare, o fermo da un po' · rosso: errore · grigio: senza rete
   import { onMount } from 'svelte';
   import { sync, sincronizza } from '../../lib/centro/sync.svelte.js';
+  import ConsegnaChiave from './ConsegnaChiave.svelte';
 
   let adesso = $state(Date.now());
   onMount(() => { const t = setInterval(() => (adesso = Date.now()), 30000); return () => clearInterval(t); });
@@ -19,6 +20,7 @@
   );
 </script>
 
+<ConsegnaChiave compatto />
 <button class="stato s-{stato[0]}" onclick={() => sincronizza()} title={stato[1]} aria-label={'Sincronizzazione: ' + stato[1]}>
   <span class="pallino" aria-hidden="true"></span><span class="testo">{stato[1]}</span>
 </button>

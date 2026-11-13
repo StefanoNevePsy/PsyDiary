@@ -24,6 +24,10 @@ export const sync = $state({
   fase: REALE ? 'fuori' : 'spento', errore: null, negato: null, lavoro: false,
   inCoda: 0, ultima: null, online: typeof navigator === 'undefined' ? true : navigator.onLine,
   io: null, cfg: null, dispositivi: [],
+  // dispositivi di persone abilitate che aspettano la chiave (lo sanno solo gli operatori)
+  inAttesa: 0, consegna: false,
+  // l'ultima consegna fatta da sola (n dispositivi, di chi): l'operatore la vede per qualche secondo
+  consegnata: null,
 });
 let chiavi = {};             // kid → CryptoKey
 const chiave = () => (sync.cfg ? chiavi[sync.cfg.kid] || null : null);
@@ -91,17 +95,40 @@ async function chiamaUnaVolta(azione, d, rid, tokenFisso) {
 // Memoria della sincronizzazione (IndexedDB a parte)
 //   voci: id → { id, tipo, ambito, version, base }   base = ultima copia comune
 //   meta: coda, cursori, io, cfg, caricate (immagini), ambitiImmagini
-function op(store, modo, fn) {
-  return new Promise((ok, ko) => {
+// La connessione si apre una volta sola: aprirla a ogni lettura (per ogni voce) costava
+// decine di millisecondi, su un telefono molto di più.
+let connessione = null;
+function apri() {
+  if (connessione) return connessione;
+  connessione = new Promise((ok, ko) => {
     const r = indexedDB.open('psydiary-sync', 1);
     r.onupgradeneeded = () => { r.result.createObjectStore('voci'); r.result.createObjectStore('meta'); };
-    r.onerror = () => ko(r.error);
+    r.onerror = () => { connessione = null; ko(r.error); };
     r.onsuccess = () => {
-      const d = r.result, t = d.transaction(store, modo), req = fn(t.objectStore(store));
-      t.oncomplete = () => { d.close(); ok(req && req.result); };
-      t.onerror = () => { d.close(); ko(t.error); };
+      const d = r.result;
+      d.onclose = () => { connessione = null; };
+      d.onversionchange = () => { d.close(); connessione = null; };
+      ok(d);
     };
   });
+  return connessione;
+}
+async function op(store, modo, fn) {
+  for (let tentativo = 0; ; tentativo++) {
+    const d = await apri();
+    try {
+      return await new Promise((ok, ko) => {
+        const t = d.transaction(store, modo), req = fn(t.objectStore(store));
+        t.oncomplete = () => ok(req && req.result);
+        t.onerror = () => ko(t.error);
+        t.onabort = () => ko(t.error || new Error('operazione annullata'));
+      });
+    } catch (e) {
+      // connessione chiusa dal browser: si riapre una volta
+      if (tentativo === 0 && (e?.name === 'InvalidStateError' || e?.name === 'TransactionInactiveError')) { connessione = null; continue; }
+      throw e;
+    }
+  }
 }
 const voceLocale = (id) => op('voci', 'readonly', (s) => s.get(id));
 const tutteLocali = () => op('voci', 'readonly', (s) => s.getAll()).then((v) => v || []);
@@ -143,7 +170,7 @@ function segna(tabella, id) {
   if (!idVociDi(tabella, id).length) return;
   coda.add(tabella + '|' + id);
   salvaCoda();
-  programma(1500);
+  programma(1000);
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +181,7 @@ let ambitiImmagini = {};
 let caricate = new Set();
 
 async function caricaImmagini(voce) {
+  let nuove = false;
   for (const id of immaginiDi(voce.dati)) {
     if (caricate.has(id)) continue;
     const f = await fileImmagine(id);
@@ -163,7 +191,9 @@ async function caricaImmagini(voce) {
     await chiama('immagine.carica', { id, ambito: voce.ambito, busta });
     caricate.add(id);
     ambitiImmagini[id] = voce.ambito;
+    nuove = true;
   }
+  if (!nuove) return;
   await scriviMeta('caricate', [...caricate]);
   await scriviMeta('ambitiImmagini', ambitiImmagini);
 }
@@ -274,12 +304,34 @@ async function invia() {
   return true;
 }
 
-/** Una chiamata "sync": invia (se c'è) e applica quello che arriva. */
-async function ricevi(invii = []) {
-  const cursori = (await meta('cursori')) || {};
-  const r = await chiama('sync', { cursori, invii });
+// Cursori e impronta si tengono anche in memoria: un giro «niente di nuovo» non tocca il disco.
+// L'impronta è quella di elenchi e accessi che questo dispositivo ha già (la dice il custode):
+// se non è cambiata non li rimanda, e il giro è una risposta di poche righe.
+let cursoriMem = null, improntaNota = null;
+const elenchiCompleti = () => !!(centro.pazienti && centro.gruppi && centro.programmi);
+
+/**
+ * Una chiamata "sync": invia (se c'è) e applica quello che arriva.
+ * con io: chiede anche il profilo (avvio in una richiesta sola); se la chiave dell'aula è
+ * cambiata non applica niente e restituisce { cambiata: io }, così si riparte dalla preparazione.
+ */
+async function ricevi(invii = [], { io = false } = {}) {
+  if (!cursoriMem) cursoriMem = (await meta('cursori')) || {};
+  const richiesta = { cursori: cursoriMem, invii };
+  if (io) richiesta.io = true;
+  if (improntaNota && elenchiCompleti()) richiesta.impronta = improntaNota;
+  const r = await chiama('sync', richiesta);
   if (!r || !Array.isArray(r.voci) || !Array.isArray(r.esiti)) throw new ErroreRete('Risposta del custode incompleta: riprovo.');
+  if (io) {
+    // custode non aggiornato: non manda il profilo, si chiede a parte
+    const profilo = r.io || await chiama('io');
+    if (!sync.cfg || !profilo.cifratura || profilo.kid !== sync.cfg.kid || profilo.email !== sync.io?.email) return { cambiata: profilo, esiti: [], voci: [] };
+    sync.io = profilo; centro.io = profilo;
+    if (profilo.cfg) { sync.cfg = profilo.cfg; await scriviMeta('cfg', sync.cfg); }
+    await scriviMeta('io', profilo);
+  }
   ultimaRisposta = { inAttesa: r.inAttesa };
+  if (typeof r.inAttesa === 'number' && eOperatore()) sync.inAttesa = r.inAttesa;
   if (r.accesso && sync.io && ['scadenza', 'tuttiRagazzi', 'ragazzi'].some((k) => JSON.stringify(sync.io[k] ?? null) !== JSON.stringify(r.accesso[k] ?? null))) {
     sync.io = { ...sync.io, ...r.accesso };
     centro.io = sync.io;
@@ -326,15 +378,21 @@ async function ricevi(invii = []) {
     else await scriviVoce({ id: v.id, tipo: v.tipo, ambito: v.ambito, version: v.version, base: d });
   }
   // ragazzi non più condivisi: il loro personale lascia questo dispositivo
-  const visibili = new Set(r.ambiti);
-  for (const l of await tutteLocali()) {
-    if (l.ambito === 'aula' || visibili.has(l.ambito)) continue;
-    await scriviInLocale({ ...l, eliminato: true }, null);
-    await togliVoce(l.id);
+  // (gli ambiti visibili cambiano solo quando cambia l'impronta: negli altri giri non si controlla)
+  if (r.ambiti && !r.uguale) {
+    const visibili = new Set(r.ambiti);
+    for (const l of await tutteLocali()) {
+      if (l.ambito === 'aula' || visibili.has(l.ambito)) continue;
+      await scriviInLocale({ ...l, eliminato: true }, null);
+      await togliVoce(l.id);
+    }
   }
-  const nuovi = {};
-  for (const a of r.ambiti) nuovi[a] = r.cursori[a];
-  await scriviMeta('cursori', nuovi);
+  if (r.ambiti && r.cursori) {
+    const nuovi = {};
+    for (const a of r.ambiti) nuovi[a] = r.cursori[a];
+    cursoriMem = nuovi;
+    await scriviMeta('cursori', nuovi);
+  }
   if (r.pazienti) {
     // i pazienti creati qui e non ancora arrivati al custode restano miei
     const p = { ...r.pazienti };
@@ -349,20 +407,43 @@ async function ricevi(invii = []) {
     centro.gruppi = g;
     await scriviMeta('gruppi', g);
   }
-  await scriviMeta('ambitiImmagini', ambitiImmagini);
+  if (!r.uguale || r.voci.length) await scriviMeta('ambitiImmagini', ambitiImmagini);
+  if (!r.uguale) {
+    // per ultima: se qualcosa sopra non è arrivato in fondo, il prossimo giro riceve tutto di nuovo
+    improntaNota = typeof r.impronta === 'string' && r.pazienti && r.gruppi && r.programmi ? r.impronta : null;
+    await scriviMeta('impronta', improntaNota);
+  }
   return r;
 }
 
-let incorso = null, timer = null, ultimaRisposta = {}, ultimaConsegna = 0;
-function programma(ms) { clearTimeout(timer); timer = setTimeout(() => sincronizza(), ms); }
+let incorso = null, timer = null, ultimaRisposta = {}, ultimaConsegna = 0, ultimoGiro = 0, primoSegno = 0;
+// Dopo una modifica si aspetta un attimo (altre ne possono seguire e partono insieme), ma
+// scrivendo di continuo si parte comunque entro pochi secondi.
+const ATTESA_MASSIMA = 6000;
+const INTERVALLO_GIRO = 30000;
+function programma(ms) {
+  clearTimeout(timer);
+  if (!primoSegno) primoSegno = Date.now();
+  timer = setTimeout(() => sincronizza(), Math.max(0, Math.min(ms, ATTESA_MASSIMA - (Date.now() - primoSegno))));
+}
+/** avvio: una richiesta sola per profilo e novità. Se la chiave è cambiata si riparte da prepara(). */
+let avvioRapido = false;
 export function sincronizza() {
   if (sync.fase !== 'pronto' || !sync.online) return Promise.resolve();
   if (incorso) return incorso.then(() => (coda.size ? sincronizza() : null));
   sync.lavoro = true;
+  clearTimeout(timer); primoSegno = 0;
+  const conIo = avvioRapido; avvioRapido = false;
   incorso = (async () => {
+    let rifare = null;
     try {
       // l'invio è già una "sync": riceve anche le novità, non serve chiederle di nuovo
       let ricevuto = false;
+      if (conIo) {
+        const r = await ricevi([], { io: true });
+        if (r.cambiata) { rifare = r.cambiata; return; }
+        ricevuto = true;
+      }
       for (let giro = 0; giro < 4 && coda.size; giro++) { if (await invia()) ricevuto = true; }
       if (!ricevuto) await ricevi();
       if (coda.size) await invia();
@@ -373,8 +454,11 @@ export function sincronizza() {
         await consegnaChiavi();
       }
       sync.ultima = new Date().toISOString();
+      ultimoGiro = Date.now();
       sync.errore = null;
     } catch (e) { gestisciErrore(e); } finally { sync.lavoro = false; incorso = null; }
+    // la chiave dell'aula è cambiata (o l'accesso): si riparte dalla preparazione completa
+    if (rifare) await prepara(rifare).catch(gestisciErrore);
   })();
   return incorso;
 }
@@ -426,7 +510,7 @@ async function cancellaDatiAula() {
   await op('voci', 'readwrite', (s) => s.clear());
   await op('meta', 'readwrite', (s) => s.clear());
   await C.dimenticaTutto();
-  coda.clear(); chiavi = {}; accessiCache = null; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.programmi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
+  coda.clear(); chiavi = {}; accessiCache = null; cursoriMem = null; improntaNota = null; sync.inAttesa = 0; sync.io = null; centro.io = null; centro.pazienti = null; centro.gruppi = null; centro.programmi = null; centro.pazientiNoti = false; sync.cfg = null; sync.inCoda = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -438,10 +522,7 @@ function nomeDispositivo() {
   const tipo = /iPad|Tablet/.test(ua) || (/Android/.test(ua) && !/Mobile/.test(ua)) ? 'tablet' : /Mobile|iPhone/.test(ua) ? 'telefono' : 'computer';
   return `${br} · ${so} · ${tipo}`;
 }
-async function ottieniChiave() {
-  const d = await C.dispositivo();
-  await chiama('dispositivo.registra', { id: d.id, nome: nomeDispositivo(), pubblica: d.pubblica });
-  const r = await chiama('dispositivo.chiave', { id: d.id });
+async function accogliChiave(d, r) {
   const busta = sync.cfg && r.chiavi?.[sync.cfg.kid];
   if (!busta) return false;
   // gli operatori la ricevono esportabile (per consegnarla ad altri), gli altri no
@@ -450,33 +531,88 @@ async function ottieniChiave() {
   chiavi = await C.portachiavi();
   return true;
 }
+async function ottieniChiave() {
+  const d = await C.dispositivo();
+  await chiama('dispositivo.registra', { id: d.id, nome: nomeDispositivo(), pubblica: d.pubblica });
+  const r = await chiama('dispositivo.chiave', { id: d.id });
+  return accogliChiave(d, r);
+}
+// Chi aspetta la chiave la chiede spesso, ma solo finché aspetta: i primi 3 minuti ogni 5 secondi
+// (c'è qualcuno davanti allo schermo), poi ogni 15 per un quarto d'ora, poi ogni minuto.
+// Chi ha la chiave non fa controlli in più: vede quanti la aspettano e può consegnarla subito.
+let inizioAttesa = 0, ultimoControllo = 0, controllando = false;
+const aspetta = () => sync.fase === 'attesa' || (sync.fase === 'chiave' && !!sync.cfg);
+function intervalloAttesa() {
+  const da = Date.now() - inizioAttesa;
+  return da < 180000 ? 5000 : da < 1080000 ? 15000 : 60000;
+}
+/** Una richiesta leggera: la chiave è stata consegnata a questo dispositivo? */
+async function controllaChiave() {
+  if (controllando || !aspetta() || !sync.online || !sync.cfg) return;
+  controllando = true; ultimoControllo = Date.now();
+  try {
+    const d = await C.dispositivo();
+    let r;
+    try { r = await chiama('dispositivo.chiave', { id: d.id }, { tentativi: 1 }); }
+    catch (e) {
+      // dispositivo tolto dagli operatori, o chiave cambiata: si ricomincia dalla preparazione
+      if (e?.custode && e.codice === 'non-trovato') { await prepara(); return; }
+      throw e;
+    }
+    if (r.kid && r.kid !== sync.cfg.kid) { await prepara(); return; }
+    if (await accogliChiave(d, r)) {
+      aggiornaFase();
+      if (sync.fase === 'pronto') { sync.errore = null; sincronizza(); }
+    }
+  } catch (e) { if (!e?.rete) gestisciErrore(e); } finally { controllando = false; }
+}
 function aggiornaFase() {
   // senza sapere chi sei non si entra (mai un "ospite" con l'app aperta)
+  const prima = sync.fase;
   if (!sync.io || !centro.io) { sync.fase = 'fuori'; return; }
   sync.fase = chiave() ? 'pronto' : eOperatore() ? 'chiave' : 'attesa';
+  if (sync.fase !== prima && (sync.fase === 'attesa' || sync.fase === 'chiave')) { inizioAttesa = Date.now(); ultimoControllo = 0; }
 }
 /** Gli operatori consegnano la chiave ai dispositivi delle persone abilitate che la aspettano. */
 async function consegnaChiavi() {
   const k = chiave();
   if (!k || !k.extractable) return 0;
   const el = await chiama('dispositivi.elenco');
-  sync.dispositivi = el;
   let n = 0;
   for (const d of el) {
     if (d.abilitato || !d.personaAbilitata) continue;
     try {
       await chiama('dispositivi.abilita', { id: d.id, kid: sync.cfg.kid, chiave: await C.consegnaA(d.pubblica, k), pubblica: d.pubblica });
-      d.abilitato = true; n++;
+      d.abilitato = true; d.consegnata = true; n++;
     } catch (e) { console.warn('consegna della chiave', d.id, e); }
   }
+  sync.dispositivi = el;
+  if (n) sync.consegnata = { n, persone: [...new Set(el.filter((d) => d.consegnata).map((d) => d.email))], id: Date.now() };
+  sync.inAttesa = el.filter((d) => !d.abilitato && d.personaAbilitata).length;
   return n;
 }
+/**
+ * A mano, da un operatore: consegna subito la chiave ai dispositivi che la aspettano, senza
+ * aspettare il prossimo giro. Restituisce { consegnate, inAttesa }.
+ */
+export async function consegnaOra() {
+  if (!eOperatore()) throw new Error('La chiave la consegnano gli operatori.');
+  if (!chiave()?.extractable) throw new Error('Su questo dispositivo la chiave non si può consegnare ad altri: inseriscila una volta con la frase dell\'aula, oppure usa il dispositivo su cui l\'hai creata.');
+  sync.consegna = true;
+  try {
+    const consegnate = await consegnaChiavi();
+    return { consegnate, inAttesa: sync.inAttesa };
+  } finally { sync.consegna = false; }
+}
 
-async function prepara() {
+async function prepara(profilo = null) {
   // se è in corso la cancellazione dei dati (accesso tolto) si aspetta che
   // finisca, così non svuota il profilo appena ricaricato
   if (pulizia) await pulizia.catch(() => {});
-  sync.io = await chiama('io');
+  // Già dentro e con la chiave su questo dispositivo (di norma a ogni avvio): una richiesta sola
+  // porta profilo e novità. Se la chiave è cambiata o l'accesso no, si riparte da qui per intero.
+  if (!profilo && sync.fase === 'pronto' && chiave() && sync.io && sync.cfg) { avvioRapido = true; return sincronizza(); }
+  sync.io = profilo || await chiama('io');
   centro.io = sync.io;
   await scriviMeta('io', sync.io);
   // i custodi aggiornati la mandano insieme a "io": una chiamata in meno all'accesso
@@ -496,6 +632,7 @@ export async function avvia() {
   coda = new Set((await meta('coda')) || []);
   sync.inCoda = coda.size;
   caricate = new Set((await meta('caricate')) || []);
+  improntaNota = (await meta('impronta')) || null;
   ambitiImmagini = (await meta('ambitiImmagini')) || {};
   const u = Auth.inizia();
   Auth.alCambio(async (nuovo) => {
@@ -504,14 +641,20 @@ export async function avvia() {
       try { await prepara(); } catch (e) { gestisciErrore(e); }
     }
   });
-  window.addEventListener('online', () => { sync.online = true; sincronizza(); });
+  const aperta = () => document.visibilityState === 'visible';
+  window.addEventListener('online', () => { sync.online = true; sincronizza(); controllaChiave(); });
   window.addEventListener('offline', () => { sync.online = false; });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sincronizza(); });
+  document.addEventListener('visibilitychange', () => { if (aperta()) { sincronizza(); controllaChiave(); } });
+  // Un solo battito ogni 5 secondi, poi ognuno decide se serve: la sincronizzazione ogni mezzo
+  // minuto (un giro «niente di nuovo» costa una richiesta di poche righe), chi aspetta la chiave
+  // con il ritmo di intervalloAttesa(), la scadenza dell'accesso ogni minuto.
+  let ultimaScadenza = 0;
   setInterval(() => {
-    controllaScadenza();
-    if (document.visibilityState !== 'visible') return;
-    if (sync.fase === 'attesa') prepara().catch(gestisciErrore); else sincronizza();
-  }, 60000);
+    if (Date.now() - ultimaScadenza >= 60000) { ultimaScadenza = Date.now(); controllaScadenza(); }
+    if (!aperta()) return;
+    if (aspetta()) { if (Date.now() - ultimoControllo >= intervalloAttesa() - 500) controllaChiave(); return; }
+    if (sync.fase === 'pronto' && Date.now() - ultimoGiro >= INTERVALLO_GIRO - 500) sincronizza();
+  }, 5000);
   if (!u) { sync.fase = 'fuori'; return; }
   // senza rete si lavora con quanto già noto: profilo e chiave ricordati
   sync.io = await meta('io');

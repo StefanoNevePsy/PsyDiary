@@ -74,7 +74,7 @@
 
     {:else if sync.fase === 'chiave'}
       <h1 class="display">Questo dispositivo è nuovo</h1>
-      <p class="sotto">Basta aprire PsyDiary su un dispositivo dove sei già entrato: consegna la chiave a questo da solo, entro un minuto. Oppure inserisci qui la chiave dell'aula.</p>
+      <p class="sotto">Basta aprire PsyDiary su un dispositivo dove sei già entrato: consegna la chiave a questo da solo, di solito entro mezzo minuto (e subito se tocca «Consegna la chiave»). Questa pagina controlla da sola ogni pochi secondi. Oppure inserisci qui la chiave dell'aula.</p>
       <form class="inserisci" onsubmit={inserisci}>
         <label class="campo"><span>Chiave dell'aula</span><input class="input mono" bind:value={fraseInserita} placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" /></label>
         <button class="btn pieno" disabled={lavoro}>{lavoro ? 'Controllo…' : 'Usa la chiave'}</button>
@@ -82,9 +82,10 @@
 
     {:else if sync.fase === 'attesa'}
       <h1 class="display">Ci siamo quasi</h1>
-      <p class="sotto">Ciao {sync.io?.nome}. Questo dispositivo aspetta la chiave dell'aula: arriva da sola appena uno degli operatori apre PsyDiary. Puoi lasciare questa pagina aperta.</p>
+      <p class="sotto">Ciao {sync.io?.nome}. Questo dispositivo aspetta la chiave dell'aula. Un operatore deve avere PsyDiary aperto: la consegna da solo entro mezzo minuto, oppure subito se tocca «Consegna la chiave». Questa pagina controlla ogni pochi secondi e si apre da sola: puoi lasciarla così.</p>
       <p class="mano attesa">in attesa…</p>
       <button class="btn" onclick={riprova}>Controlla adesso</button>
+      <p class="sotto piccolo">Se non arriva entro qualche minuto, avvisa un operatore.</p>
     {/if}
 
     {#if errore}<p class="avviso">{errore}</p>{/if}
