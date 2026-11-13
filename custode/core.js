@@ -43,6 +43,8 @@ var PD = (function () {
   var BOZZE_MS = 30 * 60000;  // salvataggi della stessa persona entro 30 minuti: una versione sola
   // ...ed entro 3 minuti dall'ultima versione archiviata non si riscrive nemmeno il file della storia
   var RAFFICA_MS = 3 * 60000;
+  // Quanti ambiti al massimo possono essere «sporchi» (scritti più volte senza riscrivere lo stato su Drive)
+  var MAX_SPORCHI = 8;
 
   // "r:" pazienti, "g:" gruppi e classi, "p:" programmi riservati
   var CARTELLA = { r: 'ragazzi/', g: 'gruppi/', p: 'programmi/' };
@@ -155,64 +157,139 @@ var PD = (function () {
     // cache, costa decine di millisecondi: un giro "niente di nuovo" ne faceva più di dieci).
     // Chi scrive aggiorna la copia; al lucchetto e a ogni richiesta nuova si riparte da zero.
     var A0 = amb.archivio, memoria = {};
+
+    // ---- misure per fasi (restituite nella risposta come «fasi», per il riquadro «Velocità del custode») ----
+    var fasi = null;
+    function nuoveFasi() { return { attesaLock: 0, tenutoLock: 0, letture: 0, nLetture: 0, scritture: 0, nScritture: 0, cache: 0, nCache: 0, file: [] }; }
+    function nomeBreve(p) { return p.replace(/\.json$/, '').replace('Dati/', '').replace('Storia/', 'storia/').replace('_config/', '').replace('ragazzi/', 'r/').replace('Immagini/', 'img/'); }
+    function segnaFile(tipo, p, ms) { if (fasi && fasi.file.length < 14) fasi.file.push(tipo + ' ' + nomeBreve(p) + ':' + ms); }
+    function letto(p) {
+      var t = Date.now();
+      try { return A0.leggiJSON(p); }
+      finally { if (fasi) { var ms = Date.now() - t; fasi.letture += ms; fasi.nLetture++; segnaFile('L', p, ms); } }
+    }
+    function scritto(p, o) {
+      var t = Date.now();
+      try { A0.scriviJSON(p, o); }
+      finally { if (fasi) { var ms = Date.now() - t; fasi.scritture += ms; fasi.nScritture++; segnaFile('S', p, ms); } }
+    }
+    function misuraCache(f) {
+      var t = Date.now();
+      try { return f(); }
+      finally { if (fasi) { fasi.cache += Date.now() - t; fasi.nCache++; } }
+    }
+    var CA = amb.cache ? {
+      get: function (k) { return misuraCache(function () { return amb.cache.get(k); }); },
+      put: function (k, v, ttl) { return misuraCache(function () { return amb.cache.put(k, v, ttl); }); },
+      remove: function (k) { return misuraCache(function () { return amb.cache.remove(k); }); },
+    } : null;
+
     // ---- corsia rapida: lo "stato" in cache ----
     // I cinque file di configurazione (accessi, chiave, dispositivi, registro dei pazienti, stato
     // con la revisione di ogni ambito, senza l'indice delle voci) stanno anche in un'unica voce
     // di cache (amb.cache: get/put/remove, valori di testo con scadenza in secondi). Fuori dal
     // lucchetto si legge da lì: un giro «niente di nuovo» non legge nessun file.
-    //  - Chi scrive un file di configurazione toglie la voce PRIMA di scrivere, e a fine lucchetto
-    //    (se è andato tutto bene) la rifà da quello che ha scritto. Se qualcosa si interrompe la
-    //    voce resta tolta e la rifà il prossimo lettore, sotto il lucchetto, da Drive.
-    //  - Dentro il lucchetto si legge sempre dai file, mai dalla cache.
+    //  - Chi scrive un file di configurazione (o un file di dati: cambia la revisione) toglie la voce
+    //    PRIMA di scrivere, e a fine lucchetto (se è andato tutto bene) la rifà da quello che sa
+    //    già, SENZA rileggere i file. Se qualcosa si interrompe la voce resta tolta e la rifà il
+    //    prossimo lettore, sotto il lucchetto, da Drive.
+    //  - Dentro il lucchetto ci si fida della voce (se c'è): ogni scrittore la toglie prima di scrivere
+    //    e la rifà prima di rilasciare il lucchetto, quindi chi entra la trova esatta oppure assente.
+    //    Se è assente si rilegge dai file, lentamente, ma giusto.
     //  - Se la cache manca, scade o non funziona si torna a leggere i file: lentamente, ma giusto.
+    //
+    // Revisioni senza riscrivere «stato.json» a ogni salvataggio (era una scrittura su Drive in più):
+    //  - ogni file di un ambito porta il proprio `rev` (l'ultima revisione che l'ha toccato);
+    //  - «stato.json» ha un elenco `sporco` di ambiti che possono essere più avanti di lui:
+    //    per gli altri `rev` e `ambiti` di stato.json sono esatti, per quelli sporchi vale il `rev` del loro file;
+    //  - un ambito entra in `sporco` con una scrittura completa di stato.json (che si fa anche quando
+    //    cambia l'indice delle voci o nasce un ambito); da lì in poi i salvataggi di quell'ambito
+    //    scrivono solo il suo file, perché le revisioni vive stanno nella voce di cache;
+    //  - se la voce di cache sparisce, chi entra nel lucchetto ricostruisce le revisioni da
+    //    stato.json più i file degli ambiti sporchi (al massimo MAX_SPORCHI).
     var CHIAVE_STATO = 'stato1', TTL_STATO = 6 * 3600;
     var DI_STATO = {}; DI_STATO[P.accessi] = 'accessi'; DI_STATO[P.cifratura] = 'cifratura'; DI_STATO[P.dispositivi] = 'dispositivi';
     DI_STATO[P.pazienti] = 'pazienti'; DI_STATO[P.stato] = 'stato';
-    var snap;            // undefined: non ancora caricato in questa richiesta; null: non disponibile
+    var snap;            // fuori dal lucchetto. undefined: non ancora caricato in questa richiesta; null: non disponibile
+    var lockSnap = null; // dentro il lucchetto: la voce di cache com'era all'ingresso (null se mancava)
+    var vivoL = null;    // dentro il lucchetto: {rev, ambiti, sporco} esatti, modificabili
+    var durev;           // dentro il lucchetto: stato.json com'è su Drive (letto solo se serve)
     var statoTolto = false, daRifare = false;
-    function cacheTogli() { statoTolto = true; snap = undefined; if (amb.cache) amb.cache.remove(CHIAVE_STATO); }
+    function copia(o) { var x = {}; Object.keys(o || {}).forEach(function (k) { x[k] = o[k]; }); return x; }
+    function cacheTogli() { statoTolto = true; snap = undefined; if (CA) CA.remove(CHIAVE_STATO); }
+    // da chiamare prima di scrivere qualunque cosa che cambia lo stato (configurazione o dati)
+    function statoMutato() { daRifare = true; if (!statoTolto || !inLock) cacheTogli(); }
     function leggiStatoCache() {
       try {
-        var t = amb.cache.get(CHIAVE_STATO);
+        var t = CA.get(CHIAVE_STATO);
         if (!t) return null;
         var o = JSON.parse(t);
-        return o && o.v === 1 && o.stato ? o : null;
+        return o && o.v === 1 && o.stato && typeof o.stato.rev === 'number' && o.stato.ambiti && typeof o.stato.ambiti === 'object' ? o : null;
       } catch (e) { return null; }
     }
-    // Dentro il lucchetto: rifà la voce di cache da quello che i file contengono ora
+    // stato.json come sta su Drive (dentro il lucchetto, una lettura sola)
+    function durevole() {
+      if (durev === undefined) durev = A.leggiJSON(P.stato) || { schema: SCHEMA, rev: 0, ambiti: {} };
+      return durev;
+    }
+    // revisioni esatte a partire da stato.json: per gli ambiti sporchi vale il rev scritto nel loro file
+    function recupera(d) {
+      d = d || { rev: 0, ambiti: {} };
+      var v = { rev: d.rev || 0, ambiti: copia(d.ambiti), sporco: copia(d.sporco) };
+      Object.keys(v.sporco).forEach(function (a) {
+        var f = A.leggiJSON(P.ambito(a));
+        if (f && typeof f.rev === 'number') {
+          if (!(v.ambiti[a] >= f.rev)) v.ambiti[a] = f.rev;
+          if (f.rev > v.rev) v.rev = f.rev;
+        }
+      });
+      return v;
+    }
+    function vivoInLock() {
+      if (!vivoL) {
+        var d = lockSnap && lockSnap.stato;
+        vivoL = d ? { rev: d.rev, ambiti: copia(d.ambiti), sporco: copia(d.sporco) } : recupera(durevole());
+      }
+      return vivoL;
+    }
+    // Dentro il lucchetto: rifà la voce di cache da quello che si sa già (copie in memoria, voce di cache
+    // d'ingresso). Legge dai file solo ciò che non ha, cioè quando la voce mancava.
     function scriviStatoCache() {
-      if (!amb.cache) return;
-      var st = A.leggiJSON(P.stato) || { rev: 0, ambiti: {} };
+      if (!CA) return;
+      var v = vivoInLock();
       var o = { v: 1, accessi: A.leggiJSON(P.accessi), cifratura: A.leggiJSON(P.cifratura), dispositivi: A.leggiJSON(P.dispositivi),
-        pazienti: A.leggiJSON(P.pazienti), stato: { schema: SCHEMA, rev: st.rev, ambiti: st.ambiti } };
-      try { amb.cache.put(CHIAVE_STATO, JSON.stringify(o), TTL_STATO); } catch (e) { try { amb.cache.remove(CHIAVE_STATO); } catch (x) { /* solo una comodità */ } }
+        pazienti: A.leggiJSON(P.pazienti), stato: { schema: SCHEMA, rev: v.rev, ambiti: v.ambiti, sporco: v.sporco } };
+      try { CA.put(CHIAVE_STATO, JSON.stringify(o), TTL_STATO); } catch (e) { try { CA.remove(CHIAVE_STATO); } catch (x) { /* solo una comodità */ } }
     }
     function statoRapido() {
       if (snap !== undefined) return snap;
       snap = null;
-      if (!amb.cache) return null;
+      if (!CA) return null;
       try {
         snap = leggiStatoCache();
         if (!snap) {
           // manca: la rifà chi ha il lucchetto, partendo dai file. Se è occupato si leggono i file e basta.
           conLock(function () {
-            snap = leggiStatoCache();
+            snap = lockSnap;
             if (!snap) { scriviStatoCache(); snap = leggiStatoCache(); }
           });
         }
       } catch (e) { snap = null; }
       return snap;
     }
+    function valoreDi(s, p) { var x = s[DI_STATO[p]]; return x === undefined ? null : x; }
     var A = {
       leggiJSON: function (p) {
-        if (p.indexOf('Immagini/') === 0) return A0.leggiJSON(p);
-        if (!inLock && DI_STATO[p]) { var s = statoRapido(); if (s) return s[DI_STATO[p]] === undefined ? null : s[DI_STATO[p]]; }
-        if (!Object.prototype.hasOwnProperty.call(memoria, p)) memoria[p] = A0.leggiJSON(p);
+        if (p.indexOf('Immagini/') === 0) return letto(p);
+        if (!inLock && DI_STATO[p]) { var s = statoRapido(); if (s) return valoreDi(s, p); }
+        if (Object.prototype.hasOwnProperty.call(memoria, p)) return memoria[p];
+        if (inLock && lockSnap && DI_STATO[p] && p !== P.stato) return valoreDi(lockSnap, p);
+        memoria[p] = letto(p);
         return memoria[p];
       },
       scriviJSON: function (p, o) {
-        if (DI_STATO[p]) { daRifare = true; if (!statoTolto || !inLock) cacheTogli(); }
-        A0.scriviJSON(p, o); if (p.indexOf('Immagini/') !== 0) memoria[p] = o;
+        if (DI_STATO[p]) statoMutato();
+        scritto(p, o); if (p.indexOf('Immagini/') !== 0) memoria[p] = o;
       },
       esiste: function (p) { return A0.esiste(p); },
       conLock: function (fn) { return A0.conLock(function () { memoria = {}; return fn(); }); },
@@ -220,15 +297,20 @@ var PD = (function () {
     var inLock = false;
     function conLock(fn) {
       if (inLock) return fn();
-      return A.conLock(function () {
-        inLock = true; statoTolto = false; daRifare = false;
-        try {
-          var r = fn();
-          // andato tutto bene: se si è scritto qualcosa di quello che sta nello stato, lo si rifà
-          if (daRifare) scriviStatoCache();
-          return r;
-        } finally { inLock = false; }
-      });
+      var t0 = Date.now(), t1 = t0, ottenuto = false;
+      try {
+        return A.conLock(function () {
+          ottenuto = true; t1 = Date.now(); if (fasi) fasi.attesaLock += t1 - t0;
+          inLock = true; statoTolto = false; daRifare = false; vivoL = null; durev = undefined;
+          lockSnap = CA ? leggiStatoCache() : null;
+          try {
+            var r = fn();
+            // andato tutto bene: se si è scritto qualcosa che cambia lo stato, lo si rifà
+            if (daRifare) scriviStatoCache();
+            return r;
+          } finally { inLock = false; lockSnap = null; vivoL = null; durev = undefined; if (fasi) fasi.tenutoLock += Date.now() - t1; }
+        });
+      } finally { if (fasi && !ottenuto) fasi.attesaLock += Date.now() - t0; }   // lucchetto non ottenuto: tutta attesa
     }
     var oggi = function () { return amb.ora().slice(0, 10); };
     // una lettura per richiesta (con Apps Script è una chiamata al servizio delle proprietà)
@@ -311,8 +393,20 @@ var PD = (function () {
     function richiedi(cond, m) { if (!cond) throw err('vietato', m || 'Operazione non consentita al tuo ruolo.'); }
 
     // ---- stato globale: un contatore che cresce a ogni scrittura ----
-    function leggiStato() { return A.leggiJSON(P.stato) || { schema: SCHEMA, rev: 0, ambiti: {} }; }
+    // rev e ambiti esatti (da non modificare fuori dal lucchetto)
+    function leggiStato() {
+      if (inLock) return vivoInLock();
+      var s = statoRapido();
+      if (s && s.stato) return s.stato;
+      return recupera(A.leggiJSON(P.stato));   // senza cache: il file, più il rev degli ambiti sporchi
+    }
     function leggiAmbito(a) { return A.leggiJSON(P.ambito(a)) || { schema: SCHEMA, ambito: a, voci: {} }; }
+
+    // il promemoria interno «arch» (vedi archiviaStoria) non esce dal custode
+    function pubblica(r) {
+      if (!r || !('arch' in r)) return r;
+      var x = Object.assign({}, r); delete x.arch; return x;
+    }
 
     // ---- cifratura e dispositivi (come in Centro TICE) ----
     var azioni = {};
@@ -457,15 +551,22 @@ var PD = (function () {
     }
     // Le versioni precedenti: nella stessa richiesta un file di storia si legge
     // e si scrive una volta sola, anche se cambiano più voci dello stesso ambito.
+    // Ogni voce porta un promemoria interno `arch` = { al, da }: quando e da chi è stata scritta la
+    // versione che sta in cima alla sua storia. Con quello una raffica si riconosce senza leggere
+    // il file della storia (che contiene tutte le versioni di tutte le voci dell'ambito: grande).
+    // Restituisce il promemoria da mettere sulla voce nuova.
     var storie = null, storieCambiate = null;
+    function cimaStoria(x) { return x && !x.eliminato ? { al: x.aggiornato, da: x.aggiornatoDa } : null; }
     function archiviaStoria(ambito, r, daChi) {
+      var nuova = { version: r.version, busta: r.busta, aggiornato: r.aggiornato, aggiornatoDa: r.aggiornatoDa, eliminato: !!r.eliminato };
+      var h = r.arch;
+      if (h && !nuova.eliminato && h.da === nuova.aggiornatoDa && daChi === nuova.aggiornatoDa && Math.abs(Date.parse(amb.ora()) - Date.parse(h.al)) < RAFFICA_MS) return h;
       var s = storie && storie[ambito];
       if (!s) {
         s = A.leggiJSON(P.storia(ambito)) || { schema: SCHEMA, voci: {} };
         if (storie) storie[ambito] = s;
       }
       var l = s.voci[r.id] || [];
-      var nuova = { version: r.version, busta: r.busta, aggiornato: r.aggiornato, aggiornatoDa: r.aggiornatoDa, eliminato: !!r.eliminato };
       // L'app salva mentre si scrive: le bozze della stessa persona a pochi minuti
       // l'una dall'altra sono una sessione di scrittura sola e se ne tiene l'ultima.
       // Così restano le versioni che servono (com'era prima di ogni sessione) e la
@@ -475,12 +576,14 @@ var PD = (function () {
       // Salvataggi a raffica della stessa persona (si sta scrivendo): la versione precedente di
       // pochi minuti fa basta, il file della storia non si riscrive (una scrittura su Drive in meno
       // a ogni salvataggio). Se poi interviene un'altra persona si archivia come sempre.
-      if (stessa && daChi === nuova.aggiornatoDa && Math.abs(Date.parse(amb.ora()) - Date.parse(prec.aggiornato)) < RAFFICA_MS) return;
+      // (Questo ramo serve per le voci scritte prima del promemoria `arch`.)
+      if (stessa && daChi === nuova.aggiornatoDa && Math.abs(Date.parse(amb.ora()) - Date.parse(prec.aggiornato)) < RAFFICA_MS) return cimaStoria(prec);
       if (stessa && Math.abs(Date.parse(nuova.aggiornato) - Date.parse(prec.aggiornato)) < BOZZE_MS) l[0] = nuova;
       else l.unshift(nuova);
       s.voci[r.id] = l.slice(0, STORIA_PER_VOCE);
       if (storieCambiate) storieCambiate[ambito] = true;
       else A.scriviJSON(P.storia(ambito), s);
+      return cimaStoria(l[0]);
     }
 
     // Impronta corta e stabile (cyrb53) di un valore: serve solo a vedere se è cambiato
@@ -508,23 +611,28 @@ var PD = (function () {
         if (!c) throw err('senza-chiave', 'Prima un operatore deve creare la chiave dell\'aula.');
         storie = {}; storieCambiate = {};
         try { conLock(function () {
-          var stato = leggiStato();
-          stato.indice = stato.indice || {};
+          var st = vivoInLock();      // rev, ambiti, sporco: esatti (copie nostre)
           var toccati = {};   // ambito -> file (si scrive una volta sola)
+          var mod = {};       // ambiti il cui file è cambiato davvero (gli altri non si riscrivono)
+          var indiceNuovo = {};   // voci nate o spostate: solo allora cambia l'indice di stato.json
           var file = function (a) { return toccati[a] || (toccati[a] = leggiAmbito(a)); };
           invii.forEach(function (v) {
             try {
               if (v.busta && v.busta.kid !== c.kid) throw err('chiave-cambiata', 'La chiave dell\'aula è cambiata.');
               // il primo dato di un paziente nuovo lo rende di chi lo crea
               var rid = v.ambito.slice(2);
-              if (v.ambito !== 'aula' && eAdmin(u) && !v.eliminato && stato.ambiti[v.ambito] === undefined && !toccati[v.ambito] && !recDi(v.ambito)) {
+              if (v.ambito !== 'aula' && eAdmin(u) && !v.eliminato && st.ambiti[v.ambito] === undefined && !toccati[v.ambito] && !recDi(v.ambito)) {
                 var reg = leggiPazienti();
                 reg[REGISTRO[v.ambito[0]]][rid] = { proprietario: u.email, condivisi: [], tutti: false, creato: amb.ora() };
                 scriviPazienti(reg);
               }
               richiedi(vedeAmbito(u, v.ambito), 'Questo ragazzo non è condiviso con te.');
               if (!eAdmin(u) && SOLO_ADMIN[v.tipo]) throw err('vietato', 'Ragazzi, anagrafiche e gruppi li gestiscono gli operatori.');
-              var dove = stato.indice[v.id] || v.ambito;
+              // dove sta la voce: nel suo ambito se c'è lì (caso normale: l'indice non serve),
+              // altrimenti lo dice l'indice di stato.json (voce nuova o cambiata di ambito)
+              var propria = file(v.ambito).voci[v.id] || null;
+              var normale = !!propria && !propria.spostato;
+              var dove = normale ? v.ambito : ((indiceNuovo[v.id] || (durevole().indice || {})[v.id]) || v.ambito);
               var attualeFile = file(dove), attuale = attualeFile.voci[v.id] || null;
               if (attuale && !vedeAmbito(u, dove)) throw err('vietato', 'Voce non accessibile.');
               var versione = attuale ? attuale.version : 0;
@@ -535,35 +643,56 @@ var PD = (function () {
                 esiti.push({ id: v.id, ok: true, version: versione, ambito: v.ambito });
                 return;
               }
-              if (versione !== v.versioneBase) throw err('conflitto', 'Modificata nel frattempo.', { attuale: attuale ? Object.assign({ ambito: dove }, attuale) : null });
+              if (versione !== v.versioneBase) throw err('conflitto', 'Modificata nel frattempo.', { attuale: attuale ? Object.assign({ ambito: dove }, pubblica(attuale)) : null });
               if (attuale && attuale.tipo !== v.tipo) throw err('richiesta-non-valida', 'Il tipo di una voce non cambia.');
               if (!eAdmin(u) && attuale && v.tipo === 'nota' && attuale.creatoDa !== u.email) throw err('vietato', 'Puoi modificare solo le note che hai scritto tu.');
               if (!eAdmin(u) && v.eliminato && attuale && attuale.creatoDa !== u.email) throw err('vietato', 'Puoi eliminare solo quello che hai scritto tu.');
               if (!attuale && v.eliminato) { esiti.push({ id: v.id, ok: true, version: 0 }); return; }
               var ora = amb.ora();
-              stato.rev += 1;
+              st.rev += 1;
               var r = {
-                id: v.id, tipo: v.tipo, version: versione + 1, rev: stato.rev, busta: v.busta, eliminato: v.eliminato || undefined,
+                id: v.id, tipo: v.tipo, version: versione + 1, rev: st.rev, busta: v.busta, eliminato: v.eliminato || undefined,
                 creato: attuale ? attuale.creato : ora, creatoDa: attuale ? attuale.creatoDa : u.email, aggiornato: ora, aggiornatoDa: u.email,
               };
-              if (attuale) archiviaStoria(dove, attuale, u.email);
+              if (attuale) r.arch = archiviaStoria(dove, attuale, u.email) || undefined;
               if (dove !== v.ambito) {
                 // cambio di ambito (es. una nota che diventa "nel gruppo"): nel vecchio resta una lapide
-                attualeFile.voci[v.id] = { id: v.id, tipo: v.tipo, version: r.version, rev: stato.rev, eliminato: true, spostato: v.ambito, aggiornato: ora, aggiornatoDa: u.email };
-                stato.ambiti[dove] = stato.rev;
+                attualeFile.voci[v.id] = { id: v.id, tipo: v.tipo, version: r.version, rev: st.rev, eliminato: true, spostato: v.ambito, aggiornato: ora, aggiornatoDa: u.email };
+                st.ambiti[dove] = st.rev; mod[dove] = true;
+                r.arch = undefined;   // la storia di questa voce è rimasta nell'ambito di prima
               }
               file(v.ambito).voci[v.id] = r;
-              stato.ambiti[v.ambito] = stato.rev;
-              stato.indice[v.id] = v.ambito;
+              st.ambiti[v.ambito] = st.rev; mod[v.ambito] = true;
+              if (!normale) indiceNuovo[v.id] = v.ambito;
               esiti.push({ id: v.id, ok: true, version: r.version, ambito: v.ambito });
             } catch (e) {
               if (!(e instanceof Errore)) throw e;
               esiti.push({ id: v.id, ok: false, errore: e.codice, messaggio: e.message, extra: e.extra });
             }
           });
-          Object.keys(toccati).forEach(function (a) { A.scriviJSON(P.ambito(a), toccati[a]); });
+          var scritti = Object.keys(mod);
+          if (!scritti.length) return;   // niente è cambiato: niente da riscrivere
+          // da qui lo stato in cache non vale più (si rifà a fine lucchetto)
+          statoMutato();
+          scritti.forEach(function (a) { toccati[a].rev = st.ambiti[a]; });
+          // Scrittura leggera: nessun cambio all'indice e gli ambiti sono già «sporchi» (stato.json li
+          // dichiara più avanti di sé): le revisioni vive stanno nella voce di cache e nel rev dei file.
+          var leggera = !!CA && !Object.keys(indiceNuovo).length && scritti.every(function (a) { return st.sporco[a]; });
+          if (!leggera) {
+            // stato.json prima dei file: se si interrompe a metà non resta mai indietro rispetto ai dati
+            var nuovo = Object.keys(st.sporco).filter(function (a) { return !mod[a]; }).concat(scritti);
+            nuovo = nuovo.slice(-MAX_SPORCHI);   // stato.json è esatto adesso: gli ambiti non segnati si segneranno alla prossima scrittura completa
+            var sporco = {};
+            if (CA) nuovo.forEach(function (a) { sporco[a] = true; });
+            st.sporco = copia(sporco);
+            var d = durevole();
+            d.schema = SCHEMA; d.rev = st.rev; d.ambiti = copia(st.ambiti); d.sporco = sporco;
+            d.indice = d.indice || {};
+            Object.keys(indiceNuovo).forEach(function (id) { d.indice[id] = indiceNuovo[id]; });
+            A.scriviJSON(P.stato, d);
+          }
+          scritti.forEach(function (a) { A.scriviJSON(P.ambito(a), toccati[a]); });
           Object.keys(storieCambiate).forEach(function (a) { A.scriviJSON(P.storia(a), storie[a]); });
-          A.scriviJSON(P.stato, stato);
         }); } finally { storie = null; storieCambiate = null; }
       }
       // cosa è cambiato da quando il dispositivo ha guardato l'ultima volta
@@ -577,7 +706,7 @@ var PD = (function () {
         var f = leggiAmbito(a);
         Object.keys(f.voci).forEach(function (id) {
           var r = f.voci[id];
-          if (r.rev > noto) cambi.push(Object.assign({ ambito: a }, r));
+          if (r.rev > noto) cambi.push(Object.assign({ ambito: a }, pubblica(r)));
         });
       });
       var pazienti = {}, gruppi = {}, programmi = {};
@@ -642,7 +771,7 @@ var PD = (function () {
       return conLock(function () {
         registro = null;
         var reg = leggiPazienti(), rec = recDi(a);
-        var stato = leggiStato();
+        var stato = { ambiti: vivoInLock().ambiti, indice: durevole().indice };
         var titolare;
         if (rec) titolare = rec.proprietario;
         else if (k === 'r') {
@@ -706,7 +835,7 @@ var PD = (function () {
       var voci = [];
       ambiti.forEach(function (a) {
         var f = leggiAmbito(a);
-        Object.keys(f.voci).forEach(function (id) { var r = f.voci[id]; if (!r.eliminato && r.busta) voci.push(Object.assign({ ambito: a }, r)); });
+        Object.keys(f.voci).forEach(function (id) { var r = f.voci[id]; if (!r.eliminato && r.busta) voci.push(Object.assign({ ambito: a }, pubblica(r))); });
       });
       return { voci: voci };
     };
@@ -748,7 +877,7 @@ var PD = (function () {
         var fn = azioni[richiesta.azione];
         var perSessione = (richiesta.azione === 'sessione.crea' || richiesta.azione === 'sessione.rinnova') && amb.creaSessione;
         if (!fn && !perSessione) throw err('richiesta-non-valida', 'Azione sconosciuta.');
-        registro = null; memoria = {}; snap = undefined; prop = null;
+        registro = null; memoria = {}; snap = undefined; prop = null; lockSnap = null; vivoL = null; durev = undefined;
         var identita;
         try { identita = amb.verificaToken(richiesta.token); } catch (e) { throw err('non-autenticato', 'Accesso scaduto o non valido: rientra con Google.'); }
         var u = utenteDa(identita);
@@ -780,16 +909,41 @@ var PD = (function () {
         return { ok: false, errore: 'interno', messaggio: 'Errore interno del custode: ' + String(e && e.message || e).slice(0, 300) };
       }
     }
-    // «ms»: quanto ha impiegato il custode (dentro la sua esecuzione, senza rete né avvio dello script)
+    // «ms»: quanto ha impiegato il custode (dentro la sua esecuzione, senza rete né avvio dello script).
+    // «fasi»: dove è andato quel tempo, per il riquadro «Velocità del custode» dell'app:
+    //   attesaLock  attesa del lucchetto      tenutoLock  quanto l'ha tenuto
+    //   letture / nLetture   tempo e numero di letture di file (dalla cache dei file o da Drive)
+    //   scritture / nScritture   idem per le scritture
+    //   cache / nCache   voce di stato in cache (le chiamate alla cache dei file sono dentro letture e scritture)
+    //   altro  il resto (verifica dell'accesso, elaborazione, proprietà dello script…)
+    //   (i valori a zero non si mandano)
+    //   file   ["L aula:120", "S stato:380"…] letture (L) e scritture (S) in ordine, con i millisecondi
+    //   ops  (solo Apps Script) operazioni sui servizi Google per tipo (getFileById, setContent, cache, prop…): [quante, millisecondi]
+    function chiudiFasi(ms) {
+      var f = fasi, o = {};
+      var altro = Math.max(0, ms - f.attesaLock - f.letture - f.scritture - f.cache);
+      // compatta: i valori a zero e gli elenchi vuoti non si mandano (un giro «niente di nuovo» resta piccolo)
+      [['attesaLock', f.attesaLock], ['tenutoLock', f.tenutoLock], ['letture', f.letture], ['nLetture', f.nLetture], ['scritture', f.scritture], ['nScritture', f.nScritture],
+        ['cache', f.cache], ['nCache', f.nCache], ['altro', altro]].forEach(function (x) { if (x[1]) o[x[0]] = Math.round(x[1]); });
+      if (f.file.length) o.file = f.file;
+      if (amb.misure) { try { var dr = amb.misure.leggi(); if (dr) o.ops = dr; } catch (e) { /* solo una misura */ } }
+      return o;
+    }
     function gestisci(richiesta) {
-      var t0 = Date.now(), r = gestisciInterno(richiesta);
-      if (r && typeof r === 'object') r.ms = Date.now() - t0;
+      var t0 = Date.now();
+      fasi = nuoveFasi();
+      if (amb.misure) { try { amb.misure.inizia(); } catch (e) { /* solo una misura */ } }
+      var r;
+      try { r = gestisciInterno(richiesta); }
+      finally { /* le fasi si chiudono sotto */ }
+      if (r && typeof r === 'object') { r.ms = Date.now() - t0; r.fasi = chiudiFasi(r.ms); }
+      fasi = null;
       return r;
     }
     /** Dal risveglio periodico: tiene pronto lo stato in cache (e lo rifà se è sparito). */
-    function riscalda() { registro = null; memoria = {}; snap = undefined; prop = null; return !!statoRapido(); }
+    function riscalda() { registro = null; memoria = {}; snap = undefined; prop = null; lockSnap = null; vivoL = null; durev = undefined; return !!statoRapido(); }
     /** Dal risveglio periodico: le chiavi di chi è scaduto si revocano anche se non si ripresenta. */
-    function revocaScaduti() { prop = null; return conLock(revocaChiavi); }
+    function revocaScaduti() { prop = null; memoria = {}; return conLock(revocaChiavi); }
     return { gestisci: gestisci, azioni: Object.keys(azioni), revocaScaduti: revocaScaduti, riscalda: riscalda };
   }
 

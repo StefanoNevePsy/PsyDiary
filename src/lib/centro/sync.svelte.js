@@ -15,7 +15,7 @@
 import { CONFIG, REALE } from './config.js';
 import * as Auth from './accesso.js';
 import { inviaAlCustode } from './trasporto.js';
-import { tipoDi, aggiungi as aggiungiMisura, leggi as leggiMisure, CHIAVE_MISURE } from './misure.js';
+import { tipoDi, aggiungi as aggiungiMisura, leggi as leggiMisure, CHIAVE_MISURE, aggiungiFasi, leggiFasi, pulisciFasi, CHIAVE_FASI } from './misure.js';
 import * as C from './cifra.js';
 import { vociDi, idVociDi, destinazione, applica, unisci, immaginiDi, TABELLA_DI } from './voci.js';
 import { dati, salva, elimina, centro, ganci } from '../dati.svelte.js';
@@ -33,15 +33,23 @@ export const sync = $state({
 // Tempi di risposta del custode (ultime misure, anche tra una sessione e l'altra): servono al riquadro
 // «Velocità del custode» in Impostazioni. Solo una comodità: se il browser non le tiene, si ricomincia.
 const salvate = () => { try { return leggiMisure(localStorage.getItem(CHIAVE_MISURE) || ''); } catch { return []; } };
-export const velocita = $state({ misure: salvate(), misurando: false, passo: 0, ultima: [], errore: null });
+const salvateFasi = () => { try { return leggiFasi(localStorage.getItem(CHIAVE_FASI) || ''); } catch { return []; } };
+// `fasi`: dove è andato il tempo dentro il custode negli ultimi salvataggi (il custode le manda in ogni risposta)
+export const velocita = $state({ misure: salvate(), fasi: salvateFasi(), misurando: false, passo: 0, ultima: [], errore: null });
 const orologio = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-function registraMisura(azione, d, totale, ms) {
-  velocita.misure = aggiungiMisura(velocita.misure, { t: Date.now(), tipo: tipoDi(azione, d), totale, ms });
+function registraMisura(azione, d, totale, ms, fasi) {
+  const tipo = tipoDi(azione, d), t = Date.now();
+  velocita.misure = aggiungiMisura(velocita.misure, { t, tipo, totale, ms });
   try { localStorage.setItem(CHIAVE_MISURE, JSON.stringify(velocita.misure)); } catch { /* solo una comodità */ }
+  const f = pulisciFasi(fasi);
+  if (f && tipo === 'salvataggio') {
+    velocita.fasi = aggiungiFasi(velocita.fasi, { t, tipo, totale, ms, fasi: f });
+    try { localStorage.setItem(CHIAVE_FASI, JSON.stringify(velocita.fasi)); } catch { /* solo una comodità */ }
+  }
 }
 export function cancellaMisure() {
-  velocita.misure = []; velocita.ultima = [];
-  try { localStorage.removeItem(CHIAVE_MISURE); } catch { /* niente */ }
+  velocita.misure = []; velocita.ultima = []; velocita.fasi = [];
+  try { localStorage.removeItem(CHIAVE_MISURE); localStorage.removeItem(CHIAVE_FASI); } catch { /* niente */ }
 }
 let chiavi = {};             // kid → CryptoKey
 const chiave = () => (sync.cfg ? chiavi[sync.cfg.kid] || null : null);
@@ -96,7 +104,7 @@ async function chiamaUnaVolta(azione, d, rid, tokenFisso) {
   if (!j || typeof j !== 'object') throw new ErroreRete('Risposta del custode non leggibile.');
   // la risposta di «sono attivo» (GET) non è una misura; una risposta vera sì, anche se dice di no
   const misura = 'dati' in j || j.ok === false ? { totale: orologio() - inizio, ms: typeof j.ms === 'number' ? j.ms : null } : null;
-  if (misura) registraMisura(azione, d, misura.totale, misura.ms);
+  if (misura) registraMisura(azione, d, misura.totale, misura.ms, j.fasi);
   if (!j.ok) {
     if (j.errore === 'non-autenticato') {
       if (Auth.scartaSessione(token)) throw new ErroreRete('Sessione scaduta: riprovo con l\'accesso Google.');

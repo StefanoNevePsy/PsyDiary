@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { tipoDi, aggiungi, leggi, riepilogo, media, mediana, durata, giudizio, PER_TIPO } from '../src/lib/centro/misure.js';
+import { tipoDi, aggiungi, leggi, riepilogo, media, mediana, durata, giudizio, PER_TIPO, pulisciFasi, aggiungiFasi, leggiFasi, operazioniDrive, righeFasi, FASI_TENUTE } from '../src/lib/centro/misure.js';
 
 // che cos'è una chiamata
 assert.equal(tipoDi('sync', { cursori: {}, invii: [] }), 'controllo');
@@ -40,4 +40,27 @@ assert.equal(riepilogo(aggiungi([], { t: 1, tipo: 'controllo', totale: 50, ms: 8
 // parole
 assert.equal(durata(null), '—'); assert.equal(durata(320.4), '320 ms'); assert.equal(durata(1400), '1,4 s'); assert.equal(durata(12400), '12 s');
 assert.equal(giudizio(null), null); assert.equal(giudizio(300).livello, 'bene'); assert.equal(giudizio(1500).livello, 'medio'); assert.equal(giudizio(4000).livello, 'lento');
+// dettaglio per fasi
+assert.equal(pulisciFasi(null), null); assert.equal(pulisciFasi([1]), null); assert.equal(pulisciFasi('x'), null);
+assert.deepEqual(pulisciFasi({}), {}, 'un custode che non ha niente da dire (tutti zero) manda un oggetto vuoto: va bene');
+const grezze = { attesaLock: 5.4, tenutoLock: 'x', letture: 120, nLetture: 2, scritture: 900, nScritture: 2, cache: -4, nCache: 3, altro: 40,
+  file: ['L aula:120', 7, 'S stato:380'], ops: { getFileById: [2, 600], setContent: [2, 1800], cache: [8, 90], strano: ['a', 1] }, intruso: { x: 1 } };
+const puliteF = pulisciFasi(grezze);
+assert.deepEqual(puliteF, { attesaLock: 5, letture: 120, nLetture: 2, scritture: 900, nScritture: 2, nCache: 3, altro: 40,
+  file: ['L aula:120', 'S stato:380'], ops: { getFileById: [2, 600], setContent: [2, 1800], cache: [8, 90] } }, 'solo campi noti, numeri veri, niente intrusi');
+assert.equal(operazioniDrive(puliteF), 4, 'cache e proprietà non sono operazioni Drive');
+assert.equal(operazioniDrive(null), 0); assert.equal(operazioniDrive({}), 0);
+let lf = [];
+for (let i = 0; i < FASI_TENUTE + 3; i++) lf = aggiungiFasi(lf, { t: i, tipo: 'salvataggio', totale: 1000 + i, ms: 900, fasi: grezze });
+assert.equal(lf.length, FASI_TENUTE); assert.equal(lf[0].t, 3, 'le più vecchie escono');
+assert.equal(aggiungiFasi(lf, { t: 99, tipo: 'controllo', totale: 5, ms: 1, fasi: grezze }), lf, 'i controlli non entrano');
+assert.equal(aggiungiFasi(lf, { t: 99, tipo: 'salvataggio', totale: 5, ms: 1, fasi: 'no' }), lf, 'senza fasi non si aggiunge niente (custode vecchio)');
+assert.deepEqual(leggiFasi(JSON.stringify(lf)), lf);
+for (const brutto of ['', 'non json', '{}', '[1,null]', JSON.stringify([{ t: 1, totale: 5, fasi: 'x' }])]) assert.deepEqual(leggiFasi(brutto), []);
+const righe = righeFasi(puliteF);
+assert.ok(righe.some(([n, v]) => n === 'Operazioni su Drive' && v === '4'));
+assert.ok(righe.some(([n, v]) => n === 'Scritture di file' && v === '2 · 900 ms'));
+assert.ok(righe.some(([n, v]) => n === 'File' && v === 'L aula 120 ms · S stato 380 ms'));
+assert.deepEqual(righeFasi(null), []);
+
 console.log('misure: ok');

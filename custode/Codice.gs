@@ -12,12 +12,36 @@
  *   3. Distribuisci come app web: "Esegui come: Me", "Chi ha accesso: Chiunque".
  */
 
-var VERSIONE_CUSTODE = '1.0.0';
+var VERSIONE_CUSTODE = '1.1.0';
 var PROP = PropertiesService.getScriptProperties();
+
+// ---- misure: quante operazioni su Drive, cache e proprietà e quanto durano ----
+// Vanno nella risposta (campo «fasi.ops»: nome → [quante, millisecondi]) e l'app le mostra in
+// Impostazioni > Velocità del custode > Dettagli. Costano un'occhiata all'orologio per operazione.
+var _misure = null;
+function op_(nome, fn) {
+  var m = _misure;
+  if (!m) return fn();
+  var t = Date.now();
+  try { return fn(); }
+  finally { var x = m[nome] || (m[nome] = [0, 0]); x[0]++; x[1] += Date.now() - t; }
+}
+function prop_(k) { return op_('prop', function () { return PROP.getProperty(k); }); }
+// la cache di Apps Script, con le misure
+function cacheServizio_() {
+  var c = CacheService.getScriptCache();
+  return {
+    get: function (k) { return op_('cache', function () { return c.get(k); }); },
+    getAll: function (ks) { return op_('cache', function () { return c.getAll(ks); }); },
+    put: function (k, v, s) { return op_('cache', function () { return c.put(k, v, s); }); },
+    putAll: function (o, s) { return op_('cache', function () { return c.putAll(o, s); }); },
+    remove: function (k) { return op_('cache', function () { return c.remove(k); }); },
+  };
+}
 
 function impostazione_(nome) {
   var c = (typeof CONFIGURAZIONE !== 'undefined' && CONFIGURAZIONE) || {};
-  return PROP.getProperty(nome) || c[nome] || '';
+  return prop_(nome) || c[nome] || '';
 }
 
 function doPost(e) {
@@ -77,9 +101,10 @@ function custode_() {
     // Risposte alle scritture gia' fatte, per i reinvii dell'app (10 minuti)
     // Lo "stato" (accessi, chiave, dispositivi, registro, revisioni) per rispondere senza leggere file
     cache: cacheStato_(),
+    misure: { inizia: function () { _misure = {}; }, leggi: function () { var m = _misure; _misure = null; return m; } },
     ricordo: {
-      leggi: function (k) { return CacheService.getScriptCache().get(chiaveCache_(k)); },
-      scrivi: function (k, v) { CacheService.getScriptCache().put(chiaveCache_(k), v, 600); },
+      leggi: function (k) { return cacheServizio_().get(chiaveCache_(k)); },
+      scrivi: function (k, v) { cacheServizio_().put(chiaveCache_(k), v, 600); },
     },
   });
   return _custode;
@@ -89,7 +114,7 @@ function custode_() {
 // 90 KB si spezzano in pezzi (fino a ~900 KB); chi legge ricompone, e se manca un pezzo è come
 // se la voce non ci fosse. La generazione cambia con svuotaCache().
 function cacheStato_() {
-  var cache = CacheService.getScriptCache(), PEZZO = 90000, MAX_PEZZI = 10;
+  var cache = cacheServizio_(), PEZZO = 90000, MAX_PEZZI = 10;
   function chiave(k) { return 'q' + generazioneCache_() + ':' + k; }
   return {
     get: function (k) {
@@ -122,7 +147,7 @@ var SESSIONE_GIORNI = 180;
 var _segreto = null;
 function segretoSessione_() {
   if (_segreto) return _segreto;
-  var s = PROP.getProperty('SESSIONE_SEGRETO');
+  var s = prop_('SESSIONE_SEGRETO');
   if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); PROP.setProperty('SESSIONE_SEGRETO', s); }
   _segreto = s;
   return s;
@@ -147,11 +172,11 @@ function verificaToken_(token) {
   if (token.indexOf('s1.') === 0) return verificaSessione_(token);
   var clientIds = impostazione_('GOOGLE_CLIENT_ID').split(/[\s,]+/).filter(Boolean);
   if (!clientIds.length) throw new Error('GOOGLE_CLIENT_ID non configurato');
-  var cache = CacheService.getScriptCache();
+  var cache = cacheServizio_();
   var chiave = 'tok:' + hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token));
   var inCache = cache.get(chiave);
   if (inCache) return JSON.parse(inCache);
-  var r = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+  var r = op_('fetch', function () { return UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token), { muteHttpExceptions: true }); });
   if (r.getResponseCode() !== 200) throw new Error('token rifiutato da Google');
   var t = JSON.parse(r.getContentText());
   if (clientIds.indexOf(t.aud) < 0) throw new Error('token emesso per un\'altra app');
@@ -166,23 +191,26 @@ function verificaToken_(token) {
 function hex_(bytes) { return bytes.map(function (b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join(''); }
 
 // Archivio su Drive, con percorsi tipo "Dati/ragazzi/rluca01.json"
+// Operazioni Drive per un salvataggio normale (con gli identificativi dei file in cache): per ogni
+// file scritto `getFileById` + `setContent`, e basta. Le ricerche per nome (`getFoldersByName`,
+// `getFilesByName`) si fanno solo la prima volta che un file o una cartella viene incontrato.
 function archivioDrive_() {
-  var radiceId = PROP.getProperty('CARTELLA_RADICE') || creaCartella_().getId();
-  var cache = CacheService.getScriptCache();
+  var radiceId = prop_('CARTELLA_RADICE') || creaCartella_().getId();
+  var cache = cacheServizio_();
   var memoria = {};
-  function radice() { return DriveApp.getFolderById(radiceId); }
+  function radice() { return op_('getFolderById', function () { return DriveApp.getFolderById(radiceId); }); }
   function cartella(percorso, crea) {
     if (!percorso) return radice();
     if (memoria['d:' + percorso]) return memoria['d:' + percorso];
     var id = cache.get('d:' + percorso);
     if (id) {
-      try { var f = DriveApp.getFolderById(id); memoria['d:' + percorso] = f; return f; } catch (e) { cache.remove('d:' + percorso); }
+      try { var f = op_('getFolderById', function () { return DriveApp.getFolderById(id); }); memoria['d:' + percorso] = f; return f; } catch (e) { cache.remove('d:' + percorso); }
     }
     var parti = percorso.split('/'), nome = parti.pop();
     var genitore = cartella(parti.join('/'), crea);
     if (!genitore) return null;
-    var it = genitore.getFoldersByName(nome);
-    var trovata = it.hasNext() ? it.next() : (crea ? genitore.createFolder(nome) : null);
+    var trovata = op_('cercaCartella', function () { var it = genitore.getFoldersByName(nome); return it.hasNext() ? it.next() : null; });
+    if (!trovata && crea) trovata = op_('createFolder', function () { return genitore.createFolder(nome); });
     if (trovata) { cache.put('d:' + percorso, trovata.getId(), 21600); memoria['d:' + percorso] = trovata; }
     return trovata;
   }
@@ -190,14 +218,19 @@ function archivioDrive_() {
     if (memoria['f:' + percorso] !== undefined) return memoria['f:' + percorso];
     var id = cache.get('f:' + percorso);
     if (id) {
-      try { var f = DriveApp.getFileById(id); if (!f.isTrashed()) { memoria['f:' + percorso] = f; return f; } } catch (e) { /* cercato per nome */ }
+      // l'identificativo in cache è fidato: niente controllo del cestino (un'operazione Drive in più
+      // a ogni file). Se qualcuno butta un file a mano resta la copia in cache: serve svuotaCache.
+      try { var f = op_('getFileById', function () { return DriveApp.getFileById(id); }); memoria['f:' + percorso] = f; return f; } catch (e) { /* cercato per nome */ }
       cache.remove('f:' + percorso);
     }
     var parti = percorso.split('/'), nome = parti.pop();
     var dir = cartella(parti.join('/'), false), trovato = null;
     if (dir) {
-      var it = dir.getFilesByName(nome);
-      while (it.hasNext()) { var c = it.next(); if (!c.isTrashed()) { trovato = c; break; } }
+      trovato = op_('cercaFile', function () {
+        var it = dir.getFilesByName(nome);
+        while (it.hasNext()) { var c = it.next(); if (!c.isTrashed()) return c; }
+        return null;
+      });
     }
     if (trovato) cache.put('f:' + percorso, trovato.getId(), 21600);
     memoria['f:' + percorso] = trovato;
@@ -205,8 +238,8 @@ function archivioDrive_() {
   }
   // Il contenuto dei file si tiene anche nella cache di Apps Script (molto più
   // veloce di Drive): si aggiorna a ogni scrittura, che passa sempre di qui.
-  // I file grandi si spezzano in pezzi da 90 KB; oltre ~900 KB si legge da Drive.
-  var PEZZO = 90000, MAX_PEZZI = 10;
+  // I file grandi si spezzano in pezzi da 90 KB; oltre ~2,7 MB si legge da Drive.
+  var PEZZO = 90000, MAX_PEZZI = 30;
   // la generazione cambia con svuotaCache(): da lì tutto si rilegge da Drive
   function chiaveC(p) { return 'c' + generazioneCache_() + ':' + hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, p)).slice(0, 40); }
   // undefined: la cache non sa niente; null: il file non c'è; testo: il contenuto
@@ -243,7 +276,7 @@ function archivioDrive_() {
   // lettura lenta potrebbe rimettere in cache la versione vecchia di un file
   // appena salvato da un'altra persona.
   var inLock = false;
-  function testoDrive(p) { var f = file(p); return f ? f.getBlob().getDataAsString('UTF-8') : null; }
+  function testoDrive(p) { var f = file(p); return f ? op_('leggi', function () { return f.getBlob().getDataAsString('UTF-8'); }) : null; }
   function leggiTesto(p) {
     var c = daCache(p);
     if (c !== undefined) return c;
@@ -258,9 +291,10 @@ function archivioDrive_() {
     leggiJSON: function (p) { var t = leggiTesto(p); return t ? JSON.parse(t) : null; },
     scriviJSON: function (p, o) {
       var testo = JSON.stringify(o), f = file(p);
-      if (f) { f.setContent(testo); inCache(p, testo); return; }
+      if (f) { op_('setContent', function () { f.setContent(testo); }); inCache(p, testo); return; }
       var parti = p.split('/'), nome = parti.pop();
-      var nuovo = cartella(parti.join('/'), true).createFile(nome, testo, 'application/json');
+      var dir = cartella(parti.join('/'), true);
+      var nuovo = op_('createFile', function () { return dir.createFile(nome, testo, 'application/json'); });
       cache.put('f:' + p, nuovo.getId(), 21600);
       memoria['f:' + p] = nuovo;
       inCache(p, testo);
@@ -349,7 +383,7 @@ function risveglio() {
 // rileggere tutta da Drive.
 var _generazione = null;
 function generazioneCache_() {
-  if (_generazione == null) _generazione = PropertiesService.getScriptProperties().getProperty('GENERAZIONE_CACHE') || '0';
+  if (_generazione == null) _generazione = prop_('GENERAZIONE_CACHE') || '0';
   return _generazione;
 }
 function svuotaCache() {

@@ -140,6 +140,7 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
 {
   // tutto quello creato sopra fa da "pazienti di prima" (custode senza registro)
   fs.rmSync(path.join(dir, '_config/pazienti.json'), { force: true });
+  c.cache.scadi();   // un file tolto a mano si vede solo dopo aver svuotato la cache (come svuotaCache su Apps Script)
   const vede = (email, rid) => { const d = chiama(email, 'sync', {}).dati; return d.ambiti.includes('r:' + rid); };
   ok((chiama('elena@aula.it', 'io').dati.funzioni || []).includes('riservati'), 'il custode dichiara i pazienti riservati');
   let r = chiama('elena@aula.it', 'sync', { invii: [voce('rpriv1', 'ragazzo', 'r:rpriv1'), voce('rpriv1sc', 'scheda', 'r:rpriv1')] });
@@ -465,7 +466,7 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   const att = ch('stefano@aula.it', 'sync', { cursori: {} }).dati;
   k.cache.scadi();
   x = letture(() => ch('stefano@aula.it', 'sync', { cursori: att.cursori, impronta: att.impronta }));
-  ok(x.r.dati.uguale === true && x.r.dati.rev === att.rev && x.n === 5, 'cache vuota: risposta giusta, ricostruita leggendo i 5 file [' + x.n + ']');
+  ok(x.r.dati.uguale === true && x.r.dati.rev === att.rev && x.n >= 5 && x.n <= 5 + 8, 'cache vuota: risposta giusta, ricostruita leggendo i 5 file (più gli ambiti sporchi) [' + x.n + ']');
   x = letture(() => ch('stefano@aula.it', 'sync', { cursori: att.cursori, impronta: att.impronta }));
   ok(x.r.dati.uguale === true && x.n === 0, 'poi di nuovo zero letture');
   k.cache.scadi();
@@ -493,6 +494,114 @@ ok(chiama('giulia@aula.it', 'io').errore === 'non-autorizzato', 'e lei non entra
   const r2 = k2.gestisci({ v: 1, token: 'dev:stefano@aula.it', azione: 'cifratura.imposta', dati: { cifratura } });
   ok(!r2.ok && r2.errore === 'interno' && k2.conta.scritture === 0, 'cache che non si svuota: la scrittura non parte (errore, l\'app riprova)');
   fs.rmSync(d5, { recursive: true, force: true });
+}
+
+// ---- salvataggio leggero: poche operazioni, stato.json solo quando serve ----
+{
+  const d6 = fs.mkdtempSync(path.join(os.tmpdir(), 'psy-leggero-'));
+  const k = creaLocale(d6, { proprietario: 'stefano@aula.it' });
+  const ch = (email, azione, dati) => k.gestisci({ v: 1, token: 'dev:' + email, azione, dati });
+  const unica = (i) => Object.assign(busta(), { iv: 'AAAAAAAAAAAA' + String(i).padStart(4, '0') });
+  const letto = (p) => JSON.parse(fs.readFileSync(path.join(d6, p), 'utf8'));
+  const prova = (fn) => { k.conta.letture = 0; k.conta.scritture = 0; k.conta.file = []; k.conta.scritti = []; return fn(); };
+  ch('stefano@aula.it', 'cifratura.imposta', { cifratura });
+  ch('stefano@aula.it', 'accessi.salva', { accessi: { utenti: { 'elena@aula.it': { nome: 'Elena', ruolo: 'admin' } } }, versioneBase: 0 });
+  const salva = (email, id, ver, i, ambito = 'aula', tipo = 'seduta') => ch(email, 'sync', { invii: [Object.assign(voce(id, tipo, ambito, ver), { busta: unica(i) })] });
+  const altro = ch('elena@aula.it', 'sync', { cursori: {} }).dati;
+
+  // voce nuova: cambia l'indice, stato.json si riscrive (e l'ambito diventa «sporco»)
+  let x = prova(() => salva('stefano@aula.it', 'sl1', 0, 0));
+  ok(x.ok && x.dati.esiti[0].ok && k.conta.scritti.includes('_config/stato.json') && k.conta.scritti.includes('Dati/aula.json'), 'voce nuova: si scrivono stato.json e il file dell\'ambito');
+  ok(letto('_config/stato.json').sporco.aula === true && letto('_config/stato.json').indice.sl1 === 'aula', 'stato.json segna l\'ambito come sporco e ha l\'indice');
+  ok(x.fasi && typeof x.fasi === 'object' && x.fasi.nScritture >= 2 && Array.isArray(x.fasi.file) && x.fasi.file.some((f) => /^S aula:\d+$/.test(f)), 'la risposta dice le fasi (scritture e file)');
+  // modifica di una voce che c'è: prima volta archivia la storia, ma stato.json non si riscrive
+  x = prova(() => salva('stefano@aula.it', 'sl1', 1, 1));
+  ok(x.dati.esiti[0].ok && !k.conta.scritti.includes('_config/stato.json') && k.conta.scritti.includes('Dati/aula.json') && k.conta.scritti.includes('Storia/aula.json'), 'seconda modifica: file dei dati e storia, non stato.json [' + k.conta.scritti + ']');
+  // raffica: un solo file scritto, e la storia non si legge nemmeno
+  const rev0 = x.dati.rev;
+  for (let i = 2; i <= 5; i++) {
+    x = prova(() => salva('stefano@aula.it', 'sl1', i, i));
+    ok(x.dati.esiti[0].ok && k.conta.scritti.join() === 'Dati/aula.json' && k.conta.scritture === 1 && !k.conta.file.includes('Storia/aula.json') && k.conta.letture <= 1, 'raffica #' + i + ': una scrittura (il file dei dati) e al più una lettura [' + k.conta.scritti + ' | ' + k.conta.file + ']');
+    ok(x.dati.rev === rev0 + i - 1, 'la revisione cresce di uno a ogni salvataggio (' + x.dati.rev + ')');
+  }
+  ok(x.fasi.nScritture === 1 && x.fasi.nLetture <= 1, 'le fasi lo confermano (' + x.fasi.nLetture + ' letture, ' + x.fasi.nScritture + ' scritture)');
+  // stato.json su Drive è rimasto indietro, ma chi chiede riceve la revisione giusta e la novità
+  ok(letto('_config/stato.json').rev < x.dati.rev, 'stato.json su disco è in ritardo (di proposito)');
+  let o = ch('elena@aula.it', 'sync', { cursori: altro.cursori, impronta: altro.impronta });
+  ok(o.dati.rev === x.dati.rev && o.dati.voci.some((v) => v.id === 'sl1' && v.version === 6) && o.dati.voci.every((v) => !('arch' in v)), 'l\'altro riceve l\'ultima versione, senza il promemoria interno');
+  ok(!('arch' in (salva('stefano@aula.it', 'sl1', 0, 9).dati.esiti[0].extra.attuale)), 'nemmeno nei conflitti esce il promemoria');
+  // la cache sparisce (scade, Google la svuota): le revisioni si ricostruiscono dai file, mai indietro
+  k.cache.scadi();
+  o = ch('elena@aula.it', 'sync', { cursori: altro.cursori, impronta: altro.impronta });
+  ok(o.dati.rev === x.dati.rev && o.dati.voci.some((v) => v.id === 'sl1' && v.version === 6), 'cache vuota: stessa revisione e stessa novità');
+  k.cache.scadi();
+  x = salva('elena@aula.it', 'sl1', 6, 10);
+  ok(x.dati.esiti[0].ok && x.dati.rev === o.dati.rev + 1, 'cache vuota e salvataggio: la revisione continua senza saltare indietro');
+  ok(ch('stefano@aula.it', 'sync', { cursori: o.dati.cursori }).dati.voci.some((v) => v.id === 'sl1' && v.version === 7), 'e Stefano lo riceve');
+  // anche il rev dell'ambito che gli altri vedono torna giusto dopo una cache vuota in mezzo a più salvataggi
+  k.cache.scadi(); salva('elena@aula.it', 'sl1', 7, 11);
+  k.cache.scadi(); const dopo = salva('stefano@aula.it', 'sl1', 8, 12);
+  ok(dopo.dati.esiti[0].ok && dopo.dati.rev === x.dati.rev + 2, 'due cache vuote di fila: nessuna revisione ripetuta o persa');
+
+  // un salvataggio interrotto a metà non lascia stati falsi
+  const st1 = ch('elena@aula.it', 'sync', { cursori: {} }).dati;
+  k.conta.guastoSu = 'Dati/aula.json';
+  ok(salva('stefano@aula.it', 'sl1', 9, 13).errore === 'interno', 'scrittura leggera interrotta: errore, l\'app riprova');
+  k.conta.guastoSu = null;
+  const st2 = ch('elena@aula.it', 'sync', { cursori: st1.cursori, impronta: st1.impronta }).dati;
+  ok(st2.rev === st1.rev && st2.voci.length === 0, 'dopo l\'interruzione nessuna novità falsa');
+  ok(salva('stefano@aula.it', 'sl1', 9, 13).dati.esiti[0].ok && ch('elena@aula.it', 'sync', { cursori: st1.cursori }).dati.voci.some((v) => v.version === 10), 'il reinvio va a buon fine e arriva');
+
+  // una voce scritta prima del promemoria (senza «arch») si comporta come prima
+  const f = letto('Dati/aula.json'); delete f.voci.sl1.arch; fs.writeFileSync(path.join(d6, 'Dati/aula.json'), JSON.stringify(f)); k.cache.scadi();
+  x = prova(() => salva('stefano@aula.it', 'sl1', 10, 14));
+  ok(x.dati.esiti[0].ok && !k.conta.scritti.includes('Storia/aula.json'), 'voce vecchia, senza promemoria: la raffica si riconosce leggendo la storia');
+  x = prova(() => salva('stefano@aula.it', 'sl1', 11, 15));
+  ok(x.dati.esiti[0].ok && !k.conta.file.includes('Storia/aula.json') && k.conta.scritti.join() === 'Dati/aula.json', 'e dal salvataggio dopo il promemoria c\'è e la storia non si legge più');
+
+  // nessun cambiamento: niente da riscrivere (conflitto, reinvio)
+  x = prova(() => salva('stefano@aula.it', 'sl1', 3, 99));
+  ok(x.dati.esiti[0].errore === 'conflitto' && k.conta.scritture === 0, 'un conflitto non riscrive niente');
+
+  // una voce in un ambito nuovo (paziente) e poi le modifiche leggere lì
+  x = prova(() => ch('stefano@aula.it', 'sync', { invii: [voce('rsl01', 'ragazzo', 'aula'), voce('rsl01s', 'scheda', 'r:rsl01')] }));
+  ok(x.dati.esiti.every((e) => e.ok) && k.conta.scritti.includes('_config/stato.json') && k.conta.scritti.includes('_config/pazienti.json'), 'paziente nuovo: registro e stato.json');
+  x = prova(() => salva('stefano@aula.it', 'rsl01s', 1, 20, 'r:rsl01', 'scheda'));
+  ok(x.dati.esiti[0].ok && !k.conta.scritti.includes('_config/stato.json') && k.conta.scritti.includes('Dati/ragazzi/rsl01.json'), 'modifica della scheda: solo il suo file (e la storia)');
+  x = prova(() => salva('stefano@aula.it', 'rsl01s', 2, 21, 'r:rsl01', 'scheda'));
+  ok(k.conta.scritti.join() === 'Dati/ragazzi/rsl01.json', 'e in raffica solo il suo file [' + k.conta.scritti + ']');
+  // una voce che cambia ambito: cambia l'indice e lo stato si riscrive, la lapide resta
+  x = prova(() => salva('stefano@aula.it', 'sl1', 12, 30, 'r:rsl01', 'seduta'));
+  ok(x.dati.esiti[0].ok && k.conta.scritti.includes('_config/stato.json'), 'cambio di ambito: stato.json si riscrive (indice)');
+  ok(salva('stefano@aula.it', 'sl1', 13, 31, 'r:rsl01', 'seduta').dati.esiti[0].ok, 'e la voce si modifica ancora nel nuovo ambito');
+  ok(ch('stefano@aula.it', 'voce.storia', { id: 'sl1', ambito: 'r:rsl01' }).ok, 'la storia si legge');
+
+  // molti ambiti nuovi: l'elenco degli «sporchi» resta piccolo e la ricostruzione è giusta
+  const molti = [];
+  for (let i = 0; i < 14; i++) { const id = 'rm' + String(i).padStart(2, '0'); molti.push(voce(id, 'ragazzo', 'aula'), voce(id + 's', 'scheda', 'r:' + id)); }
+  ch('stefano@aula.it', 'sync', { invii: molti });
+  for (let i = 0; i < 14; i++) { const id = 'rm' + String(i).padStart(2, '0'); salva('stefano@aula.it', id + 's', 1, 40 + i, 'r:' + id, 'scheda'); salva('stefano@aula.it', id + 's', 2, 60 + i, 'r:' + id, 'scheda'); }
+  ok(Object.keys(letto('_config/stato.json').sporco).length <= 8, 'gli ambiti sporchi non superano il massimo (' + Object.keys(letto('_config/stato.json').sporco).length + ')');
+  const viva = ch('stefano@aula.it', 'sync', { cursori: {} }).dati;
+  k.cache.scadi();
+  const rico = ch('stefano@aula.it', 'sync', { cursori: {} }).dati;
+  ok(rico.rev === viva.rev && JSON.stringify(rico.cursori) === JSON.stringify(viva.cursori), 'dopo la cache vuota revisione e cursori di ogni ambito sono quelli di prima');
+  // una voce con 8 ambiti scritti insieme in un colpo
+  const insieme = []; for (let i = 0; i < 12; i++) { const id = 'rm' + String(i).padStart(2, '0'); insieme.push(Object.assign(voce(id + 's', 'scheda', 'r:' + id, 3), { busta: unica(100 + i) })); }
+  ok(ch('stefano@aula.it', 'sync', { invii: insieme }).dati.esiti.every((e) => e.ok), 'dodici ambiti in una richiesta sola');
+  k.cache.scadi();
+  const fine = ch('stefano@aula.it', 'sync', { cursori: {} }).dati;
+  ok(fine.rev === viva.rev + 12 && fine.voci.filter((v) => v.version === 4).length === 12, 'tutti ricostruiti e visibili dopo la cache vuota');
+
+  // senza cache non si usa la scrittura leggera (ogni salvataggio riscrive stato.json, come prima)
+  const k2 = creaLocale(fs.mkdtempSync(path.join(d6, 'x-')), { proprietario: 'stefano@aula.it', cache: false });
+  const c2 = (azione, dati) => k2.gestisci({ v: 1, token: 'dev:stefano@aula.it', azione, dati });
+  c2('cifratura.imposta', { cifratura });
+  c2('sync', { invii: [voce('a1', 'seduta', 'aula')] });
+  k2.conta.scritti = [];
+  c2('sync', { invii: [Object.assign(voce('a1', 'seduta', 'aula', 1), { busta: unica(1) })] });
+  ok(k2.conta.scritti.includes('_config/stato.json') && c2('sync', { cursori: {} }).dati.rev === 2, 'senza cache: stato.json si riscrive a ogni salvataggio');
+  fs.rmSync(d6, { recursive: true, force: true });
 }
 
 fs.rmSync(dir, { recursive: true, force: true });

@@ -3,7 +3,7 @@
   // e quanta parte di quell'attesa è il lavoro del custode (il resto è il viaggio dei dati e l'avvio di
   // Apps Script). Le misure sono quelle delle ultime chiamate vere di questo dispositivo.
   import { velocita, misuraOra, cancellaMisure, sync } from '../../lib/centro/sync.svelte.js';
-  import { riepilogo, durata, giudizio } from '../../lib/centro/misure.js';
+  import { riepilogo, durata, giudizio, righeFasi, operazioniDrive, FASI_TENUTE } from '../../lib/centro/misure.js';
 
   const VOCI = [
     { tipo: 'controllo', nome: 'Controllo novità', desc: 'Ogni volta che l\'app guarda se c\'è qualcosa di nuovo.' },
@@ -14,7 +14,11 @@
     return { ...v, r, g: giudizio(r.mediana), tot: r.custode === null ? 0 : r.custode + r.resto };
   }));
   const pronto = $derived(sync.fase === 'pronto' && sync.online);
+  const FASI = FASI_TENUTE;
   const nessuna = $derived(!velocita.misure.some((m) => m.tipo === 'controllo' || m.tipo === 'salvataggio'));
+  // gli ultimi salvataggi col dettaglio del custode, dal più recente
+  const dettagli = $derived([...velocita.fasi].reverse().map((m) => ({ ...m, righe: righeFasi(m.fasi), drive: operazioniDrive(m.fasi) })));
+  const ora = (t) => new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const percento = (c) => (c.tot > 0 ? Math.max(3, Math.min(97, (c.r.custode / c.tot) * 100)) : 0);
 
   function spiega(c) {
@@ -60,6 +64,27 @@
     {/each}
   </div>
 
+  <details class="dettagli">
+    <summary>Dettagli</summary>
+    <p class="sotto piccolo">Dove va il tempo del custode negli ultimi {FASI} salvataggi (più recente in alto). «Quante · quanto» è il numero di operazioni e il tempo che hanno richiesto. Utile da mostrare a chi mantiene PsyDiary.</p>
+    {#if dettagli.length}
+      <div class="salvataggi">
+        {#each dettagli as m (m.t)}
+          <section class="salvataggio" aria-label={'Salvataggio delle ' + ora(m.t)}>
+            <h4>{ora(m.t)} <span class="sotto">· totale {durata(m.totale)}{m.ms !== null ? ` · custode ${durata(m.ms)}` : ''}{m.drive ? ` · ${m.drive} operazioni su Drive` : ''}</span></h4>
+            <dl class="righe">
+              {#each m.righe as [nome, valore] (nome)}
+                <div><dt>{nome}</dt><dd>{valore}</dd></div>
+              {/each}
+            </dl>
+          </section>
+        {/each}
+      </div>
+    {:else}
+      <p class="sotto piccolo">Nessun salvataggio con dettagli: compare dopo la prossima modifica che salvi (serve il custode aggiornato).</p>
+    {/if}
+  </details>
+
   <div class="azioni">
     <button class="btn" onclick={() => misuraOra()} disabled={velocita.misurando || !pronto}>
       {velocita.misurando ? `Misuro… ${velocita.passo} di 3` : 'Misura ora'}
@@ -98,5 +123,14 @@
   .pallino.rete { background: var(--inchiostro-3); }
   .spiega { margin: var(--s-1) 0 0; font-size: var(--t-sm); color: var(--inchiostro-2); max-width: 62ch; }
   .azioni { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .dettagli { width: 100%; }
+  .dettagli summary { cursor: pointer; font: 600 var(--t-sm) var(--f-testo); color: var(--inchiostro-2); padding: var(--s-1) 0; }
+  .salvataggi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: var(--s-2); margin-top: var(--s-2); }
+  .salvataggio { padding: var(--s-3); background: var(--carta-2); border: 1px solid var(--matita); border-radius: var(--r-grande); min-width: 0; }
+  h4 { margin: 0 0 var(--s-1); font: 600 var(--t-sm) var(--f-testo); }
+  h4 .sotto { font-weight: 400; }
+  .righe { display: grid; gap: 2px; margin: 0; }
+  .righe div { display: grid; grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr); gap: var(--s-2); font-size: var(--t-xs); }
+  .righe dd { font: 400 var(--t-xs) var(--f-testo); overflow-wrap: anywhere; }
   @media (max-width: 720px) { .scheda { padding: var(--s-3); } }
 </style>

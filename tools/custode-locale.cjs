@@ -37,10 +37,10 @@ function creaLocale(dir, opz = {}) {
   let ora = opz.ora || (() => new Date().toISOString());
   const base = archivioSuDisco(dir);
   // conta le letture e le scritture di file (le immagini no): serve a vedere quanto costa una richiesta
-  const conta = { letture: 0, scritture: 0, file: [] };
+  const conta = { letture: 0, scritture: 0, file: [], scritti: [] };
   const archivio = { ...base,
     leggiJSON: (x) => { conta.letture++; conta.file.push(x); return base.leggiJSON(x); },
-    scriviJSON: (x, o) => { if (conta.guastoSu && x.includes(conta.guastoSu)) throw new Error('guasto di prova su ' + x); conta.scritture++; return base.scriviJSON(x, o); },
+    scriviJSON: (x, o) => { if (conta.guastoSu && x.includes(conta.guastoSu)) throw new Error('guasto di prova su ' + x); conta.scritture++; conta.scritti.push(x); return base.scriviJSON(x, o); },
   };
   const cache = opz.cache === false ? undefined : opz.cache || cacheInMemoria();
   const custode = PD.creaCustode({

@@ -15,22 +15,28 @@ let n = 0, f = 0;
 const ok = (c, m) => { n++; if (!c) f++; console.log((c ? 'ok  ' : 'NO  ') + m); };
 
 let contatore = 0, lettureDrive = 0;
+// operazioni Drive per tipo (ciascuna costa da 0,3 a 1,5 s su Apps Script): si azzerano con azzeraOp()
+const op = {};
+const conta = (t) => { op[t] = (op[t] || 0) + 1; };
+const azzeraOp = () => { Object.keys(op).forEach((k) => delete op[k]); };
+const totaleOp = () => Object.values(op).reduce((a, b) => a + b, 0);
+const tipiOp = () => Object.keys(op).sort().map((k) => k + ':' + op[k]).join(' ');
 const tutti = {};
 const it = (l) => { let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; };
 const conSegno = (buf) => Array.from(buf).map((b) => (b > 127 ? b - 256 : b));
 function nuovoFile(nome, contenuto) {
   const x = { _tipo: 'file', _id: 'id' + ++contatore, _nome: nome, _testo: contenuto, _cestino: false,
-    getId: () => x._id, getName: () => x._nome, isTrashed: () => x._cestino,
-    getBlob: () => { lettureDrive++; return { getDataAsString: () => x._testo }; }, setContent: (t) => { x._testo = t; } };
+    getId: () => x._id, getName: () => x._nome, isTrashed: () => { conta('isTrashed'); return x._cestino; },
+    getBlob: () => { lettureDrive++; conta('leggi'); return { getDataAsString: () => x._testo }; }, setContent: (t) => { conta('setContent'); x._testo = t; } };
   tutti[x._id] = x; return x;
 }
 function nuovaCartella(nome) {
   const d = { _tipo: 'cartella', _id: 'id' + ++contatore, _nome: nome, _file: [], _cartelle: [],
     getId: () => d._id, getName: () => d._nome, getUrl: () => 'https://drive/' + d._id, setDescription: () => {},
-    getFoldersByName: (x) => it(d._cartelle.filter((c) => c._nome === x)),
-    getFilesByName: (x) => it(d._file.filter((c) => c._nome === x)),
-    createFolder: (x) => { const c = nuovaCartella(x); d._cartelle.push(c); return c; },
-    createFile: (x, t) => { const c = nuovoFile(x, t); d._file.push(c); return c; } };
+    getFoldersByName: (x) => { conta('getFoldersByName'); return it(d._cartelle.filter((c) => c._nome === x)); },
+    getFilesByName: (x) => { conta('getFilesByName'); return it(d._file.filter((c) => c._nome === x)); },
+    createFolder: (x) => { conta('createFolder'); const c = nuovaCartella(x); d._cartelle.push(c); return c; },
+    createFile: (x, t) => { conta('createFile'); const c = nuovoFile(x, t); d._file.push(c); return c; } };
   tutti[d._id] = d; return d;
 }
 const mioDrive = [];
@@ -51,8 +57,8 @@ function tokeninfo(t) {
 const ctx = {
   console,
   DriveApp: {
-    getFolderById: (id) => { const x = tutti[id]; if (!x || x._tipo !== 'cartella') throw new Error('nf'); return x; },
-    getFileById: (id) => { const x = tutti[id]; if (!x || x._tipo !== 'file') throw new Error('nf'); return x; },
+    getFolderById: (id) => { conta('getFolderById'); const x = tutti[id]; if (!x || x._tipo !== 'cartella') throw new Error('nf'); return x; },
+    getFileById: (id) => { conta('getFileById'); const x = tutti[id]; if (!x || x._tipo !== 'file') throw new Error('nf'); return x; },
     createFolder: (nome) => { const c = nuovaCartella(nome); mioDrive.push(c); return c; },
   },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => prop[k] || null, setProperty: (k, v) => { prop[k] = v; }, deleteProperty: (k) => { delete prop[k]; } }) },
@@ -216,6 +222,64 @@ emailSessione = 'stefano@aula.it';
   ok(rifiutato, 'cache dello stato: oltre ~900 KB non si tiene (si leggono i file)');
   cs.remove('prova');
   ok(cs.get('prova') === null, 'cache dello stato: remove');
+}
+
+// ---- quante operazioni Drive costa un salvataggio (ciascuna: 0,3-1,5 s su Apps Script) ----
+{
+  const nuovaEsecuzione = () => vm.runInContext('_custode = null;', ctx);
+  const E = 'stefano@aula.it', E2 = 'elena@aula.it';
+  const unica = (i) => Object.assign({}, b, { iv: 'AAAAAAAAAAAA' + String(i).padStart(4, '0') });
+  const v = (id, tipo, ambito, ver, i) => ({ id, tipo, ambito, versioneBase: ver, busta: unica(i) });
+  const salva = (invii, chi = E) => { nuovaEsecuzione(); azzeraOp(); return chiama(chi, 'sync', { invii }); };
+  chiama(E, 'accessi.salva', { accessi: { utenti: { [E2]: { nome: 'Elena', ruolo: 'admin' } } }, versioneBase: 0 });
+  nuovaEsecuzione(); chiama(E, 'sync', { cursori: {} });   // una richiesta di lettura prima, come fa l'app: la cache dello stato è calda
+  const MAX_NUOVO = 10, MAX_NORMALE = 6, MAX_RAFFICA = 2;
+  let ver = 0, i = 0;
+
+  // voce nuova in un ambito che c'è già: il file dell'ambito e stato.json (l'indice)
+  let r = salva([v('sg1', 'seduta', 'aula', 0, ++i)]); ver = 1;
+  ok(r.ok && r.dati.esiti[0].ok && totaleOp() <= 4, 'voce nuova: al massimo 4 operazioni Drive [' + tipiOp() + ']');
+  // la prima modifica crea il file della storia (una volta sola nella vita dell'ambito)
+  r = salva([v('sg1', 'seduta', 'aula', ver++, ++i)]);
+  ok(r.dati.esiti[0].ok, 'prima modifica (crea il file della storia)');
+  // un'altra persona modifica: si archivia la versione di Stefano: dati + storia, stato.json no
+  r = salva([v('sg1', 'seduta', 'aula', ver++, ++i)], E2);
+  ok(r.dati.esiti[0].ok && totaleOp() <= MAX_NORMALE && !op.isTrashed, 'salvataggio normale: al massimo ' + MAX_NORMALE + ' operazioni Drive [' + tipiOp() + ']');
+  ok(op.setContent === 2 && op.leggi === undefined && op.getFilesByName === undefined && op.getFoldersByName === undefined, 'normale: due scritture, nessuna lettura né ricerca per nome [' + tipiOp() + ']');
+  ok(r.fasi && r.fasi.ops && r.fasi.ops.setContent && r.fasi.ops.setContent[0] === 2 && r.fasi.ops.getFileById[0] === 2 && r.fasi.nScritture === 2, 'la risposta dice le operazioni Drive per tipo e il loro tempo');
+  // la raffica: due operazioni, il file dei dati
+  r = salva([v('sg1', 'seduta', 'aula', ver++, ++i)], E2);   // (il secondo di Elena archivia ancora: la versione precedente era di Stefano)
+  ok(r.dati.esiti[0].ok, 'ancora una modifica di Elena');
+  for (let k = 0; k < 3; k++) {
+    r = salva([v('sg1', 'seduta', 'aula', ver++, ++i)], E2);
+    ok(r.dati.esiti[0].ok && totaleOp() <= MAX_RAFFICA, 'raffica #' + (k + 1) + ': al massimo ' + MAX_RAFFICA + ' operazioni Drive [' + tipiOp() + ']');
+  }
+  ok(op.getFileById === 1 && op.setContent === 1 && r.fasi.nLetture <= 1, 'raffica: un getFileById e un setContent');
+  // lo stato visto da un altro dispositivo è giusto (stato.json su Drive è in ritardo di proposito)
+  nuovaEsecuzione();
+  const dopo = chiama(E, 'sync', { cursori: {} }).dati;
+  ok(dopo.rev === r.dati.rev && dopo.voci.some((x) => x.id === 'sg1' && x.version === ver), 'la raffica arriva intera a chi chiede dopo');
+  // con tutta la cache svuotata (Google lo fa quando vuole)
+  Object.keys(cache).forEach((k) => delete cache[k]);
+  r = salva([v('sg1', 'seduta', 'aula', ver++, ++i)], E2);
+  ok(r.dati.esiti[0].ok && r.dati.rev === dopo.rev + 1, 'cache svuotata del tutto: il salvataggio riparte e la revisione non torna indietro');
+  r = salva([v('sg1', 'seduta', 'aula', ver++, ++i)], E2);
+  ok(r.dati.esiti[0].ok && totaleOp() <= MAX_RAFFICA, 'e subito dopo si torna a ' + MAX_RAFFICA + ' operazioni [' + tipiOp() + ']');
+
+  // paziente nuovo: registro, ambito aula, file del paziente (nuovo) e stato.json
+  r = salva([v('rnuovo1', 'ragazzo', 'aula', 0, ++i), v('rnuovo1sc', 'scheda', 'r:rnuovo1', 0, ++i)]);
+  ok(r.dati.esiti.every((e) => e.ok) && totaleOp() <= MAX_NUOVO, 'paziente nuovo: al massimo ' + MAX_NUOVO + ' operazioni Drive [' + tipiOp() + ']');
+  // la sua scheda (riservata a Stefano): la prima modifica crea il file della storia del paziente (una volta sola)
+  r = salva([v('rnuovo1sc', 'scheda', 'r:rnuovo1', 1, ++i)]);
+  ok(r.dati.esiti[0].ok && totaleOp() <= 8, 'prima modifica della scheda (crea la storia del paziente): al massimo 8 operazioni [' + tipiOp() + ']');
+  r = salva([v('rnuovo1sc', 'scheda', 'r:rnuovo1', 2, ++i)]);
+  ok(r.dati.esiti[0].ok && totaleOp() <= MAX_RAFFICA, 'modifica successiva della scheda (raffica): al massimo ' + MAX_RAFFICA + ' operazioni [' + tipiOp() + ']');
+  // un controllo a riposo non tocca Drive
+  nuovaEsecuzione();
+  const cur = chiama(E, 'sync', { cursori: {} }).dati;
+  nuovaEsecuzione(); azzeraOp();
+  const q = chiama(E, 'sync', { cursori: cur.cursori, impronta: cur.impronta });
+  ok(q.dati.uguale && totaleOp() === 0 && q.fasi && q.fasi.nCache >= 1, 'controllo a riposo: zero operazioni Drive, e dice quante volte ha usato la cache');
 }
 
 console.log(`\n${n - f}/${n} superati`);
